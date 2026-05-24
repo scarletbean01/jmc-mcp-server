@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static io.github.deplague.jmcmcp.tools.SchemaUtil.getIntOrDefault;
+
 /**
  * MCP tool for JIT compilation and Deoptimization analysis.
  */
@@ -52,7 +54,7 @@ public final class JitCompilationTool {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
+                        int topN = getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -110,7 +112,7 @@ public final class JitCompilationTool {
                     .forEach(item -> {
                         Object method = JfrItemUtils.getMember(item, "method").orElse(null);
                         IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                        Object level = JfrItemUtils.getMember(item, "compilationId").orElse(null); // JMC often labels level here or separate
+                        Object level = JfrItemUtils.getMember(item, "compilationId").orElse(null);
                         sb.append(String.format("| `%s` | %s | %s |%n", method, JfrAnalysisService.display(duration), level));
                     });
             sb.append("\n");
@@ -173,6 +175,5 @@ public final class JitCompilationTool {
 
         return sb.toString();
     }
-
 
 }

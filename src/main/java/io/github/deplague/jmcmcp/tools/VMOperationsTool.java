@@ -5,7 +5,6 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.ItemFilters;
@@ -17,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * MCP tool for analyzing VM operations and Safepoints.
+ * MCP tool for analyzing VM operations (Safepoints, VM Stops).
  */
 public final class VMOperationsTool {
 
@@ -33,11 +32,14 @@ public final class VMOperationsTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Analyze VM operations and Safepoints in a JFR recording. " +
-                                "Helps identify 'stop-the-world' pauses caused by something other than GC.")
+                        .description("Analyze VM operations and safepoint events in a JFR recording. " +
+                                "Reports longest VM operations and total STW time.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file")
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
+                                        "top_n", SchemaUtil.intProp("Number of top VM operations to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
@@ -45,13 +47,16 @@ public final class VMOperationsTool {
                 .callHandler((exchange, request) -> {
                     try {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -64,43 +69,32 @@ public final class VMOperationsTool {
                 .build();
     }
 
-    private String analyze(String filePath) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+
         StringBuilder sb = new StringBuilder();
-        sb.append("# VM Operations & Safepoints\n\n");
+        sb.append("# VM Operations Analysis\n\n");
 
-        // Safepoints
-        var safepoints = events.apply(ItemFilters.type("jdk.SafepointBegin"));
-        if (safepoints.hasItems()) {
-            sb.append("## Safepoints\n");
-            IQuantity count = safepoints.getAggregate(Aggregators.count());
-            // Duration is usually in jdk.SafepointEnd or as a duration on jdk.ExecuteVMOperation
-            sb.append(String.format("- **Total Safepoints:** %s%n", JfrAnalysisService.display(count)));
-            sb.append("\n");
-        }
-
-        // VM Operations
-        var vmOps = events.apply(ItemFilters.type("jdk.ExecuteVMOperation"));
+        IItemCollection vmOps = events.apply(ItemFilters.type("jdk.ExecuteVMOperation"));
         if (vmOps.hasItems()) {
-            sb.append("## VM Operations\n");
-            IQuantity count = vmOps.getAggregate(Aggregators.count());
-            IQuantity avgDuration = vmOps.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
+            IQuantity totalDuration = JfrItemUtils.sumQuantity(vmOps, JfrAttributes.DURATION.getIdentifier());
             IQuantity maxDuration = JfrItemUtils.maxQuantity(vmOps, JfrAttributes.DURATION.getIdentifier());
+            IQuantity avgDuration = JfrItemUtils.avgQuantity(vmOps, JfrAttributes.DURATION.getIdentifier());
 
-            sb.append(String.format("- **Total Operations:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Avg Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
+            sb.append("## Summary\n");
+            sb.append(String.format("- **Total VM Ops Duration:** %s%n", JfrAnalysisService.display(totalDuration)));
+            sb.append(String.format("- **Max VM Op Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
+            sb.append(String.format("- **Avg VM Op Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
             sb.append("\n");
 
-            sb.append("### Top VM Operations by Duration\n");
-            sb.append("| Operation | Caller | Duration |\n");
-            sb.append("|-----------|--------|----------|\n");
+            sb.append("## Longest VM Operations\n");
+            sb.append("| Operation | Duration | Caller |\n");
+            sb.append("|-----------|----------|--------|\n");
 
-            // Sort and list some top operations
-            List<IItem> sortedOps = new ArrayList<>();
-            vmOps.forEach(iterable -> iterable.forEach(sortedOps::add));
-
-            sortedOps.stream()
+            List<IItem> sorted = new ArrayList<>();
+            vmOps.forEach(iterable -> iterable.forEach(sorted::add));
+            sorted.stream()
                     .sorted((a, b) -> {
                         IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                         IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
@@ -108,22 +102,17 @@ public final class VMOperationsTool {
                         if (db == null) return -1;
                         return db.compareTo(da);
                     })
-                    .limit(10)
+                    .limit(topN)
                     .forEach(item -> {
                         Object operation = JfrItemUtils.getMember(item, "operation").orElse(null);
-                        Object caller = JfrItemUtils.getMember(item, "caller").orElse(null);
                         IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                        sb.append(String.format("| %s | %s | %s |%n", operation, caller, JfrAnalysisService.display(duration)));
+                        Object caller = JfrItemUtils.getMember(item, "caller").orElse(null);
+                        sb.append(String.format("| %s | %s | %s |%n", operation, JfrAnalysisService.display(duration), caller));
                     });
-            sb.append("\n");
-        }
-
-        if (!safepoints.hasItems() && !vmOps.hasItems()) {
-            sb.append("No VM operation or safepoint events found in this recording.\n");
+        } else {
+            sb.append("No VM operation events found in the recording.\n");
         }
 
         return sb.toString();
     }
-
-
 }

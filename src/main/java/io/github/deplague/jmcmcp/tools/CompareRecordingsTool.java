@@ -32,7 +32,7 @@ public final class CompareRecordingsTool {
     private record MetricDef(String category, String label, String eventId, String attrId, AggType type) {
     }
 
-    private enum AggType {SUM, AVG, MAX, COUNT}
+    private enum AggType {SUM, AVG, MAX, COUNT, P95, P99}
 
     private static final List<MetricDef> METRICS = List.of(
             // CPU
@@ -42,20 +42,30 @@ public final class CompareRecordingsTool {
             // GC
             new MetricDef("Garbage Collection", "Total GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
             new MetricDef("Garbage Collection", "Max GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.MAX),
+            new MetricDef("Garbage Collection", "P95 GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.P95),
+            new MetricDef("Garbage Collection", "P99 GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.P99),
             new MetricDef("Garbage Collection", "Young GC Count", "jdk.YoungGarbageCollection", null, AggType.COUNT),
             new MetricDef("Garbage Collection", "Old GC Count", "jdk.OldGarbageCollection", null, AggType.COUNT),
             new MetricDef("Garbage Collection", "Avg Heap Used", "jdk.GCHeapSummary", "heapUsed", AggType.AVG),
             // Memory
             new MetricDef("Memory", "Total TLAB Alloc", "jdk.ObjectAllocationInNewTLAB", "tlabSize", AggType.SUM),
             new MetricDef("Memory", "Total Non-TLAB Alloc", "jdk.ObjectAllocationOutsideTLAB", "allocationSize", AggType.SUM),
+            new MetricDef("Memory", "Avg Metaspace Used", "jdk.MetaspaceSummary", "metaspace.used", AggType.AVG),
+            new MetricDef("Memory", "Max Code Cache Entries", "jdk.CodeCacheStatistics", "entries", AggType.MAX),
             // Contention
             new MetricDef("Contention", "Total Monitor Enter Duration", "jdk.JavaMonitorEnter", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
+            new MetricDef("Contention", "P95 Monitor Enter Duration", "jdk.JavaMonitorEnter", JfrAttributes.DURATION.getIdentifier(), AggType.P95),
             new MetricDef("Contention", "Total Monitor Wait Duration", "jdk.JavaMonitorWait", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
-            // I/O
+            new MetricDef("Contention", "P95 Monitor Wait Duration", "jdk.JavaMonitorWait", JfrAttributes.DURATION.getIdentifier(), AggType.P95),
+            // I/O & Networking
             new MetricDef("I/O", "Total File Read", "jdk.FileRead", "bytesRead", AggType.SUM),
             new MetricDef("I/O", "Total File Written", "jdk.FileWrite", "bytesWritten", AggType.SUM),
-            new MetricDef("I/O", "Total Socket Read", "jdk.SocketRead", "bytesRead", AggType.SUM),
-            new MetricDef("I/O", "Total Socket Written", "jdk.SocketWrite", "bytesWritten", AggType.SUM),
+            new MetricDef("I/O", "Socket Connect Count", "jdk.SocketConnect", null, AggType.COUNT),
+            new MetricDef("I/O", "Avg Socket Connect Duration", "jdk.SocketConnect", JfrAttributes.DURATION.getIdentifier(), AggType.AVG),
+            new MetricDef("I/O", "Max Socket Connect Duration", "jdk.SocketConnect", JfrAttributes.DURATION.getIdentifier(), AggType.MAX),
+            // Runtime
+            new MetricDef("Runtime", "Safepoint Duration", "jdk.SafepointStateSynchronization", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
+            new MetricDef("Runtime", "Peak Thread Count", "jdk.JavaThreadStatistics", "peakCount", AggType.MAX),
             // JVM Internals
             new MetricDef("JVM Internals", "Exception Count", "jdk.JavaExceptionThrow", null, AggType.COUNT),
             new MetricDef("JVM Internals", "JIT Compilations", "jdk.Compilation", null, AggType.COUNT),
@@ -66,8 +76,8 @@ public final class CompareRecordingsTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Perform a comprehensive A/B comparison of two JFR recordings. " +
-                                "Compares CPU, GC, Memory, I/O, and JVM internal metrics with delta percentages.")
+                        .description("Perform a comprehensive expert-level A/B comparison of two JFR recordings. " +
+                                "Compares CPU, GC (including P95/P99), Memory, I/O, Safepoints, and JVM internals.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
                                         "baseline_jfr_path", SchemaUtil.jfrFileProp(),
@@ -155,6 +165,8 @@ public final class CompareRecordingsTool {
             case SUM -> JfrItemUtils.sumQuantity(events, def.attrId);
             case AVG -> JfrItemUtils.avgQuantity(events, def.attrId);
             case MAX -> JfrItemUtils.maxQuantity(events, def.attrId);
+            case P95 -> JfrItemUtils.percentileQuantity(events, def.attrId, 95.0);
+            case P99 -> JfrItemUtils.percentileQuantity(events, def.attrId, 99.0);
             case COUNT -> org.openjdk.jmc.common.unit.UnitLookup.NUMBER_UNITY.quantity(JfrItemUtils.count(events));
         };
     }

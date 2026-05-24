@@ -5,15 +5,15 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.ItemFilters;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * MCP tool for inspecting JFR recording settings.
+ * MCP tool for extracting recording settings from a JFR file.
  */
 public final class RecordingSettingsTool {
 
@@ -29,11 +29,10 @@ public final class RecordingSettingsTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Inspect the settings of the JFR recording, " +
-                                "including which events were enabled, their thresholds, and stack trace settings.")
+                        .description("List the event settings and configurations used for a JFR recording.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file")
+                                        "jfr_file_path", SchemaUtil.jfrFileProp()
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
@@ -62,56 +61,32 @@ public final class RecordingSettingsTool {
 
     private String analyze(String filePath) throws IOException {
         IItemCollection events = service.loadRecording(filePath);
-        var settings = events.apply(ItemFilters.type("jdk.ActiveRecording"));
-
         StringBuilder sb = new StringBuilder();
-        sb.append("# Recording Settings\n\n");
+        sb.append("# JFR Recording Settings\n\n");
 
+        IItemCollection settings = events.apply(org.openjdk.jmc.common.item.ItemFilters.type("jdk.ActiveSetting"));
         if (settings.hasItems()) {
-            for (var iterable : settings) {
-                for (var item : iterable) {
-                    sb.append("## Active Recording Details\n");
-                    sb.append("- **Name:** ").append(JfrItemUtils.getMember(item, "name").map(String::valueOf).orElse("null")).append("\n");
-                    sb.append("- **Recording Start:** ").append(JfrItemUtils.getMember(item, "recordingStart").map(String::valueOf).orElse("null")).append("\n");
-                    sb.append("- **Recording Duration:** ").append(JfrItemUtils.getMember(item, "recordingDuration").map(String::valueOf).orElse("null")).append("\n");
-                    sb.append("- **Destination:** ").append(JfrItemUtils.getMember(item, "destination").map(String::valueOf).orElse("null")).append("\n");
-                    sb.append("\n");
-                    break;
-                }
-                break;
-            }
-        }
+            sb.append("| Event | Setting | Value |\n");
+            sb.append("|-------|---------|-------|\n");
 
-        var activeSettings = events.apply(ItemFilters.type("jdk.ActiveSetting"));
-        if (activeSettings.hasItems()) {
-            sb.append("## Event Settings\n");
-            // Group settings by event type
-            Map<String, Map<String, String>> eventToSettings = new TreeMap<>();
-            for (var iterable : activeSettings) {
-                for (var item : iterable) {
-                    String eventName = JfrItemUtils.<String>getMember(item, "id").orElse(null);
-                    String settingName = JfrItemUtils.<String>getMember(item, "name").orElse(null);
-                    String settingValue = JfrItemUtils.<String>getMember(item, "value").orElse(null);
-                    if (eventName != null && settingName != null) {
-                        eventToSettings.computeIfAbsent(eventName, k -> new TreeMap<>())
-                                .put(settingName, settingValue);
-                    }
-                }
-            }
-
-            eventToSettings.forEach((event, props) -> {
-                sb.append("### `").append(event).append("`\n");
-                props.forEach((name, value) -> sb.append("- **").append(name).append(":** ").append(value).append("\n"));
-                sb.append("\n");
-            });
-        }
-
-        if (!settings.hasItems() && !activeSettings.hasItems()) {
-            sb.append("No recording settings events found.\n");
+            List<IItem> sorted = new ArrayList<>();
+            settings.forEach(iterable -> iterable.forEach(sorted::add));
+            sorted.stream()
+                    .sorted((a, b) -> {
+                        String na = String.valueOf(JfrItemUtils.getMember(a, "name").orElse(null));
+                        String nb = String.valueOf(JfrItemUtils.getMember(b, "name").orElse(null));
+                        return na.compareTo(nb);
+                    })
+                    .forEach(item -> {
+                        Object name = JfrItemUtils.getMember(item, "name").orElse(null);
+                        Object settingName = JfrItemUtils.getMember(item, "settingName").orElse(null);
+                        Object settingValue = JfrItemUtils.getMember(item, "settingValue").orElse(null);
+                        sb.append(String.format("| %s | %s | %s |%n", name, settingName, settingValue));
+                    });
+        } else {
+            sb.append("No active settings events found in the recording.\n");
         }
 
         return sb.toString();
     }
-
-
 }

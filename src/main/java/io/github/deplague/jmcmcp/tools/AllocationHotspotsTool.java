@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.github.deplague.jmcmcp.tools.SchemaUtil.formatBytes;
+
 /**
  * MCP tool for memory allocation hotspot analysis.
  */
@@ -121,12 +123,5 @@ public final class AllocationHotspotsTool {
     }
 
     private record AllocationKey(String className, String stackTrace) {
-    }
-
-    private static String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
     }
 }

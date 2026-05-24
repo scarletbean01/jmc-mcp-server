@@ -7,6 +7,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -27,38 +28,22 @@ public final class SystemHealthTool {
     }
 
     public SyncToolSpecification spec() {
-        return SyncToolSpecification.builder()
-                .tool(McpSchema.Tool.builder()
-                        .name(NAME)
-                        .description("Analyze system health metrics from a JFR recording, " +
-                                "including CPU load, physical memory usage, and swap usage.")
-                        .inputSchema(SchemaUtil.objectSchema(
-                                SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file")
-                                ),
-                                SchemaUtil.required("jfr_file_path")
-                        ))
-                        .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+        return SyncToolSpecification.builder().tool(McpSchema.Tool.builder().name(NAME).description("Analyze system health metrics from a JFR recording, " + "including CPU load, physical memory usage, and swap usage.").inputSchema(SchemaUtil.objectSchema(SchemaUtil.props("jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file")), SchemaUtil.required("jfr_file_path"))).build()).callHandler((exchange, request) -> {
+            try {
+                String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                String cached = service.getCachedResult(filePath, NAME, request.arguments());
 
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
+                if (cached != null) {
+                    return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                }
 
-                        String result = analyze(filePath);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
-                .build();
+                String result = analyze(filePath);
+                service.cacheResult(filePath, NAME, request.arguments(), result);
+                return CallToolResult.builder().addTextContent(result).isError(false).build();
+            } catch (Exception e) {
+                return CallToolResult.builder().addTextContent("Error: " + e.getMessage()).isError(true).build();
+            }
+        }).build();
     }
 
     private String analyze(String filePath) throws IOException {
@@ -108,15 +93,9 @@ public final class SystemHealthTool {
             sb.append("## CPU Information\n");
 
             // Get first available item safely
-            Optional<IItem> firstItem = cpuInfo.stream()
-                    .flatMap(iterable -> iterable.stream())
-                    .findFirst();
+            Optional<IItem> firstItem = cpuInfo.stream().flatMap(IItemIterable::stream).findFirst();
 
-            if (firstItem.isPresent()) {
-                IItem item = firstItem.get();
-                Object cpuName = JfrItemUtils.getMember(item, "cpu").orElse(null);
-                if (cpuName != null) sb.append(String.format("- **CPU:** %s%n", cpuName));
-            }
+            firstItem.flatMap(item -> JfrItemUtils.getMember(item, "cpu")).ifPresent(cpuName -> sb.append(String.format("- **CPU:** %s%n", cpuName)));
 
             IQuantity cores = JfrItemUtils.maxQuantity(cpuInfo, "cores");
             IQuantity sockets = JfrItemUtils.maxQuantity(cpuInfo, "sockets");
@@ -132,6 +111,4 @@ public final class SystemHealthTool {
 
         return sb.toString();
     }
-
-
 }

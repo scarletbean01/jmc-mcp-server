@@ -6,6 +6,8 @@ import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -132,6 +134,30 @@ public final class JfrItemUtils {
             }
         }
         return min;
+    }
+
+    /**
+     * Calculate a percentile for a quantity attribute across an item collection.
+     */
+    public static IQuantity percentileQuantity(IItemCollection items, String identifier, double percentile) {
+        List<IQuantity> values = new ArrayList<>();
+        for (IItemIterable iterable : items) {
+            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            if (accessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity q = accessor.getMember(item);
+                    if (q != null) {
+                        values.add(q);
+                    }
+                }
+            }
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        Collections.sort(values);
+        int index = (int) Math.max(0, Math.ceil((percentile / 100.0) * values.size()) - 1);
+        return values.get(index);
     }
 
     /**
