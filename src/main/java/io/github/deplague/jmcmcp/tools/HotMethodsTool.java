@@ -34,6 +34,7 @@ public final class HotMethodsTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
+                                        "thread_name", SchemaUtil.stringProp("Optional thread name to filter execution samples by"),
                                         "top_n", SchemaUtil.intProp("Number of top hot methods to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
@@ -44,6 +45,7 @@ public final class HotMethodsTool {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String threadName = SchemaUtil.getStringOrDefault(request.arguments(), "thread_name", null);
                         int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
@@ -51,7 +53,7 @@ public final class HotMethodsTool {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, threadName, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -64,7 +66,7 @@ public final class HotMethodsTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String threadName, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -76,8 +78,16 @@ public final class HotMethodsTool {
         Map<String, Long> traceCounts = new HashMap<>();
         for (IItemIterable iterable : samples) {
             IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IMemberAccessor<Object, IItem> threadAccessor = JfrItemUtils.getAccessor(iterable.getType(), "sampledThread");
             if (stackAccessor != null) {
                 for (IItem item : iterable) {
+                    if (threadName != null && threadAccessor != null) {
+                        Object threadObj = threadAccessor.getMember(item);
+                        if (threadObj == null || !threadObj.toString().contains(threadName)) {
+                            continue;
+                        }
+                    }
+                    
                     Object st = stackAccessor.getMember(item);
                     if (st != null) {
                         String formatted = JfrItemUtils.formatStackTrace(st, 5);

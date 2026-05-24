@@ -71,7 +71,10 @@ public final class JmcMcpServer {
                         new NativeMemoryTool(analysisService).spec(),
                         new ClassHistogramTool(analysisService).spec(),
                         new CpuFlameTool(analysisService).spec(),
-                        new JfrEventStatsTool(analysisService).spec());
+                        new JfrEventStatsTool(analysisService).spec(),
+                        new MemoryLeaksTool(analysisService).spec(),
+                        new LockAnalysisTool(analysisService).spec(),
+                        new ContainerMetricsTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

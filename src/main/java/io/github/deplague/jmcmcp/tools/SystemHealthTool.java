@@ -28,16 +28,19 @@ public final class SystemHealthTool {
     }
 
     public SyncToolSpecification spec() {
-        return SyncToolSpecification.builder().tool(McpSchema.Tool.builder().name(NAME).description("Analyze system health metrics from a JFR recording, " + "including CPU load, physical memory usage, and swap usage.").inputSchema(SchemaUtil.objectSchema(SchemaUtil.props("jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file")), SchemaUtil.required("jfr_file_path"))).build()).callHandler((exchange, request) -> {
+        return SyncToolSpecification.builder().tool(McpSchema.Tool.builder().name(NAME).description("Analyze system health metrics from a JFR recording, " + "including CPU load, physical memory usage, and swap usage.").inputSchema(SchemaUtil.objectSchema(SchemaUtil.props("jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"), "start_time", SchemaUtil.startTimeProp(), "end_time", SchemaUtil.endTimeProp()), SchemaUtil.required("jfr_file_path"))).build()).callHandler((exchange, request) -> {
             try {
                 String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+
                 String cached = service.getCachedResult(filePath, NAME, request.arguments());
 
                 if (cached != null) {
                     return CallToolResult.builder().addTextContent(cached).isError(false).build();
                 }
 
-                String result = analyze(filePath);
+                String result = analyze(filePath, startTimeStr, endTimeStr);
                 service.cacheResult(filePath, NAME, request.arguments(), result);
                 return CallToolResult.builder().addTextContent(result).isError(false).build();
             } catch (Exception e) {
@@ -46,8 +49,9 @@ public final class SystemHealthTool {
         }).build();
     }
 
-    private String analyze(String filePath) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         StringBuilder sb = new StringBuilder();
         sb.append("# System Health Analysis\n\n");
 
@@ -105,7 +109,22 @@ public final class SystemHealthTool {
             sb.append("\n");
         }
 
-        if (!cpuLoad.hasItems() && !physicalMem.hasItems() && !cpuInfo.hasItems()) {
+        // Container Metrics Fallback
+        var containerConfig = events.apply(ItemFilters.type("jdk.ContainerConfiguration"));
+        if (containerConfig.hasItems()) {
+            sb.append("## Container Configuration\n");
+            Optional<IItem> itemOpt = containerConfig.stream().flatMap(IItemIterable::stream).findFirst();
+            itemOpt.ifPresent(item -> {
+                sb.append("- **CPU Shares:** ").append(JfrItemUtils.getMember(item, "cpuShares").orElse("N/A")).append("\n");
+                sb.append("- **CPU Period:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "cpuPeriod").orElse(null))).append("\n");
+                sb.append("- **CPU Quota:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "cpuQuota").orElse(null))).append("\n");
+                sb.append("- **Memory Limit:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "memoryLimit").orElse(null))).append("\n");
+                sb.append("- **Swap Limit:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "swapLimit").orElse(null))).append("\n");
+            });
+            sb.append("\n");
+        }
+
+        if (!cpuLoad.hasItems() && !physicalMem.hasItems() && !cpuInfo.hasItems() && !containerConfig.hasItems()) {
             sb.append("No system health events found in this recording.\n");
         }
 

@@ -130,7 +130,39 @@ public final class GcDetailTool {
         appendGenRow(sb, "Old/Full", old);
         sb.append("\n");
 
+        appendReferenceStatistics(events, sb);
         appendCauseDistribution(events, sb);
+    }
+
+    private void appendReferenceStatistics(IItemCollection events, StringBuilder sb) {
+        IItemCollection refStats = events.apply(ItemFilters.type("jdk.GCReferenceStatistics"));
+        if (!refStats.hasItems()) return;
+
+        sb.append("### GC Reference Statistics (Soft/Weak/Phantom)\n");
+        sb.append("| Reference Type | Count | Total Processing Time |\n");
+        sb.append("|----------------|-------|-----------------------|\n");
+
+        Map<String, IQuantity> refTimes = new HashMap<>();
+        Map<String, Long> refCounts = new HashMap<>();
+        
+        for (IItemIterable iterable : refStats) {
+            IMemberAccessor<String, IItem> typeAcc = JfrItemUtils.getAccessor(iterable.getType(), "type");
+            IMemberAccessor<IQuantity, IItem> countAcc = JfrItemUtils.getAccessor(iterable.getType(), "count");
+            if (typeAcc != null && countAcc != null) {
+                for (IItem item : iterable) {
+                    String type = typeAcc.getMember(item);
+                    IQuantity c = countAcc.getMember(item);
+                    if (type != null && c != null) {
+                        refCounts.merge(type, c.longValue(), Long::sum);
+                    }
+                }
+            }
+        }
+
+        refCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .forEach(e -> sb.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" | N/A |\n"));
+        sb.append("\n");
     }
 
     private void appendCauseDistribution(IItemCollection events, StringBuilder sb) {

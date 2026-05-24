@@ -91,7 +91,14 @@ public final class CompareRecordingsTool {
                         String baselinePath = SchemaUtil.getString(request.arguments(), "baseline_jfr_path");
                         String targetPath = SchemaUtil.getString(request.arguments(), "target_jfr_path");
 
+                        String cacheKey = baselinePath + "::" + targetPath;
+                        String cached = service.getCachedResult(cacheKey, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(baselinePath, targetPath);
+                        service.cacheResult(cacheKey, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()

@@ -41,7 +41,8 @@ public final class TimeSeriesTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "bucket_size", SchemaUtil.stringProp("Interval bucket size (e.g., '10s', '1m', '5m'). Default is '1m'.")
+                                        "bucket_size", SchemaUtil.stringProp("Interval bucket size (e.g., '10s', '1m', '5m'). Default is '1m'."),
+                                        "metric", SchemaUtil.stringProp("Metric to filter by (cpu, gc, alloc, all). Default is 'all'.")
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
@@ -52,13 +53,14 @@ public final class TimeSeriesTool {
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
                         String bucketSizeStr = SchemaUtil.getStringOrDefault(request.arguments(), "bucket_size", "1m");
+                        String metricFilter = SchemaUtil.getStringOrDefault(request.arguments(), "metric", "all").toLowerCase();
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, startTimeStr, endTimeStr, bucketSizeStr);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, bucketSizeStr, metricFilter);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -71,7 +73,7 @@ public final class TimeSeriesTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, String bucketSizeStr) throws IOException {
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String bucketSizeStr, String metricFilter) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -88,10 +90,14 @@ public final class TimeSeriesTool {
 
         if (bucketMillis <= 0) bucketMillis = 60_000L; // default 1m
 
+        String warning = "";
         int numBuckets = (int) Math.ceil((double) (endMillis - startMillis) / bucketMillis);
         if (numBuckets > 500) {
             // Cap at 500 buckets to prevent massive output
-            bucketMillis = (endMillis - startMillis) / 500;
+            long newBucketMillis = (endMillis - startMillis) / 500;
+            warning = String.format("> **Warning:** The requested bucket size '%s' would result in %d buckets, exceeding the maximum limit of 500. The bucket size has been automatically adjusted to %s to maintain performance and readability.\n\n",
+                    bucketSizeStr, numBuckets, SchemaUtil.formatDuration(newBucketMillis));
+            bucketMillis = newBucketMillis;
             numBuckets = 500;
         }
 
@@ -100,25 +106,42 @@ public final class TimeSeriesTool {
             buckets[i] = new Bucket(startMillis + i * bucketMillis);
         }
 
+        boolean showAll = "all".equals(metricFilter);
+        boolean showCpu = showAll || "cpu".equals(metricFilter);
+        boolean showGc = showAll || "gc".equals(metricFilter);
+        boolean showAlloc = showAll || "alloc".equals(metricFilter);
+
         // Process CPU Load
-        processMetric(events, "jdk.CPULoad", "machineTotal", startMillis, bucketMillis, buckets, MetricType.AVERAGE);
+        if (showCpu) processMetric(events, "jdk.CPULoad", "machineTotal", startMillis, bucketMillis, buckets, MetricType.AVERAGE);
         // Process GC Pauses
-        processMetric(events, "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), startMillis, bucketMillis, buckets, MetricType.SUM);
+        if (showGc) processMetric(events, "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), startMillis, bucketMillis, buckets, MetricType.SUM);
         // Process Allocations
-        processMetric(events, "jdk.ObjectAllocationInNewTLAB", "tlabSize", startMillis, bucketMillis, buckets, MetricType.SUM);
-        processMetric(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", startMillis, bucketMillis, buckets, MetricType.SUM);
+        if (showAlloc) {
+            processMetric(events, "jdk.ObjectAllocationInNewTLAB", "tlabSize", startMillis, bucketMillis, buckets, MetricType.SUM);
+            processMetric(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", startMillis, bucketMillis, buckets, MetricType.SUM);
+        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("# Performance Trends (Bucket Size: ").append(SchemaUtil.formatDuration(bucketMillis)).append(")\n\n");
-        sb.append("| Time | Avg CPU Load | GC Pause Sum | Total Allocation |\n");
-        sb.append("|------|--------------|--------------|------------------|\n");
+        sb.append(warning);
+        sb.append("| Time ");
+        if (showCpu) sb.append("| Avg CPU Load ");
+        if (showGc) sb.append("| GC Pause Sum ");
+        if (showAlloc) sb.append("| Total Allocation ");
+        sb.append("|\n");
+        
+        sb.append("|------");
+        if (showCpu) sb.append("|--------------");
+        if (showGc) sb.append("|--------------");
+        if (showAlloc) sb.append("|------------------");
+        sb.append("|\n");
 
         for (Bucket b : buckets) {
-            sb.append(String.format("| %s | %.2f%% | %s | %s |%n",
-                    SchemaUtil.formatTime(b.startTime),
-                    b.cpuSum / (b.cpuCount == 0 ? 1 : b.cpuCount) * 100,
-                    SchemaUtil.formatDuration(b.gcPauseSum / 1_000_000L),
-                    formatBytes(b.allocSum)));
+            sb.append("| ").append(SchemaUtil.formatTime(b.startTime)).append(" ");
+            if (showCpu) sb.append(String.format("| %.2f%% ", b.cpuSum / (b.cpuCount == 0 ? 1 : b.cpuCount) * 100));
+            if (showGc) sb.append("| ").append(SchemaUtil.formatDuration(b.gcPauseSum / 1_000_000L)).append(" ");
+            if (showAlloc) sb.append("| ").append(formatBytes(b.allocSum)).append(" ");
+            sb.append("|\n");
         }
 
         return sb.toString();

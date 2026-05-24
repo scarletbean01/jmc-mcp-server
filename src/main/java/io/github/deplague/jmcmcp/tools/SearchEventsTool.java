@@ -75,7 +75,12 @@ public final class SearchEventsTool {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("# Search Results: ").append(eventType).append("\n\n");
+        String displayName = "Unknown";
+        for (var iter : filtered) {
+            displayName = iter.getType().getName();
+            break;
+        }
+        sb.append("# Search Results: ").append(eventType).append(" (").append(displayName).append(")\n\n");
 
         int count = 0;
         for (var itemIterable : filtered) {
@@ -90,7 +95,11 @@ public final class SearchEventsTool {
                     var key = entry.getKey();
                     Object val = type.getAccessor(key).getMember(item);
                     if (val != null) {
-                        sb.append("- **").append(key.getIdentifier()).append(":** ").append(val).append("\n");
+                        String valStr = val.toString();
+                        if (valStr.length() > 500) {
+                            valStr = valStr.substring(0, 500) + "... [truncated]";
+                        }
+                        sb.append("- **").append(key.getIdentifier()).append(":** ").append(valStr).append("\n");
                     }
                 }
                 sb.append("\n");

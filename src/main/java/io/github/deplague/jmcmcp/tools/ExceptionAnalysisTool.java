@@ -70,32 +70,27 @@ public final class ExceptionAnalysisTool {
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
         IItemCollection exceptionEvents = events.apply(ItemFilters.type("jdk.JavaExceptionThrow"));
-        if (!exceptionEvents.hasItems()) {
-            return "# Exception Analysis\n\nNo exception throw events found in the recording.";
+        IItemCollection errorEvents = events.apply(ItemFilters.type("jdk.JavaErrorThrow"));
+
+        if (!exceptionEvents.hasItems() && !errorEvents.hasItems()) {
+            return "# Exception Analysis\n\nNo exception or error throw events found in the recording.";
         }
 
         Map<ExceptionKey, Long> counts = new HashMap<>();
-        for (IItemIterable iterable : exceptionEvents) {
-            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "thrownClass");
-            IMemberAccessor<Object, IItem> msgAccessor = JfrItemUtils.getAccessor(iterable.getType(), "message");
-            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
-
-            if (classAccessor != null) {
-                for (IItem item : iterable) {
-                    String className = classAccessor.getMember(item).toString();
-                    String message = msgAccessor != null ? String.valueOf(msgAccessor.getMember(item)) : "";
-                    String trace = stackAccessor != null ? JfrItemUtils.formatStackTrace(stackAccessor.getMember(item), 5) : "No trace";
-
-                    ExceptionKey key = new ExceptionKey(className, message, trace);
-                    counts.merge(key, 1L, Long::sum);
-                }
-            }
-        }
+        long exceptionCount = processThrowEvents(exceptionEvents, counts);
+        long errorCount = processThrowEvents(errorEvents, counts);
 
         StringBuilder sb = new StringBuilder();
         sb.append("# Exception Analysis\n\n");
-        sb.append("| Count | Exception Class | Message | Throw Site (top 5 frames) |\n");
-        sb.append("|-------|-----------------|---------|---------------------------|\n");
+        sb.append("- **Total Exceptions:** ").append(exceptionCount).append("\n");
+        sb.append("- **Total Errors:** ").append(errorCount).append("\n");
+        if (exceptionCount > 0) {
+            sb.append(String.format("- **Error to Exception Ratio:** %.4f%n", (double) errorCount / exceptionCount));
+        }
+        sb.append("\n");
+
+        sb.append("| Count | Class | Message | Throw Site (top 5 frames) |\n");
+        sb.append("|-------|-------|---------|---------------------------|\n");
 
         counts.entrySet().stream()
                 .sorted(Map.Entry.<ExceptionKey, Long>comparingByValue().reversed())
@@ -108,6 +103,28 @@ public final class ExceptionAnalysisTool {
                 });
 
         return sb.toString();
+    }
+
+    private long processThrowEvents(IItemCollection throwEvents, Map<ExceptionKey, Long> counts) {
+        long total = 0;
+        for (IItemIterable iterable : throwEvents) {
+            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "thrownClass");
+            IMemberAccessor<Object, IItem> msgAccessor = JfrItemUtils.getAccessor(iterable.getType(), "message");
+            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+
+            if (classAccessor != null) {
+                for (IItem item : iterable) {
+                    total++;
+                    String className = classAccessor.getMember(item).toString();
+                    String message = msgAccessor != null ? String.valueOf(msgAccessor.getMember(item)) : "";
+                    String trace = stackAccessor != null ? JfrItemUtils.formatStackTrace(stackAccessor.getMember(item), 5) : "No trace";
+
+                    ExceptionKey key = new ExceptionKey(className, message, trace);
+                    counts.merge(key, 1L, Long::sum);
+                }
+            }
+        }
+        return total;
     }
 
     private record ExceptionKey(String className, String message, String stackTrace) {
