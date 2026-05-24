@@ -5,7 +5,6 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -13,9 +12,9 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 
 /**
  * MCP tool for comprehensive comparison of two JFR recordings (A/B testing).
@@ -30,35 +29,37 @@ public final class CompareRecordingsTool {
         this.service = service;
     }
 
-    private record MetricDef(String category, String label, String eventId, String attrId, AggType type) {}
-    private enum AggType { SUM, AVG, MAX, COUNT }
+    private record MetricDef(String category, String label, String eventId, String attrId, AggType type) {
+    }
+
+    private enum AggType {SUM, AVG, MAX, COUNT}
 
     private static final List<MetricDef> METRICS = List.of(
-        // CPU
-        new MetricDef("CPU", "Avg Machine Total", "jdk.CPULoad", "machineTotal", AggType.AVG),
-        new MetricDef("CPU", "Avg JVM User", "jdk.CPULoad", "jvmUser", AggType.AVG),
-        new MetricDef("CPU", "Avg JVM System", "jdk.CPULoad", "jvmSystem", AggType.AVG),
-        // GC
-        new MetricDef("Garbage Collection", "Total GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
-        new MetricDef("Garbage Collection", "Max GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.MAX),
-        new MetricDef("Garbage Collection", "Young GC Count", "jdk.YoungGarbageCollection", null, AggType.COUNT),
-        new MetricDef("Garbage Collection", "Old GC Count", "jdk.OldGarbageCollection", null, AggType.COUNT),
-        new MetricDef("Garbage Collection", "Avg Heap Used", "jdk.GCHeapSummary", "heapUsed", AggType.AVG),
-        // Memory
-        new MetricDef("Memory", "Total TLAB Alloc", "jdk.ObjectAllocationInNewTLAB", "tlabSize", AggType.SUM),
-        new MetricDef("Memory", "Total Non-TLAB Alloc", "jdk.ObjectAllocationOutsideTLAB", "allocationSize", AggType.SUM),
-        // Contention
-        new MetricDef("Contention", "Total Monitor Enter Duration", "jdk.JavaMonitorEnter", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
-        new MetricDef("Contention", "Total Monitor Wait Duration", "jdk.JavaMonitorWait", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
-        // I/O
-        new MetricDef("I/O", "Total File Read", "jdk.FileRead", "bytesRead", AggType.SUM),
-        new MetricDef("I/O", "Total File Written", "jdk.FileWrite", "bytesWritten", AggType.SUM),
-        new MetricDef("I/O", "Total Socket Read", "jdk.SocketRead", "bytesRead", AggType.SUM),
-        new MetricDef("I/O", "Total Socket Written", "jdk.SocketWrite", "bytesWritten", AggType.SUM),
-        // JVM Internals
-        new MetricDef("JVM Internals", "Exception Count", "jdk.JavaExceptionThrow", null, AggType.COUNT),
-        new MetricDef("JVM Internals", "JIT Compilations", "jdk.Compilation", null, AggType.COUNT),
-        new MetricDef("JVM Internals", "Deoptimizations", "jdk.Deoptimization", null, AggType.COUNT)
+            // CPU
+            new MetricDef("CPU", "Avg Machine Total", "jdk.CPULoad", "machineTotal", AggType.AVG),
+            new MetricDef("CPU", "Avg JVM User", "jdk.CPULoad", "jvmUser", AggType.AVG),
+            new MetricDef("CPU", "Avg JVM System", "jdk.CPULoad", "jvmSystem", AggType.AVG),
+            // GC
+            new MetricDef("Garbage Collection", "Total GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
+            new MetricDef("Garbage Collection", "Max GC Pause Time", "jdk.GCPhasePause", JfrAttributes.DURATION.getIdentifier(), AggType.MAX),
+            new MetricDef("Garbage Collection", "Young GC Count", "jdk.YoungGarbageCollection", null, AggType.COUNT),
+            new MetricDef("Garbage Collection", "Old GC Count", "jdk.OldGarbageCollection", null, AggType.COUNT),
+            new MetricDef("Garbage Collection", "Avg Heap Used", "jdk.GCHeapSummary", "heapUsed", AggType.AVG),
+            // Memory
+            new MetricDef("Memory", "Total TLAB Alloc", "jdk.ObjectAllocationInNewTLAB", "tlabSize", AggType.SUM),
+            new MetricDef("Memory", "Total Non-TLAB Alloc", "jdk.ObjectAllocationOutsideTLAB", "allocationSize", AggType.SUM),
+            // Contention
+            new MetricDef("Contention", "Total Monitor Enter Duration", "jdk.JavaMonitorEnter", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
+            new MetricDef("Contention", "Total Monitor Wait Duration", "jdk.JavaMonitorWait", JfrAttributes.DURATION.getIdentifier(), AggType.SUM),
+            // I/O
+            new MetricDef("I/O", "Total File Read", "jdk.FileRead", "bytesRead", AggType.SUM),
+            new MetricDef("I/O", "Total File Written", "jdk.FileWrite", "bytesWritten", AggType.SUM),
+            new MetricDef("I/O", "Total Socket Read", "jdk.SocketRead", "bytesRead", AggType.SUM),
+            new MetricDef("I/O", "Total Socket Written", "jdk.SocketWrite", "bytesWritten", AggType.SUM),
+            // JVM Internals
+            new MetricDef("JVM Internals", "Exception Count", "jdk.JavaExceptionThrow", null, AggType.COUNT),
+            new MetricDef("JVM Internals", "JIT Compilations", "jdk.Compilation", null, AggType.COUNT),
+            new MetricDef("JVM Internals", "Deoptimizations", "jdk.Deoptimization", null, AggType.COUNT)
     );
 
     public SyncToolSpecification spec() {
@@ -125,12 +126,12 @@ public final class CompareRecordingsTool {
                 }
             }
 
-            String row = String.format("| %s | %s | %s | %s |", 
-                def.label, 
-                JfrAnalysisService.display(bVal), 
-                JfrAnalysisService.display(tVal), 
-                deltaStr);
-            
+            String row = String.format("| %s | %s | %s | %s |",
+                    def.label,
+                    JfrAnalysisService.display(bVal),
+                    JfrAnalysisService.display(tVal),
+                    deltaStr);
+
             categories.computeIfAbsent(def.category, k -> new ArrayList<>()).add(row);
         }
 
@@ -149,7 +150,7 @@ public final class CompareRecordingsTool {
 
     private IQuantity getMetricValue(IItemCollection events, MetricDef def) {
         if (!events.hasItems() && def.type != AggType.COUNT) return null;
-        
+
         return switch (def.type) {
             case SUM -> JfrItemUtils.sumQuantity(events, def.attrId);
             case AVG -> JfrItemUtils.avgQuantity(events, def.attrId);

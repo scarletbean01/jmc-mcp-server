@@ -54,8 +54,8 @@ public final class LiveRecordingTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String jmxUrl = getString(request.arguments(), "jmx_url");
-                        String action = getStringOrDefault(request.arguments(), "action", "list");
+                        String jmxUrl = SchemaUtil.getString(request.arguments(), "jmx_url");
+                        String action = SchemaUtil.getStringOrDefault(request.arguments(), "action", "list");
                         String result = execute(jmxUrl, action, request.arguments());
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -84,7 +84,6 @@ public final class LiveRecordingTool {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private String listRecordings(MBeanServerConnection conn, ObjectName flightRecorder) throws Exception {
         List<Long> recordingIds = (List<Long>) conn.invoke(
                 flightRecorder, "getRecordingIds", new Object[0], new String[0]);
@@ -113,12 +112,10 @@ public final class LiveRecordingTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private String startRecording(MBeanServerConnection conn, ObjectName flightRecorder,
                                   Map<String, Object> args) throws Exception {
-        String name = getStringOrDefault(args, "recording_name", "mcp-recording-" + System.currentTimeMillis());
-        String settings = getStringOrDefault(args, "settings", "profile");
-        long durationSeconds = getLongOrDefault(args, "duration_seconds", 60);
+        String name = SchemaUtil.getStringOrDefault(args, "recording_name", "mcp-recording-" + System.currentTimeMillis());
+        long durationSeconds = SchemaUtil.getLongOrDefault(args, "duration_seconds", 60);
 
         Map<String, String> recordingOptions = new java.util.HashMap<>();
         recordingOptions.put("name", name);
@@ -141,7 +138,7 @@ public final class LiveRecordingTool {
 
     private String stopRecording(MBeanServerConnection conn, ObjectName flightRecorder,
                                  Map<String, Object> args) throws Exception {
-        long recordingId = getLongOrDefault(args, "recording_id", -1);
+        long recordingId = SchemaUtil.getLongOrDefault(args, "recording_id", -1);
         if (recordingId < 0) {
             return "Error: recording_id is required for stop action.";
         }
@@ -154,8 +151,8 @@ public final class LiveRecordingTool {
 
     private String dumpRecording(MBeanServerConnection conn, ObjectName flightRecorder,
                                  Map<String, Object> args) throws Exception {
-        long recordingId = getLongOrDefault(args, "recording_id", -1);
-        String outputPath = getStringOrDefault(args, "output_path", "");
+        long recordingId = SchemaUtil.getLongOrDefault(args, "recording_id", -1);
+        String outputPath = SchemaUtil.getStringOrDefault(args, "output_path", "");
         if (recordingId < 0) {
             return "Error: recording_id is required for dump action.";
         }
@@ -172,32 +169,5 @@ public final class LiveRecordingTool {
         return String.format("Dumped JFR recording ID %d to **%s**.", recordingId, path);
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        Object val = args.get(key);
-        return val != null ? val.toString() : defaultValue;
-    }
-
-    private static long getLongOrDefault(Map<String, Object> args, String key, long defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.longValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Long.parseLong(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
 }

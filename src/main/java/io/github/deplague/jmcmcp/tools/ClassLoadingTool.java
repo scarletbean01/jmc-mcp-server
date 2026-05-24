@@ -5,11 +5,9 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
@@ -94,20 +92,20 @@ public final class ClassLoadingTool {
             }
 
             sortedLoads.stream()
-                .sorted((a, b) -> {
-                    IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier());
-                    IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier());
-                    if (da == null) return (db == null) ? 0 : 1;
-                    if (db == null) return -1;
-                    return db.compareTo(da);
-                })
-                .limit(topN)
-                .forEach(item -> {
-                    Object loadedClass = JfrItemUtils.getMember(item, "loadedClass");
-                    IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier());
-                    Object loader = JfrItemUtils.getMember(item, "initiatingClassLoader");
-                    sb.append(String.format("| `%s` | %s | %s |%n", loadedClass, JfrAnalysisService.display(duration), loader));
-                });
+                    .sorted((a, b) -> {
+                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier());
+                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier());
+                        if (da == null) return (db == null) ? 0 : 1;
+                        if (db == null) return -1;
+                        return db.compareTo(da);
+                    })
+                    .limit(topN)
+                    .forEach(item -> {
+                        Object loadedClass = JfrItemUtils.getMember(item, "loadedClass");
+                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier());
+                        Object loader = JfrItemUtils.getMember(item, "initiatingClassLoader");
+                        sb.append(String.format("| `%s` | %s | %s |%n", loadedClass, JfrAnalysisService.display(duration), loader));
+                    });
             sb.append("\n");
         }
 
@@ -117,9 +115,11 @@ public final class ClassLoadingTool {
             sb.append("## Class Loading Statistics\n");
             IQuantity maxLoaded = JfrItemUtils.maxQuantity(statsEvents, "loadedClassCount");
             IQuantity maxUnloaded = JfrItemUtils.maxQuantity(statsEvents, "unloadedClassCount");
-            
-            if (maxLoaded != null) sb.append(String.format("- **Max Loaded Class Count:** %s%n", JfrAnalysisService.display(maxLoaded)));
-            if (maxUnloaded != null) sb.append(String.format("- **Max Unloaded Class Count:** %s%n", JfrAnalysisService.display(maxUnloaded)));
+
+            if (maxLoaded != null)
+                sb.append(String.format("- **Max Loaded Class Count:** %s%n", JfrAnalysisService.display(maxLoaded)));
+            if (maxUnloaded != null)
+                sb.append(String.format("- **Max Unloaded Class Count:** %s%n", JfrAnalysisService.display(maxUnloaded)));
             sb.append("\n");
         }
 

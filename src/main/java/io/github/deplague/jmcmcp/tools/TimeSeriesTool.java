@@ -16,7 +16,6 @@ import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 
 /**
  * MCP tool for time-series trend analysis (CPU, GC, Allocation).
@@ -49,10 +48,10 @@ public final class TimeSeriesTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = getStringOrDefault(request.arguments(), "end_time", null);
-                        String bucketSizeStr = getStringOrDefault(request.arguments(), "bucket_size", "1m");
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String bucketSizeStr = SchemaUtil.getStringOrDefault(request.arguments(), "bucket_size", "1m");
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -196,17 +195,5 @@ public final class TimeSeriesTool {
         return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        Object val = args.get(key);
-        return val != null ? val.toString() : defaultValue;
-    }
 }

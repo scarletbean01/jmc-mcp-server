@@ -124,4 +124,19 @@ public final class SchemaUtil {
         }
         return defaultValue;
     }
+
+    public static long getLongOrDefault(Map<String, Object> args, String key, long defaultValue) {
+        Object val = args.get(key);
+        if (val instanceof Number n) {
+            return n.longValue();
+        }
+        if (val instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
 }

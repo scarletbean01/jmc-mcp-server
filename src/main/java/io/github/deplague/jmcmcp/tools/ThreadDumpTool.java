@@ -13,7 +13,6 @@ import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * MCP tool for extracting periodic thread dumps from a JFR recording.
@@ -44,8 +43,8 @@ public final class ThreadDumpTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        int maxDumps = getIntOrDefault(request.arguments(), "max_dumps", 5);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        int maxDumps = SchemaUtil.getIntOrDefault(request.arguments(), "max_dumps", 5);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -104,27 +103,5 @@ public final class ThreadDumpTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
 }

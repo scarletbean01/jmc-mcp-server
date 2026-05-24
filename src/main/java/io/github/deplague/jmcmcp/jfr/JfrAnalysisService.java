@@ -157,41 +157,4 @@ public final class JfrAnalysisService {
         }
         return quantity.displayUsing(IDisplayable.AUTO);
     }
-
-    /**
-     * Format an {@link IQuantity} using a specific unit.
-     */
-    public static String displayInUnit(IQuantity quantity, String unit) {
-        if (quantity == null) {
-            return "N/A";
-        }
-        try {
-            return quantity.displayUsing(IDisplayable.AUTO);
-        } catch (Exception e) {
-            return quantity.toString();
-        }
-    }
-
-    /**
-     * Check whether a given event type is available in the recording.
-     */
-    public static boolean hasEvents(IItemCollection events, String typeId) {
-        return events.apply(ItemFilters.type(typeId)).hasItems();
-    }
-
-    /**
-     * Return a short label for {@link EventAvailability}.
-     */
-    public static String availabilityLabel(EventAvailability avail) {
-        if (avail == null) {
-            return "UNKNOWN";
-        }
-        return switch (avail) {
-            case ENABLED -> "ENABLED";
-            case DISABLED -> "DISABLED";
-            case UNKNOWN -> "UNKNOWN";
-            case AVAILABLE -> "AVAILABLE";
-            case NONE -> "NONE";
-        };
-    }
 }

@@ -41,8 +41,8 @@ public final class SystemPropertiesTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String filter = getStringOrDefault(request.arguments(), "filter", null);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String filter = SchemaUtil.getStringOrDefault(request.arguments(), "filter", null);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -121,17 +121,5 @@ public final class SystemPropertiesTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        Object val = args.get(key);
-        return val != null ? val.toString() : defaultValue;
-    }
 }

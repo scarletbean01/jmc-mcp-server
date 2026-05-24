@@ -11,7 +11,6 @@ import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -42,7 +41,7 @@ public final class SystemHealthTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -134,19 +133,5 @@ public final class SystemHealthTool {
         return sb.toString();
     }
 
-    private static String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
-    }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 }

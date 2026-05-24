@@ -40,7 +40,7 @@ public final class RecordingSettingsTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -113,12 +113,5 @@ public final class RecordingSettingsTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
+
 }

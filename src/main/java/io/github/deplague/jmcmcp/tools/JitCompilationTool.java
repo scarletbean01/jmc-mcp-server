@@ -49,10 +49,10 @@ public final class JitCompilationTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -85,7 +85,7 @@ public final class JitCompilationTool {
             sb.append("## JIT Compilations\n");
             IQuantity totalCount = compilations.getAggregate(Aggregators.count());
             IQuantity avgDuration = compilations.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = compilations.getAggregate(Aggregators.max(JfrAttributes.DURATION));
+            IQuantity maxDuration = JfrItemUtils.maxQuantity(compilations, JfrAttributes.DURATION.getIdentifier());
 
             sb.append(String.format("- **Total Compilations:** %s%n", JfrAnalysisService.display(totalCount)));
             sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
@@ -174,27 +174,5 @@ public final class JitCompilationTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        return SchemaUtil.getString(args, key);
-    }
 
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        return SchemaUtil.getStringOrDefault(args, key, defaultValue);
-    }
-
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
 }

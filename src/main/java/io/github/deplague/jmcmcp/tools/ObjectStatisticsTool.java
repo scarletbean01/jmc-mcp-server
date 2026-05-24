@@ -43,8 +43,8 @@ public final class ObjectStatisticsTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        int topN = getIntOrDefault(request.arguments(), "top_n", 20);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -133,27 +133,5 @@ public final class ObjectStatisticsTool {
         return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
 
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
 }

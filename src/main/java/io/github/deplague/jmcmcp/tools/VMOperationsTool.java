@@ -15,7 +15,6 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * MCP tool for analyzing VM operations and Safepoints.
@@ -45,7 +44,7 @@ public final class VMOperationsTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
@@ -86,7 +85,7 @@ public final class VMOperationsTool {
             sb.append("## VM Operations\n");
             IQuantity count = vmOps.getAggregate(Aggregators.count());
             IQuantity avgDuration = vmOps.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = vmOps.getAggregate(Aggregators.max(JfrAttributes.DURATION));
+            IQuantity maxDuration = JfrItemUtils.maxQuantity(vmOps, JfrAttributes.DURATION.getIdentifier());
 
             sb.append(String.format("- **Total Operations:** %s%n", JfrAnalysisService.display(count)));
             sb.append(String.format("- **Avg Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
@@ -126,12 +125,5 @@ public final class VMOperationsTool {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
+
 }
