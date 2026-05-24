@@ -28,7 +28,16 @@ public final class SystemHealthTool {
     }
 
     public SyncToolSpecification spec() {
-        return SyncToolSpecification.builder().tool(McpSchema.Tool.builder().name(NAME).description("Analyze system health metrics from a JFR recording, " + "including CPU load, physical memory usage, and swap usage.").inputSchema(SchemaUtil.objectSchema(SchemaUtil.props("jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"), "start_time", SchemaUtil.startTimeProp(), "end_time", SchemaUtil.endTimeProp()), SchemaUtil.required("jfr_file_path"))).build()).callHandler((exchange, request) -> {
+        return SyncToolSpecification.builder()
+                .tool(McpSchema.Tool.builder()
+                        .name(NAME)
+                        .description("Analyze system health metrics from a JFR recording, including CPU load, physical memory usage, and swap usage.")
+                        .inputSchema(SchemaUtil.objectSchema(
+                                SchemaUtil.commonJfrProps(),
+                                SchemaUtil.required("jfr_file_path")
+                        ))
+                        .build())
+                .callHandler((exchange, request) -> {
             try {
                 String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                 String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);

@@ -77,7 +77,13 @@ public final class JmcMcpServer {
                         new ContainerMetricsTool(analysisService).spec(),
                         new IncidentTimelineTool(analysisService).spec(),
                         new AllocationFlameTool(analysisService).spec(),
-                        new LockFlameTool(analysisService).spec());
+                        new LockFlameTool(analysisService).spec(),
+                        new ThreadCpuTool(analysisService).spec(),
+                        new BlockingSummaryTool(analysisService).spec(),
+                        new VirtualThreadsTool(analysisService).spec(),
+                        new GcCauseTool(analysisService).spec(),
+                        new ThreadAllocationTool(analysisService).spec(),
+                        new CodeCacheTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

@@ -67,19 +67,24 @@ public final class SearchEventsTool {
 
     private String search(String filePath, String startTimeStr, String endTimeStr, String eventType, int limit) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
+        
+        String displayName = "Unknown";
+        for (var iter : allEvents) {
+            if (iter.getType().getIdentifier().equals(eventType)) {
+                displayName = iter.getType().getName();
+                break;
+            }
+        }
+
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         var filtered = events.apply(ItemFilters.type(eventType));
 
         if (!filtered.hasItems()) {
-            return "No events of type '" + eventType + "' found in this recording range.";
+            return "# Search Results: " + eventType + " (" + displayName + ")\n\n" +
+                   "No events found in the specified time range.";
         }
 
         StringBuilder sb = new StringBuilder();
-        String displayName = "Unknown";
-        for (var iter : filtered) {
-            displayName = iter.getType().getName();
-            break;
-        }
         sb.append("# Search Results: ").append(eventType).append(" (").append(displayName).append(")\n\n");
 
         int count = 0;

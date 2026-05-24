@@ -136,15 +136,15 @@ public final class GcDetailTool {
 
     private void appendReferenceStatistics(IItemCollection events, StringBuilder sb) {
         IItemCollection refStats = events.apply(ItemFilters.type("jdk.GCReferenceStatistics"));
-        if (!refStats.hasItems()) return;
-
-        sb.append("### GC Reference Statistics (Soft/Weak/Phantom)\n");
-        sb.append("| Reference Type | Count | Total Processing Time |\n");
-        sb.append("|----------------|-------|-----------------------|\n");
-
-        Map<String, IQuantity> refTimes = new HashMap<>();
-        Map<String, Long> refCounts = new HashMap<>();
+        IItemCollection refPhases = events.apply(ItemFilters.type("jdk.GCPhasePause"));
         
+        if (!refStats.hasItems() && !refPhases.hasItems()) return;
+
+        sb.append("### GC Reference Statistics & Processing\n");
+        sb.append("| Reference Type / Phase | Count | Total Processing Time |\n");
+        sb.append("|------------------------|-------|-----------------------|\n");
+
+        Map<String, Long> refCounts = new HashMap<>();
         for (IItemIterable iterable : refStats) {
             IMemberAccessor<String, IItem> typeAcc = JfrItemUtils.getAccessor(iterable.getType(), "type");
             IMemberAccessor<IQuantity, IItem> countAcc = JfrItemUtils.getAccessor(iterable.getType(), "count");
@@ -159,9 +159,42 @@ public final class GcDetailTool {
             }
         }
 
+        Map<String, IQuantity> phaseTimes = new HashMap<>();
+        for (IItemIterable iterable : refPhases) {
+            IMemberAccessor<String, IItem> nameAcc = JfrItemUtils.getAccessor(iterable.getType(), "name");
+            IMemberAccessor<IQuantity, IItem> durationAcc = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            if (nameAcc != null && durationAcc != null) {
+                for (IItem item : iterable) {
+                    String name = nameAcc.getMember(item);
+                    if (name != null && (name.contains("Reference") || name.contains("Ref "))) {
+                        IQuantity d = durationAcc.getMember(item);
+                        if (d != null) {
+                            phaseTimes.merge(name, d, IQuantity::add);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Output counts first
         refCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .forEach(e -> sb.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" | N/A |\n"));
+                .forEach(e -> {
+                    String type = e.getKey();
+                    // Try to find a matching phase time
+                    String match = phaseTimes.keySet().stream()
+                            .filter(k -> k.toLowerCase().contains(type.toLowerCase().replace("reference", "")))
+                            .findFirst().orElse(null);
+                    String timeStr = match != null ? JfrAnalysisService.display(phaseTimes.get(match)) : "N/A";
+                    if (match != null) phaseTimes.remove(match);
+                    sb.append("| ").append(type).append(" | ").append(e.getValue()).append(" | ").append(timeStr).append(" |\n");
+                });
+
+        // Output remaining phases that didn't match counts
+        phaseTimes.entrySet().stream()
+                .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                .forEach(e -> sb.append("| ").append(e.getKey()).append(" | N/A | ").append(JfrAnalysisService.display(e.getValue())).append(" |\n"));
+        
         sb.append("\n");
     }
 
