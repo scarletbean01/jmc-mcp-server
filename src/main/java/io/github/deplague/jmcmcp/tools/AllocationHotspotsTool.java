@@ -5,15 +5,12 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.Aggregators;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * MCP tool for memory allocation hotspot analysis.
@@ -32,28 +29,31 @@ public final class AllocationHotspotsTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Find memory allocation hotspots in a JFR recording. " +
-                                "Analyzes TLAB and outside-TLAB allocations to identify classes and code sites " +
-                                "responsible for the most allocations.")
+                        .description("Find memory allocation hotspots and allocation sites in a JFR recording. " +
+                                "Reports top allocating classes and their call paths.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
-                                        "top_n", SchemaUtil.intProp("Number of top allocated classes to return (default 10)", 10)
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
+                                        "top_n", SchemaUtil.intProp("Number of top allocation sites to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -66,173 +66,67 @@ public final class AllocationHotspotsTool {
                 .build();
     }
 
-    private String analyze(String filePath, int topN) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+
+        Map<AllocationKey, Long> allocationMap = new HashMap<>();
+
+        processAllocations(events, "jdk.ObjectAllocationInNewTLAB", "tlabSize", allocationMap);
+        processAllocations(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", allocationMap);
+
+        if (allocationMap.isEmpty()) {
+            return "# Allocation Hotspots\n\nNo allocation events found in the recording.";
+        }
+
         StringBuilder sb = new StringBuilder();
         sb.append("# Allocation Hotspots\n\n");
+        sb.append("| Total Allocated | Class | Allocation Site (top 5 frames) |\n");
+        sb.append("|-----------------|-------|--------------------------------|\n");
 
-        // ObjectAllocationInNewTLAB
-        var newTLAB = events.apply(ItemFilters.type("jdk.ObjectAllocationInNewTLAB"));
-        if (newTLAB.hasItems()) {
-            sb.append("## Allocations in New TLAB\n");
-            IQuantity count = newTLAB.getAggregate(Aggregators.count());
-            double totalSize = JfrItemUtils.sumQuantity(newTLAB, "tlabSize");
-            sb.append(String.format("- **Event Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total TLAB Size:** %s%n", formatBytes((long) totalSize)));
-            sb.append("\n");
-
-            Map<String, Long> classAllocations = new HashMap<>();
-            for (var itemIterable : newTLAB) {
-                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
-                IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "tlabSize");
-                
-                if (classAccessor != null && sizeAccessor != null) {
-                    for (IItem item : itemIterable) {
-                        Object classObj = classAccessor.getMember(item);
-                        IQuantity size = sizeAccessor.getMember(item);
-                        if (classObj != null && size != null) {
-                            String className = classObj.toString();
-                            long bytes = size.clampedLongValueIn(size.getUnit());
-                            classAllocations.merge(className, bytes, Long::sum);
-                        }
-                    }
-                }
-            }
-
-            if (!classAllocations.isEmpty()) {
-                sb.append("### Top Allocated Classes by TLAB Size\n");
-                sb.append("| Class | Total Bytes |\n");
-                sb.append("|-------|-------------|\n");
-                classAllocations.entrySet().stream()
-                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                        .limit(topN)
-                        .forEach(e -> sb.append(String.format("| `%s` | %s |%n",
-                                e.getKey(), formatBytes(e.getValue()))));
-                sb.append("\n");
-            }
-        }
-
-        // ObjectAllocationOutsideTLAB
-        var outsideTLAB = events.apply(ItemFilters.type("jdk.ObjectAllocationOutsideTLAB"));
-        if (outsideTLAB.hasItems()) {
-            sb.append("## Allocations Outside TLAB (Large Objects)\n");
-            IQuantity count = outsideTLAB.getAggregate(Aggregators.count());
-            double totalSize = JfrItemUtils.sumQuantity(outsideTLAB, "allocationSize");
-            sb.append(String.format("- **Event Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total Allocation Size:** %s%n", formatBytes((long) totalSize)));
-            sb.append("\n");
-
-            Map<String, Long> classAllocations = new HashMap<>();
-            for (var itemIterable : outsideTLAB) {
-                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
-                IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "allocationSize");
-
-                if (classAccessor != null && sizeAccessor != null) {
-                    for (IItem item : itemIterable) {
-                        Object classObj = classAccessor.getMember(item);
-                        IQuantity size = sizeAccessor.getMember(item);
-                        if (classObj != null && size != null) {
-                            String className = classObj.toString();
-                            long bytes = size.clampedLongValueIn(size.getUnit());
-                            classAllocations.merge(className, bytes, Long::sum);
-                        }
-                    }
-                }
-            }
-
-            if (!classAllocations.isEmpty()) {
-                sb.append("### Top Allocated Classes (Outside TLAB)\n");
-                sb.append("| Class | Total Bytes |\n");
-                sb.append("|-------|-------------|\n");
-                classAllocations.entrySet().stream()
-                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                        .limit(topN)
-                        .forEach(e -> sb.append(String.format("| `%s` | %s |%n",
-                                e.getKey(), formatBytes(e.getValue()))));
-                sb.append("\n");
-            }
-        }
-
-        // ObjectAllocationSample (JDK 17+)
-        var allocSample = events.apply(ItemFilters.type("jdk.ObjectAllocationSample"));
-        if (allocSample.hasItems()) {
-            sb.append("## Object Allocation Samples\n");
-            IQuantity count = allocSample.getAggregate(Aggregators.count());
-            sb.append(String.format("- **Sample Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append("\n");
-
-            Map<String, Long> classAllocations = new HashMap<>();
-            for (var itemIterable : allocSample) {
-                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
-                IMemberAccessor<IQuantity, IItem> weightAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "weight");
-
-                if (classAccessor != null && weightAccessor != null) {
-                    for (IItem item : itemIterable) {
-                        Object classObj = classAccessor.getMember(item);
-                        IQuantity size = weightAccessor.getMember(item);
-                        if (classObj != null && size != null) {
-                            String className = classObj.toString();
-                            long bytes = size.clampedLongValueIn(size.getUnit());
-                            classAllocations.merge(className, bytes, Long::sum);
-                        }
-                    }
-                }
-            }
-
-            if (!classAllocations.isEmpty()) {
-                sb.append("### Top Allocated Classes by Sample Weight\n");
-                sb.append("| Class | Estimated Bytes |\n");
-                sb.append("|-------|----------------|\n");
-                classAllocations.entrySet().stream()
-                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                        .limit(topN)
-                        .forEach(e -> sb.append(String.format("| `%s` | %s |%n",
-                                e.getKey(), formatBytes(e.getValue()))));
-                sb.append("\n");
-            }
-        }
-
-        if (!newTLAB.hasItems() && !outsideTLAB.hasItems() && !allocSample.hasItems()) {
-            sb.append("No allocation events found in this recording. " +
-                    "Enable allocation profiling when starting the recording.\n");
-        }
+        allocationMap.entrySet().stream()
+                .sorted(Map.Entry.<AllocationKey, Long>comparingByValue().reversed())
+                .limit(topN)
+                .forEach(entry -> {
+                    sb.append("| ").append(formatBytes(entry.getValue())).append(" | ");
+                    sb.append("`").append(entry.getKey().className).append("` | ");
+                    sb.append("`").append(entry.getKey().stackTrace.replace("\n", "`<br>`")).append("` |\n");
+                });
 
         return sb.toString();
     }
 
-    private static String formatBytes(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        } else if (bytes < 1024 * 1024) {
-            return String.format("%.2f KB", bytes / 1024.0);
-        } else if (bytes < 1024L * 1024 * 1024) {
-            return String.format("%.2f MB", bytes / (1024.0 * 1024));
-        } else {
-            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
-        }
-    }
+    private void processAllocations(IItemCollection events, String typeId, String sizeAttr, Map<AllocationKey, Long> map) {
+        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        for (IItemIterable iterable : filtered) {
+            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(iterable.getType(), sizeAttr);
+            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
+            if (classAccessor != null && sizeAccessor != null && stackAccessor != null) {
+                for (IItem item : iterable) {
+                    Object classObj = classAccessor.getMember(item);
+                    IQuantity sizeQ = sizeAccessor.getMember(item);
+                    Object stackObj = stackAccessor.getMember(item);
 
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
+                    if (classObj != null && sizeQ != null && stackObj != null) {
+                        String className = classObj.toString();
+                        String trace = JfrItemUtils.formatStackTrace(stackObj, 5);
+                        AllocationKey key = new AllocationKey(className, trace);
+                        map.merge(key, sizeQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.BYTE), Long::sum);
+                    }
+                }
             }
         }
-        return defaultValue;
+    }
+
+    private record AllocationKey(String className, String stackTrace) {
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp - 1) + "";
+        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
     }
 }

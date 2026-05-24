@@ -55,7 +55,11 @@ public final class JmcMcpServer {
                         new VMOperationsTool(analysisService).spec(),
                         new ObjectStatisticsTool(analysisService).spec(),
                         new SystemPropertiesTool(analysisService).spec(),
-                        new RecordingSettingsTool(analysisService).spec());
+                        new RecordingSettingsTool(analysisService).spec(),
+                        new TimeSeriesTool(analysisService).spec(),
+                        new JitCompilationTool(analysisService).spec(),
+                        new ClassLoadingTool(analysisService).spec(),
+                        new CompareRecordingsTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

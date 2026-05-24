@@ -2,7 +2,6 @@ package io.github.deplague.jmcmcp.tools;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +73,55 @@ public final class SchemaUtil {
         return p;
     }
 
+    public static Map<String, Object> jfrFileProp() {
+        return stringProp("Absolute or relative path to the .jfr recording file");
+    }
+
+    public static Map<String, Object> startTimeProp() {
+        return stringProp("Optional start time in ISO-8601 format (e.g., 2023-10-27T10:00:00Z)");
+    }
+
+    public static Map<String, Object> endTimeProp() {
+        return stringProp("Optional end time in ISO-8601 format (e.g., 2023-10-27T10:05:00Z)");
+    }
+
+    public static Map<String, Object> commonJfrProps() {
+        return props(
+                "jfr_file_path", jfrFileProp(),
+                "start_time", startTimeProp(),
+                "end_time", endTimeProp()
+        );
+    }
+
     public static List<String> required(String... fields) {
         return List.of(fields);
+    }
+
+    public static String getString(Map<String, Object> args, String key) {
+        Object val = args.get(key);
+        if (val == null) {
+            throw new IllegalArgumentException("Missing required argument: " + key);
+        }
+        return val.toString();
+    }
+
+    public static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
+        Object val = args.get(key);
+        return val != null ? val.toString() : defaultValue;
+    }
+
+    public static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
+        Object val = args.get(key);
+        if (val instanceof Number n) {
+            return n.intValue();
+        }
+        if (val instanceof String s) {
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
     }
 }

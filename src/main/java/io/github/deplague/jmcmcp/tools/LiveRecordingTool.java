@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * MCP tool for managing live JFR recordings on a running JVM via JMX.
- *
+ * <p>
  * Uses {@code jdk.jfr} MBeans exposed by the JVM's FlightRecorderMXBean.
  */
 public final class LiveRecordingTool {
@@ -115,7 +115,7 @@ public final class LiveRecordingTool {
 
     @SuppressWarnings("unchecked")
     private String startRecording(MBeanServerConnection conn, ObjectName flightRecorder,
-                                   Map<String, Object> args) throws Exception {
+                                  Map<String, Object> args) throws Exception {
         String name = getStringOrDefault(args, "recording_name", "mcp-recording-" + System.currentTimeMillis());
         String settings = getStringOrDefault(args, "settings", "profile");
         long durationSeconds = getLongOrDefault(args, "duration_seconds", 60);
@@ -140,7 +140,7 @@ public final class LiveRecordingTool {
     }
 
     private String stopRecording(MBeanServerConnection conn, ObjectName flightRecorder,
-                                  Map<String, Object> args) throws Exception {
+                                 Map<String, Object> args) throws Exception {
         long recordingId = getLongOrDefault(args, "recording_id", -1);
         if (recordingId < 0) {
             return "Error: recording_id is required for stop action.";
@@ -153,7 +153,7 @@ public final class LiveRecordingTool {
     }
 
     private String dumpRecording(MBeanServerConnection conn, ObjectName flightRecorder,
-                                  Map<String, Object> args) throws Exception {
+                                 Map<String, Object> args) throws Exception {
         long recordingId = getLongOrDefault(args, "recording_id", -1);
         String outputPath = getStringOrDefault(args, "output_path", "");
         if (recordingId < 0) {

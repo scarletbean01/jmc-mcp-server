@@ -5,18 +5,14 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.Aggregators;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
+import org.openjdk.jmc.common.item.*;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * MCP tool for exception and error analysis.
+ * MCP tool for analyzing Java exceptions thrown during a recording.
  */
 public final class ExceptionAnalysisTool {
 
@@ -32,27 +28,31 @@ public final class ExceptionAnalysisTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Analyze exception and error throw events in a JFR recording. " +
-                                "Reports the most frequently thrown exception types and stack traces.")
+                        .description("Analyze Java exceptions in a JFR recording. " +
+                                "Reports top exceptions by class, message, and throw site.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
-                                        "top_n", SchemaUtil.intProp("Number of top exception/error types to return (default 10)", 10)
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
+                                        "top_n", SchemaUtil.intProp("Number of top exceptions to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -65,105 +65,51 @@ public final class ExceptionAnalysisTool {
                 .build();
     }
 
-    private String analyze(String filePath, int topN) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+
+        IItemCollection exceptionEvents = events.apply(ItemFilters.type("jdk.JavaExceptionThrow"));
+        if (!exceptionEvents.hasItems()) {
+            return "# Exception Analysis\n\nNo exception throw events found in the recording.";
+        }
+
+        Map<ExceptionKey, Long> counts = new HashMap<>();
+        for (IItemIterable iterable : exceptionEvents) {
+            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "thrownClass");
+            IMemberAccessor<Object, IItem> msgAccessor = JfrItemUtils.getAccessor(iterable.getType(), "message");
+            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+
+            if (classAccessor != null) {
+                for (IItem item : iterable) {
+                    String className = classAccessor.getMember(item).toString();
+                    String message = msgAccessor != null ? String.valueOf(msgAccessor.getMember(item)) : "";
+                    String trace = stackAccessor != null ? JfrItemUtils.formatStackTrace(stackAccessor.getMember(item), 5) : "No trace";
+
+                    ExceptionKey key = new ExceptionKey(className, message, trace);
+                    counts.merge(key, 1L, Long::sum);
+                }
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
-        sb.append("# Exception / Error Analysis\n\n");
+        sb.append("# Exception Analysis\n\n");
+        sb.append("| Count | Exception Class | Message | Throw Site (top 5 frames) |\n");
+        sb.append("|-------|-----------------|---------|---------------------------|\n");
 
-        // Java Exception Throw
-        var exceptions = events.apply(ItemFilters.type("jdk.JavaExceptionThrow"));
-        if (exceptions.hasItems()) {
-            sb.append("## Exceptions Thrown\n");
-            IQuantity count = exceptions.getAggregate(Aggregators.count());
-            sb.append(String.format("- **Total Exception Events:** %s%n%n", JfrAnalysisService.display(count)));
-
-            Map<String, Integer> typeCounts = new HashMap<>();
-            for (var itemIterable : exceptions) {
-                IMemberAccessor<Object, IItem> thrownClassAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "thrownClass");
-                if (thrownClassAccessor != null) {
-                    for (IItem item : itemIterable) {
-                        Object thrownClass = thrownClassAccessor.getMember(item);
-                        if (thrownClass != null) {
-                            String type = thrownClass.toString();
-                            typeCounts.merge(type, 1, Integer::sum);
-                        }
-                    }
-                }
-            }
-
-            if (!typeCounts.isEmpty()) {
-                sb.append("### Top Exception Types\n");
-                sb.append("| Exception Type | Count |\n");
-                sb.append("|----------------|-------|\n");
-                typeCounts.entrySet().stream()
-                        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                        .limit(topN)
-                        .forEach(e -> sb.append(String.format("| `%s` | %d |%n", e.getKey(), e.getValue())));
-                sb.append("\n");
-            }
-        }
-
-        // Java Error Throw
-        var errors = events.apply(ItemFilters.type("jdk.JavaErrorThrow"));
-        if (errors.hasItems()) {
-            sb.append("## Errors Thrown\n");
-            IQuantity count = errors.getAggregate(Aggregators.count());
-            sb.append(String.format("- **Total Error Events:** %s%n%n", JfrAnalysisService.display(count)));
-
-            Map<String, Integer> typeCounts = new HashMap<>();
-            for (var itemIterable : errors) {
-                IMemberAccessor<Object, IItem> thrownClassAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "thrownClass");
-                if (thrownClassAccessor != null) {
-                    for (IItem item : itemIterable) {
-                        Object thrownClass = thrownClassAccessor.getMember(item);
-                        if (thrownClass != null) {
-                            String type = thrownClass.toString();
-                            typeCounts.merge(type, 1, Integer::sum);
-                        }
-                    }
-                }
-            }
-
-            if (!typeCounts.isEmpty()) {
-                sb.append("### Top Error Types\n");
-                sb.append("| Error Type | Count |\n");
-                sb.append("|------------|-------|\n");
-                typeCounts.entrySet().stream()
-                        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                        .limit(topN)
-                        .forEach(e -> sb.append(String.format("| `%s` | %d |%n", e.getKey(), e.getValue())));
-                sb.append("\n");
-            }
-        }
-
-        if (!exceptions.hasItems() && !errors.hasItems()) {
-            sb.append("No exception or error events found in this recording.\n");
-        }
+        counts.entrySet().stream()
+                .sorted(Map.Entry.<ExceptionKey, Long>comparingByValue().reversed())
+                .limit(topN)
+                .forEach(entry -> {
+                    sb.append("| ").append(entry.getValue()).append(" | ");
+                    sb.append("`").append(entry.getKey().className).append("` | ");
+                    sb.append("`").append(entry.getKey().message.replace("\n", " ")).append("` | ");
+                    sb.append("`").append(entry.getKey().stackTrace.replace("\n", "`<br>`")).append("` |\n");
+                });
 
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
-
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
+    private record ExceptionKey(String className, String message, String stackTrace) {
     }
 }

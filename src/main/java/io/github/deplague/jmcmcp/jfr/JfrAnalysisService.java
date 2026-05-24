@@ -1,11 +1,11 @@
 package io.github.deplague.jmcmcp.jfr;
 
 import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
+import org.openjdk.jmc.common.unit.UnitLookup;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.EventAvailability;
@@ -13,7 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Core service for loading JFR recordings and extracting summary / availability metadata.
@@ -60,6 +64,46 @@ public final class JfrAnalysisService {
      */
     public IItemCollection loadRecording(String filePath) throws IOException {
         return cache.load(filePath);
+    }
+
+    /**
+     * Filter the event collection by an optional time range.
+     */
+    public IItemCollection filterByTimeRange(IItemCollection events, String startTimeStr, String endTimeStr) {
+        if (startTimeStr == null && endTimeStr == null) {
+            return events;
+        }
+
+        IQuantity start = null;
+        IQuantity end = null;
+
+        if (startTimeStr != null) {
+            try {
+                long epochNanos = Instant.parse(startTimeStr).toEpochMilli() * 1_000_000L;
+                start = UnitLookup.NANOSECOND.quantity(epochNanos);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse start_time: {}", startTimeStr);
+            }
+        }
+
+        if (endTimeStr != null) {
+            try {
+                long epochNanos = Instant.parse(endTimeStr).toEpochMilli() * 1_000_000L;
+                end = UnitLookup.NANOSECOND.quantity(epochNanos);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse end_time: {}", endTimeStr);
+            }
+        }
+
+        if (start != null && end != null) {
+            return events.apply(ItemFilters.interval(JfrAttributes.START_TIME, start, true, end, true));
+        } else if (start != null) {
+            return events.apply(ItemFilters.moreOrEqual(JfrAttributes.START_TIME, start));
+        } else if (end != null) {
+            return events.apply(ItemFilters.lessOrEqual(JfrAttributes.END_TIME, end));
+        }
+
+        return events;
     }
 
     /**

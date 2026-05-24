@@ -13,10 +13,9 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
- * MCP tool for File and Socket I/O analysis.
+ * MCP tool for analyzing I/O events (File and Socket).
  */
 public final class IoAnalysisTool {
 
@@ -33,10 +32,12 @@ public final class IoAnalysisTool {
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
                         .description("Analyze file and socket I/O events in a JFR recording. " +
-                                "Reports read/write counts, total bytes transferred, and latency statistics.")
+                                "Reports read/write durations and throughput.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
                                         "io_type", SchemaUtil.stringProp(
                                                 "Which I/O events to analyze: file, socket, or all (default)",
                                                 List.of("file", "socket", "all"))
@@ -46,15 +47,17 @@ public final class IoAnalysisTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String ioType = getStringOrDefault(request.arguments(), "io_type", "all");
-                        
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String ioType = SchemaUtil.getStringOrDefault(request.arguments(), "io_type", "all");
+
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, ioType);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, ioType);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -67,120 +70,66 @@ public final class IoAnalysisTool {
                 .build();
     }
 
-    private String analyze(String filePath, String ioType) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String ioType) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         StringBuilder sb = new StringBuilder();
         sb.append("# I/O Analysis\n\n");
 
         boolean any = false;
 
+        // File I/O
         if ("all".equals(ioType) || "file".equals(ioType)) {
-            any |= analyzeFileIO(events, sb);
+            var fileEvents = events.apply(ItemFilters.type("jdk.FileRead", "jdk.FileWrite"));
+            if (fileEvents.hasItems()) {
+                any = true;
+                sb.append("## File I/O\n");
+                sb.append(String.format("- **Event Count:** %s%n", JfrAnalysisService.display(fileEvents.getAggregate(Aggregators.count()))));
+                sb.append(String.format("- **Total Duration:** %s%n", JfrAnalysisService.display(fileEvents.getAggregate(Aggregators.sum(JfrAttributes.DURATION)))));
+                sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(fileEvents.getAggregate(Aggregators.avg(JfrAttributes.DURATION)))));
+
+                IQuantity totalRead = JfrItemUtils.sumQuantity(events.apply(ItemFilters.type("jdk.FileRead")), "bytesRead");
+                IQuantity totalWrite = JfrItemUtils.sumQuantity(events.apply(ItemFilters.type("jdk.FileWrite")), "bytesWritten");
+                sb.append(String.format("- **Total Read:** %s%n", JfrAnalysisService.display(totalRead)));
+                sb.append(String.format("- **Total Written:** %s%n", JfrAnalysisService.display(totalWrite)));
+                sb.append("\n");
+            }
         }
+
+        // Socket I/O
         if ("all".equals(ioType) || "socket".equals(ioType)) {
-            any |= analyzeSocketIO(events, sb);
+            var socketEvents = events.apply(ItemFilters.type("jdk.SocketRead", "jdk.SocketWrite"));
+            if (socketEvents.hasItems()) {
+                any = true;
+                sb.append("## Socket I/O\n");
+                sb.append(String.format("- **Event Count:** %s%n", JfrAnalysisService.display(socketEvents.getAggregate(Aggregators.count()))));
+                sb.append(String.format("- **Total Duration:** %s%n", JfrAnalysisService.display(socketEvents.getAggregate(Aggregators.sum(JfrAttributes.DURATION)))));
+                sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(socketEvents.getAggregate(Aggregators.avg(JfrAttributes.DURATION)))));
+
+                IQuantity totalRead = JfrItemUtils.sumQuantity(events.apply(ItemFilters.type("jdk.SocketRead")), "bytesRead");
+                IQuantity totalWrite = JfrItemUtils.sumQuantity(events.apply(ItemFilters.type("jdk.SocketWrite")), "bytesWritten");
+                sb.append(String.format("- **Total Read:** %s%n", JfrAnalysisService.display(totalRead)));
+                sb.append(String.format("- **Total Written:** %s%n", JfrAnalysisService.display(totalWrite)));
+                sb.append("\n");
+            }
         }
 
         if (!any) {
-            sb.append("No I/O events found in this recording.\n");
+            sb.append("No I/O events found in this recording range.\n");
         }
 
         return sb.toString();
     }
 
-    private boolean analyzeFileIO(IItemCollection events, StringBuilder sb) {
-        var fileRead = events.apply(ItemFilters.type("jdk.FileRead"));
-        var fileWrite = events.apply(ItemFilters.type("jdk.FileWrite"));
-        boolean hasRead = fileRead.hasItems();
-        boolean hasWrite = fileWrite.hasItems();
-
-        if (hasRead || hasWrite) {
-            sb.append("## File I/O\n\n");
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024L * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
         }
-
-        if (hasRead) {
-            sb.append("### File Read\n");
-            IQuantity count = fileRead.getAggregate(Aggregators.count());
-            double totalBytes = JfrItemUtils.sumQuantity(fileRead, "bytesRead");
-            IQuantity avgDuration = fileRead.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = fileRead.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total Bytes Read:** %.2f%n", totalBytes));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
-            sb.append("\n");
-        }
-
-        if (hasWrite) {
-            sb.append("### File Write\n");
-            IQuantity count = fileWrite.getAggregate(Aggregators.count());
-            double totalBytes = JfrItemUtils.sumQuantity(fileWrite, "bytesWritten");
-            IQuantity avgDuration = fileWrite.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = fileWrite.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total Bytes Written:** %.2f%n", totalBytes));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
-            sb.append("\n");
-        }
-
-        return hasRead || hasWrite;
-    }
-
-    private boolean analyzeSocketIO(IItemCollection events, StringBuilder sb) {
-        var socketRead = events.apply(ItemFilters.type("jdk.SocketRead"));
-        var socketWrite = events.apply(ItemFilters.type("jdk.SocketWrite"));
-        boolean hasRead = socketRead.hasItems();
-        boolean hasWrite = socketWrite.hasItems();
-
-        if (hasRead || hasWrite) {
-            sb.append("## Socket I/O\n\n");
-        }
-
-        if (hasRead) {
-            sb.append("### Socket Read\n");
-            IQuantity count = socketRead.getAggregate(Aggregators.count());
-            double totalBytes = JfrItemUtils.sumQuantity(socketRead, "bytesRead");
-            IQuantity avgDuration = socketRead.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = socketRead.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total Bytes Read:** %.2f%n", totalBytes));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
-            sb.append("\n");
-        }
-
-        if (hasWrite) {
-            sb.append("### Socket Write\n");
-            IQuantity count = socketWrite.getAggregate(Aggregators.count());
-            double totalBytes = JfrItemUtils.sumQuantity(socketWrite, "bytesWritten");
-            IQuantity avgDuration = socketWrite.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity maxDuration = socketWrite.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Total Bytes Written:** %.2f%n", totalBytes));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avgDuration)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(maxDuration)));
-            sb.append("\n");
-        }
-
-        return hasRead || hasWrite;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
-
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        Object val = args.get(key);
-        return val != null ? val.toString() : defaultValue;
     }
 }

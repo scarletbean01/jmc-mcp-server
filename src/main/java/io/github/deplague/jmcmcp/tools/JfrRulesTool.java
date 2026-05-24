@@ -5,17 +5,17 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.util.IPreferenceValueProvider;
-import org.openjdk.jmc.flightrecorder.rules.IRule;
 import org.openjdk.jmc.flightrecorder.rules.IResult;
+import org.openjdk.jmc.flightrecorder.rules.IRule;
 import org.openjdk.jmc.flightrecorder.rules.RuleRegistry;
+import org.openjdk.jmc.flightrecorder.rules.Severity;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.RunnableFuture;
 
 /**
- * MCP tool that runs all built-in JMC analysis rules to automatically detect bottlenecks.
+ * MCP tool for JFR rules engine.
  */
 public final class JfrRulesTool {
 
@@ -31,30 +31,32 @@ public final class JfrRulesTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Run all built-in JMC (Java Mission Control) analysis rules on a JFR recording. " +
-                                "Automatically detects performance bottlenecks such as GC issues, hot methods, " +
-                                "thread contention, memory leaks, and I/O problems. Each rule produces a severity " +
-                                "level (OK, INFO, WARNING, CRITICAL).")
+                        .description("Automatically detects performance issues using JMC's built-in rules engine.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
-                                        "min_score", SchemaUtil.numberProp(
-                                                "Minimum rule severity threshold to include (0-100, default 50)", 50)
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
+                                        "min_severity", SchemaUtil.stringProp(
+                                                "Minimum rule severity threshold to include (OK, INFO, WARNING, IGNORE). Default is WARNING.",
+                                                List.of("OK", "INFO", "WARNING", "IGNORE"))
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        double minScore = getDoubleOrDefault(request.arguments(), "min_score", 50);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String minSevStr = SchemaUtil.getStringOrDefault(request.arguments(), "min_severity", "WARNING");
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, minScore);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, minSevStr);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -67,104 +69,49 @@ public final class JfrRulesTool {
                 .build();
     }
 
-    private String analyze(String filePath, double minScore) throws Exception {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String minSevStr) throws Exception {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+
+        Severity threshold = Severity.valueOf(minSevStr);
+
         StringBuilder sb = new StringBuilder();
         sb.append("# JMC Automated Bottleneck Detection\n\n");
-        sb.append(String.format("Rules with score >= %.0f are shown.\n\n", minScore));
+        sb.append(String.format("Rules with severity >= %s are shown.\n\n", threshold.getLocalizedName()));
 
         List<ResultEntry> significantResults = new ArrayList<>();
-
         for (IRule rule : RuleRegistry.getRules()) {
             try {
-                var future = rule.createEvaluation(events, IPreferenceValueProvider.DEFAULT_VALUES, null);
+                // In JMC 9, createEvaluation takes 3 args: items, preference provider, result value provider
+                RunnableFuture<IResult> future = rule.createEvaluation(events, null, null);
                 future.run();
-                IResult result = future.get();
-                if (result != null) {
-                    double score = severityToScore(result.getSeverity());
-                    if (score >= minScore) {
-                        significantResults.add(new ResultEntry(score, rule.getName(), result));
-                    }
+                IResult r = future.get();
+
+                if (r.getSeverity().compareTo(threshold) >= 0) {
+                    significantResults.add(new ResultEntry(rule.getName(), r.getSeverity(), r.getSummary(), r.getExplanation()));
                 }
             } catch (Exception e) {
-                // Skip rules that fail to evaluate (e.g., missing events)
+                // Skip rules that fail
             }
         }
+
+        significantResults.sort((a, b) -> b.severity.compareTo(a.severity));
 
         if (significantResults.isEmpty()) {
-            sb.append("No significant issues detected with the current threshold.\n");
-            return sb.toString();
-        }
-
-        // Sort by score descending
-        significantResults.sort((a, b) -> Double.compare(b.score, a.score));
-
-        sb.append("| Score | Rule | Summary |\n");
-        sb.append("|-------|------|---------|\n");
-
-        for (ResultEntry entry : significantResults) {
-            String summary = entry.result.getSummary() != null ? entry.result.getSummary() : "No description";
-            if (summary.length() > 120) {
-                summary = summary.substring(0, 117) + "...";
+            sb.append("No issues found exceeding the threshold.\n");
+        } else {
+            for (ResultEntry entry : significantResults) {
+                sb.append(String.format("### %s (%s)%n", entry.name, entry.severity.getLocalizedName()));
+                sb.append("**Summary:** ").append(entry.shortDesc).append("\n\n");
+                if (entry.explanation != null) {
+                    sb.append(entry.explanation).append("\n\n");
+                }
             }
-            sb.append(String.format("| %.0f | %s | %s |%n",
-                    entry.score, entry.ruleName, summary.replace("|", "\\|")));
-        }
-
-        sb.append("\n## Detailed Results\n\n");
-        for (ResultEntry entry : significantResults) {
-            sb.append(String.format("### %s (Score: %.0f)%n", entry.ruleName, entry.score));
-            if (entry.result.getSummary() != null) {
-                sb.append(String.format("- **Summary:** %s%n", entry.result.getSummary()));
-            }
-            if (entry.result.getExplanation() != null) {
-                sb.append(String.format("- **Explanation:** %s%n", entry.result.getExplanation()));
-            }
-            if (entry.result.getSolution() != null) {
-                sb.append(String.format("- **Solution:** %s%n", entry.result.getSolution()));
-            }
-            sb.append("\n");
         }
 
         return sb.toString();
     }
 
-    private static double severityToScore(org.openjdk.jmc.flightrecorder.rules.Severity severity) {
-        if (severity == null) {
-            return 0;
-        }
-        return switch (severity) {
-            case OK -> 0;
-            case INFO -> 25;
-            case WARNING -> 75;
-            case IGNORE, NA -> 0;
-        };
-    }
-
-    private record ResultEntry(double score, String ruleName, IResult result) {
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
-
-    private static double getDoubleOrDefault(Map<String, Object> args, String key, double defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.doubleValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Double.parseDouble(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
+    private record ResultEntry(String name, Severity severity, String shortDesc, String explanation) {
     }
 }

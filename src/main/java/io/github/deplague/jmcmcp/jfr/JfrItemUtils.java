@@ -1,12 +1,12 @@
 package io.github.deplague.jmcmcp.jfr;
 
-import org.openjdk.jmc.common.item.IAccessorKey;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.IType;
+import org.openjdk.jmc.common.IMCFrame;
+import org.openjdk.jmc.common.IMCMethod;
+import org.openjdk.jmc.common.IMCStackTrace;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
+
+import java.util.List;
 
 /**
  * Utility methods for extracting values from JFR items without knowing the exact
@@ -50,8 +50,9 @@ public final class JfrItemUtils {
     /**
      * Sum a quantity attribute across an item collection.
      */
-    public static double sumQuantity(IItemCollection items, String identifier) {
+    public static IQuantity sumQuantity(IItemCollection items, String identifier) {
         double sum = 0;
+        org.openjdk.jmc.common.unit.IUnit unit = null;
         for (IItemIterable iterable : items) {
             IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
@@ -59,19 +60,21 @@ public final class JfrItemUtils {
                     IQuantity q = accessor.getMember(item);
                     if (q != null) {
                         sum += q.doubleValue();
+                        if (unit == null) unit = q.getUnit();
                     }
                 }
             }
         }
-        return sum;
+        return unit != null ? unit.quantity(sum) : null;
     }
 
     /**
      * Average a quantity attribute across an item collection.
      */
-    public static double avgQuantity(IItemCollection items, String identifier) {
+    public static IQuantity avgQuantity(IItemCollection items, String identifier) {
         double sum = 0;
         long count = 0;
+        org.openjdk.jmc.common.unit.IUnit unit = null;
         for (IItemIterable iterable : items) {
             IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
@@ -80,59 +83,54 @@ public final class JfrItemUtils {
                     if (q != null) {
                         sum += q.doubleValue();
                         count++;
+                        if (unit == null) unit = q.getUnit();
                     }
                 }
             }
         }
-        return count == 0 ? 0 : sum / count;
+        return (count == 0 || unit == null) ? null : unit.quantity(sum / count);
     }
 
     /**
      * Max a quantity attribute across an item collection.
      */
-    public static double maxQuantity(IItemCollection items, String identifier) {
-        double max = Double.NEGATIVE_INFINITY;
-        boolean any = false;
+    public static IQuantity maxQuantity(IItemCollection items, String identifier) {
+        IQuantity max = null;
         for (IItemIterable iterable : items) {
             IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     IQuantity q = accessor.getMember(item);
                     if (q != null) {
-                        double val = q.doubleValue();
-                        if (!any || val > max) {
-                            max = val;
-                            any = true;
+                        if (max == null || q.compareTo(max) > 0) {
+                            max = q;
                         }
                     }
                 }
             }
         }
-        return any ? max : 0;
+        return max;
     }
 
     /**
      * Min a quantity attribute across an item collection.
      */
-    public static double minQuantity(IItemCollection items, String identifier) {
-        double min = Double.POSITIVE_INFINITY;
-        boolean any = false;
+    public static IQuantity minQuantity(IItemCollection items, String identifier) {
+        IQuantity min = null;
         for (IItemIterable iterable : items) {
             IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     IQuantity q = accessor.getMember(item);
                     if (q != null) {
-                        double val = q.doubleValue();
-                        if (!any || val < min) {
-                            min = val;
-                            any = true;
+                        if (min == null || q.compareTo(min) < 0) {
+                            min = q;
                         }
                     }
                 }
             }
         }
-        return any ? min : 0;
+        return min;
     }
 
     /**
@@ -144,5 +142,37 @@ public final class JfrItemUtils {
             count += iterable.stream().count();
         }
         return count;
+    }
+
+    /**
+     * Formats a stack trace object (expected to be an IMCStackTrace) into a truncated string.
+     */
+    public static String formatStackTrace(Object stackTraceObj, int maxFrames) {
+        if (!(stackTraceObj instanceof IMCStackTrace stackTrace)) {
+            return "No stack trace available";
+        }
+
+        List<? extends IMCFrame> frames = stackTrace.getFrames();
+        if (frames == null || frames.isEmpty()) {
+            return "Empty stack trace";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (IMCFrame frame : frames) {
+            if (count >= maxFrames) {
+                sb.append("  ...");
+                break;
+            }
+            IMCMethod method = frame.getMethod();
+            if (method != null) {
+                if (count > 0) sb.append("\n");
+                sb.append("  at ");
+                String typeName = method.getType().getFullName();
+                sb.append(typeName).append(".").append(method.getMethodName()).append("()");
+                count++;
+            }
+        }
+        return sb.toString();
     }
 }

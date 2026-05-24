@@ -26,8 +26,10 @@ class ToolSchemaTest {
                 "vm_operations",
                 "object_statistics",
                 "system_properties",
-                "recording_settings"
+                "recording_settings",
+                "time_series",
+                "jit_compilation"
         );
-        assertThat(names).hasSize(16);
+        assertThat(names).hasSize(18);
     }
 }

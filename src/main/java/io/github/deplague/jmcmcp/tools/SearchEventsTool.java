@@ -1,7 +1,6 @@
 package io.github.deplague.jmcmcp.tools;
 
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -10,10 +9,9 @@ import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.ItemFilters;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
- * MCP tool for searching specific JFR events by type and optionally filtering them.
+ * MCP tool for searching specific JFR events.
  */
 public final class SearchEventsTool {
 
@@ -29,11 +27,12 @@ public final class SearchEventsTool {
         return SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder()
                         .name(NAME)
-                        .description("Search for specific JFR events by type ID. " +
-                                "Returns a list of matching events with their attributes.")
+                        .description("Search for specific JFR events by type ID.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
                                         "event_type", SchemaUtil.stringProp("JFR event type ID (e.g., jdk.CPULoad)"),
                                         "limit", SchemaUtil.intProp("Maximum number of events to return (default 20)", 20)
                                 ),
@@ -42,16 +41,18 @@ public final class SearchEventsTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String eventType = getString(request.arguments(), "event_type");
-                        int limit = getIntOrDefault(request.arguments(), "limit", 20);
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String eventType = SchemaUtil.getString(request.arguments(), "event_type");
+                        int limit = SchemaUtil.getIntOrDefault(request.arguments(), "limit", 20);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = search(filePath, eventType, limit);
+                        String result = search(filePath, startTimeStr, endTimeStr, eventType, limit);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -64,12 +65,13 @@ public final class SearchEventsTool {
                 .build();
     }
 
-    private String search(String filePath, String eventType, int limit) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String search(String filePath, String startTimeStr, String endTimeStr, String eventType, int limit) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         var filtered = events.apply(ItemFilters.type(eventType));
 
         if (!filtered.hasItems()) {
-            return "No events of type '" + eventType + "' found in this recording.";
+            return "No events of type '" + eventType + "' found in this recording range.";
         }
 
         StringBuilder sb = new StringBuilder();
@@ -98,29 +100,5 @@ public final class SearchEventsTool {
         }
 
         return sb.toString();
-    }
-
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
-
-    @SuppressWarnings("DuplicatedCode")
-    private static int getIntOrDefault(Map<String, Object> args, String key, int defaultValue) {
-        Object val = args.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        if (val instanceof String s) {
-            try {
-                return Integer.parseInt(s);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
     }
 }

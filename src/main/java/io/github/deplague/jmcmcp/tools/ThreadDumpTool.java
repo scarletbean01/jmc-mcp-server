@@ -81,7 +81,7 @@ public final class ThreadDumpTool {
         for (var itemIterable : threadDumps) {
             IMemberAccessor<Object, IItem> resultAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "result");
             IMemberAccessor<IQuantity, IItem> startTimeAccessor = JfrAttributes.START_TIME.getAccessor(itemIterable.getType());
-            
+
             if (resultAccessor != null && startTimeAccessor != null) {
                 for (IItem item : itemIterable) {
                     if (count >= maxDumps) break;

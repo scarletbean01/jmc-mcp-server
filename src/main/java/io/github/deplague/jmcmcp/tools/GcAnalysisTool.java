@@ -13,10 +13,9 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
- * MCP tool for GC (Garbage Collection) analysis.
+ * MCP tool for analyzing garbage collection events.
  */
 public final class GcAnalysisTool {
 
@@ -36,7 +35,9 @@ public final class GcAnalysisTool {
                                 "Returns pause times (avg/max/total), frequencies, and heap summary trends.")
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.stringProp("Path to the .jfr recording file"),
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
                                         "stat_type", SchemaUtil.stringProp(
                                                 "Type of GC stats to return: pause_times, frequencies, heap_summary, or all (default)",
                                                 List.of("pause_times", "frequencies", "heap_summary", "all"))
@@ -46,15 +47,17 @@ public final class GcAnalysisTool {
                         .build())
                 .callHandler((exchange, request) -> {
                     try {
-                        String filePath = getString(request.arguments(), "jfr_file_path");
-                        String statType = getStringOrDefault(request.arguments(), "stat_type", "all");
-                        
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String statType = SchemaUtil.getStringOrDefault(request.arguments(), "stat_type", "all");
+
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, statType);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, statType);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -67,50 +70,37 @@ public final class GcAnalysisTool {
                 .build();
     }
 
-    private String analyze(String filePath, String statType) throws IOException {
-        IItemCollection events = service.loadRecording(filePath);
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String statType) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         StringBuilder sb = new StringBuilder();
         sb.append("# GC Analysis\n\n");
 
         // GC Phase Pause
         var gcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
-        if (gcPauses.hasItems()) {
-            sb.append("## GC Phase Pauses\n");
-            IQuantity count = gcPauses.getAggregate(Aggregators.count());
-            IQuantity avg = gcPauses.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity max = gcPauses.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-            IQuantity total = gcPauses.getAggregate(Aggregators.sum(JfrAttributes.DURATION));
+        if (gcPauses.hasItems() && ("all".equals(statType) || "pause_times".equals(statType))) {
+            sb.append("## Pause Times\n");
+            IQuantity avgPause = JfrItemUtils.avgQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
+            IQuantity maxPause = JfrItemUtils.maxQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
+            IQuantity totalPause = JfrItemUtils.sumQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
 
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Average Pause:** %s%n", JfrAnalysisService.display(avg)));
-            sb.append(String.format("- **Max Pause:** %s%n", JfrAnalysisService.display(max)));
-            sb.append(String.format("- **Total Pause Time:** %s%n", JfrAnalysisService.display(total)));
+            sb.append(String.format("- **Average Pause:** %s%n", JfrAnalysisService.display(avgPause)));
+            sb.append(String.format("- **Maximum Pause:** %s%n", JfrAnalysisService.display(maxPause)));
+            sb.append(String.format("- **Total Pause Time:** %s%n", JfrAnalysisService.display(totalPause)));
             sb.append("\n");
         }
 
-        // Young GC
+        // GC Frequencies
         var youngGC = events.apply(ItemFilters.type("jdk.YoungGarbageCollection"));
-        if (youngGC.hasItems()) {
-            sb.append("## Young GC\n");
-            IQuantity count = youngGC.getAggregate(Aggregators.count());
-            IQuantity avg = youngGC.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity max = youngGC.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avg)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(max)));
-            sb.append("\n");
-        }
-
-        // Old GC
         var oldGC = events.apply(ItemFilters.type("jdk.OldGarbageCollection"));
-        if (oldGC.hasItems()) {
-            sb.append("## Old GC (Full GC)\n");
-            IQuantity count = oldGC.getAggregate(Aggregators.count());
-            IQuantity avg = oldGC.getAggregate(Aggregators.avg(JfrAttributes.DURATION));
-            IQuantity max = oldGC.getAggregate(Aggregators.max(JfrAttributes.DURATION));
-            sb.append(String.format("- **Count:** %s%n", JfrAnalysisService.display(count)));
-            sb.append(String.format("- **Average Duration:** %s%n", JfrAnalysisService.display(avg)));
-            sb.append(String.format("- **Max Duration:** %s%n", JfrAnalysisService.display(max)));
+        if ((youngGC.hasItems() || oldGC.hasItems()) && ("all".equals(statType) || "frequencies".equals(statType))) {
+            sb.append("## GC Frequencies\n");
+            if (youngGC.hasItems()) {
+                sb.append(String.format("- **Young GCs:** %s%n", JfrAnalysisService.display(youngGC.getAggregate(Aggregators.count()))));
+            }
+            if (oldGC.hasItems()) {
+                sb.append(String.format("- **Old GCs:** %s%n", JfrAnalysisService.display(oldGC.getAggregate(Aggregators.count()))));
+            }
             sb.append("\n");
         }
 
@@ -119,18 +109,18 @@ public final class GcAnalysisTool {
             var heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
             if (heapSummary.hasItems()) {
                 sb.append("## Heap Summary\n");
-                double maxHeap = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
-                double minHeap = JfrItemUtils.minQuantity(heapSummary, "heapUsed");
-                double avgHeap = JfrItemUtils.avgQuantity(heapSummary, "heapUsed");
-                sb.append(String.format("- **Max Heap Used:** %s%n", formatBytes((long) maxHeap)));
-                sb.append(String.format("- **Min Heap Used:** %s%n", formatBytes((long) minHeap)));
-                sb.append(String.format("- **Avg Heap Used:** %s%n", formatBytes((long) avgHeap)));
+                IQuantity maxHeap = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
+                IQuantity minHeap = JfrItemUtils.minQuantity(heapSummary, "heapUsed");
+                IQuantity avgHeap = JfrItemUtils.avgQuantity(heapSummary, "heapUsed");
+                sb.append(String.format("- **Max Heap Used:** %s%n", JfrAnalysisService.display(maxHeap)));
+                sb.append(String.format("- **Min Heap Used:** %s%n", JfrAnalysisService.display(minHeap)));
+                sb.append(String.format("- **Avg Heap Used:** %s%n", JfrAnalysisService.display(avgHeap)));
                 sb.append("\n");
             }
         }
 
         if (!gcPauses.hasItems() && !youngGC.hasItems() && !oldGC.hasItems()) {
-            sb.append("No GC events found in this recording.\n");
+            sb.append("No garbage collection events found in this recording range.\n");
         }
 
         return sb.toString();
@@ -146,19 +136,5 @@ public final class GcAnalysisTool {
         } else {
             return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String getString(Map<String, Object> args, String key) {
-        Object val = args.get(key);
-        if (val == null) {
-            throw new IllegalArgumentException("Missing required argument: " + key);
-        }
-        return val.toString();
-    }
-
-    private static String getStringOrDefault(Map<String, Object> args, String key, String defaultValue) {
-        Object val = args.get(key);
-        return val != null ? val.toString() : defaultValue;
     }
 }
