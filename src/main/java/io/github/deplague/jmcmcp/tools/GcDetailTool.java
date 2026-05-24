@@ -1,0 +1,281 @@
+package io.github.deplague.jmcmcp.tools;
+
+import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
+import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+import org.openjdk.jmc.common.unit.UnitLookup;
+import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.io.IOException;
+import java.util.*;
+
+/**
+ * MCP tool for detailed GC analysis (phases, heap trends, configuration).
+ */
+public final class GcDetailTool {
+
+    private static final String NAME = "gc_detail";
+
+    private final JfrAnalysisService service;
+
+    public GcDetailTool(JfrAnalysisService service) {
+        this.service = service;
+    }
+
+    public SyncToolSpecification spec() {
+        return SyncToolSpecification.builder()
+                .tool(McpSchema.Tool.builder()
+                        .name(NAME)
+                        .description("Detailed GC analysis: per-phase pause breakdowns, GC cause distribution, heap trends, and configuration.")
+                        .inputSchema(SchemaUtil.objectSchema(
+                                SchemaUtil.props(
+                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                        "start_time", SchemaUtil.startTimeProp(),
+                                        "end_time", SchemaUtil.endTimeProp(),
+                                        "detail_level", SchemaUtil.stringProp("Detail level", List.of("summary", "phases", "heap_trends", "all"))
+                                ),
+                                SchemaUtil.required("jfr_file_path")
+                        ))
+                        .build())
+                .callHandler((exchange, request) -> {
+                    try {
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String detailLevel = SchemaUtil.getStringOrDefault(request.arguments(), "detail_level", "all");
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
+                        String result = analyze(filePath, startTimeStr, endTimeStr, detailLevel);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
+                        return CallToolResult.builder().addTextContent(result).isError(false).build();
+                    } catch (Exception e) {
+                        return CallToolResult.builder()
+                                .addTextContent("Error: " + e.getMessage())
+                                .isError(true)
+                                .build();
+                    }
+                })
+                .build();
+    }
+
+    private String analyze(String filePath, String startTimeStr, String endTimeStr, String detailLevel) throws IOException {
+        IItemCollection allEvents = service.loadRecording(filePath);
+        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Detailed GC Analysis\n\n");
+
+        boolean showAll = "all".equals(detailLevel);
+
+        if (showAll || "summary".equals(detailLevel)) {
+            appendConfiguration(events, sb);
+            appendGenerationalSummary(events, sb);
+        }
+
+        if (showAll || "phases".equals(detailLevel)) {
+            appendPhaseBreakdown(events, sb);
+        }
+
+        if (showAll || "heap_trends".equals(detailLevel)) {
+            appendHeapTrends(events, sb);
+        }
+
+        return sb.toString();
+    }
+
+    private void appendConfiguration(IItemCollection events, StringBuilder sb) {
+        sb.append("## GC Configuration\n");
+        IItemCollection config = events.apply(ItemFilters.type("jdk.GCConfiguration"));
+        IItemCollection heapConfig = events.apply(ItemFilters.type("jdk.GCHeapConfiguration"));
+        IItemCollection survivorConfig = events.apply(ItemFilters.type("jdk.GCSurvivorConfiguration"));
+
+        Optional<IItem> configItem = config.hasItems() ? Optional.of(config.iterator().next().iterator().next()) : Optional.empty();
+        Optional<IItem> heapItem = heapConfig.hasItems() ? Optional.of(heapConfig.iterator().next().iterator().next()) : Optional.empty();
+        Optional<IItem> survivorItem = survivorConfig.hasItems() ? Optional.of(survivorConfig.iterator().next().iterator().next()) : Optional.empty();
+
+        configItem.ifPresent(item -> {
+            sb.append("- **Young Collector:** ").append(JfrItemUtils.getMember(item, "youngCollector").orElse("N/A")).append("\n");
+            sb.append("- **Old Collector:** ").append(JfrItemUtils.getMember(item, "oldCollector").orElse("N/A")).append("\n");
+            sb.append("- **Parallel GC Threads:** ").append(JfrItemUtils.getMember(item, "parallelGCThreads").orElse("N/A")).append("\n");
+            sb.append("- **Concurrent GC Threads:** ").append(JfrItemUtils.getMember(item, "concurrentGCThreads").orElse("N/A")).append("\n");
+        });
+
+        heapItem.ifPresent(item -> {
+            sb.append("- **Min Heap Size:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "minSize").orElse(null))).append("\n");
+            sb.append("- **Max Heap Size:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "maxSize").orElse(null))).append("\n");
+            sb.append("- **Initial Heap Size:** ").append(JfrAnalysisService.display(JfrItemUtils.getQuantity(item, "initialSize").orElse(null))).append("\n");
+        });
+
+        survivorItem.ifPresent(item -> sb.append("- **Max Tenuring Threshold:** ").append(JfrItemUtils.getMember(item, "maxTenuringThreshold").orElse("N/A")).append("\n"));
+        sb.append("\n");
+    }
+
+    private void appendGenerationalSummary(IItemCollection events, StringBuilder sb) {
+        sb.append("## Generational Summary\n");
+        IItemCollection young = events.apply(ItemFilters.type("jdk.YoungGarbageCollection"));
+        IItemCollection old = events.apply(ItemFilters.type("jdk.OldGarbageCollection"));
+
+        sb.append("| Generation | Count | Total Duration | Avg Duration |\n");
+        sb.append("|------------|-------|----------------|--------------|\n");
+
+        appendGenRow(sb, "Young", young);
+        appendGenRow(sb, "Old/Full", old);
+        sb.append("\n");
+
+        appendCauseDistribution(events, sb);
+    }
+
+    private void appendCauseDistribution(IItemCollection events, StringBuilder sb) {
+        sb.append("### GC Cause Distribution\n");
+        Map<String, Integer> causeCounts = new HashMap<>();
+        IItemCollection gcs = events.apply(ItemFilters.type("jdk.GarbageCollection"));
+        for (IItemIterable iterable : gcs) {
+            IMemberAccessor<String, IItem> causeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "cause");
+            if (causeAccessor != null) {
+                for (IItem item : iterable) {
+                    String cause = causeAccessor.getMember(item);
+                    if (cause != null) {
+                        causeCounts.merge(cause, 1, Integer::sum);
+                    }
+                }
+            }
+        }
+
+        if (causeCounts.isEmpty()) {
+            sb.append("No GC cause data available.\n\n");
+            return;
+        }
+
+        sb.append("| Cause | Count |\n");
+        sb.append("|-------|-------|\n");
+        causeCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .forEach(e -> sb.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" |\n"));
+        sb.append("\n");
+    }
+
+    private void appendGenRow(StringBuilder sb, String name, IItemCollection collection) {
+        long count = JfrItemUtils.count(collection);
+        IQuantity total = JfrItemUtils.sumQuantity(collection, JfrAttributes.DURATION.getIdentifier());
+        IQuantity avg = JfrItemUtils.avgQuantity(collection, JfrAttributes.DURATION.getIdentifier());
+        sb.append("| ").append(name).append(" | ").append(count).append(" | ")
+                .append(JfrAnalysisService.display(total)).append(" | ")
+                .append(JfrAnalysisService.display(avg)).append(" |\n");
+    }
+
+    private void appendPhaseBreakdown(IItemCollection events, StringBuilder sb) {
+        sb.append("## Pause Phase Breakdown\n");
+        IItemCollection phases = events.apply(ItemFilters.type("jdk.GCPhasePause"));
+
+        if (!phases.hasItems()) {
+            sb.append("No GC pause phase events found.\n\n");
+            return;
+        }
+
+        Map<String, List<IQuantity>> phaseDurations = new HashMap<>();
+        for (IItemIterable iterable : phases) {
+            IMemberAccessor<String, IItem> nameAccessor = JfrItemUtils.getAccessor(iterable.getType(), "name");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
+
+            if (nameAccessor != null && durationAccessor != null) {
+                for (IItem item : iterable) {
+                    String name = nameAccessor.getMember(item);
+                    IQuantity duration = durationAccessor.getMember(item);
+                    if (name != null && duration != null) {
+                        phaseDurations.computeIfAbsent(name, k -> new ArrayList<>()).add(duration);
+                    }
+                }
+            }
+        }
+
+        sb.append("| Phase Name | Count | Avg | P95 | P99 | Max |\n");
+        sb.append("|------------|-------|-----|-----|-----|-----|\n");
+
+        phaseDurations.entrySet().stream()
+                .sorted((a, b) -> b.getValue().stream().reduce(UnitLookup.NANOSECOND.quantity(0), IQuantity::add)
+                        .compareTo(a.getValue().stream().reduce(UnitLookup.NANOSECOND.quantity(0), IQuantity::add)))
+                .forEach(entry -> {
+                    List<IQuantity> durations = entry.getValue();
+                    Collections.sort(durations);
+                    IQuantity sum = durations.stream().reduce(UnitLookup.NANOSECOND.quantity(0), IQuantity::add);
+                    IQuantity avg = sum.multiply(1.0 / durations.size());
+                    IQuantity p95 = durations.get((int) Math.max(0, Math.ceil(0.95 * durations.size()) - 1));
+                    IQuantity p99 = durations.get((int) Math.max(0, Math.ceil(0.99 * durations.size()) - 1));
+                    IQuantity max = durations.getLast();
+
+                    sb.append("| ").append(entry.getKey()).append(" | ")
+                            .append(durations.size()).append(" | ")
+                            .append(JfrAnalysisService.display(avg)).append(" | ")
+                            .append(JfrAnalysisService.display(p95)).append(" | ")
+                            .append(JfrAnalysisService.display(p99)).append(" | ")
+                            .append(JfrAnalysisService.display(max)).append(" |\n");
+                });
+        sb.append("\n");
+    }
+
+    private void appendHeapTrends(IItemCollection events, StringBuilder sb) {
+        sb.append("## Heap Trends\n");
+        IItemCollection heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
+
+        if (!heapSummary.hasItems()) {
+            sb.append("No heap summary events found.\n\n");
+            return;
+        }
+
+        IQuantity minUsed = JfrItemUtils.minQuantity(heapSummary, "heapUsed");
+        IQuantity maxUsed = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
+        IQuantity avgUsed = JfrItemUtils.avgQuantity(heapSummary, "heapUsed");
+        IQuantity p95Used = JfrItemUtils.percentileQuantity(heapSummary, "heapUsed", 95);
+
+        sb.append("- **Min Heap Used:** ").append(JfrAnalysisService.display(minUsed)).append("\n");
+        sb.append("- **Max Heap Used:** ").append(JfrAnalysisService.display(maxUsed)).append("\n");
+        sb.append("- **Avg Heap Used:** ").append(JfrAnalysisService.display(avgUsed)).append("\n");
+        sb.append("- **P95 Heap Used:** ").append(JfrAnalysisService.display(p95Used)).append("\n\n");
+
+        sb.append("### GC Cycle Heap Usage\n");
+        sb.append("| GC ID | Heap Used | Heap Size |\n");
+        sb.append("|-------|-----------|-----------|\n");
+
+        Map<Long, Map<String, IQuantity>> cycleMap = new TreeMap<>();
+        for (IItemIterable iterable : heapSummary) {
+            IMemberAccessor<IQuantity, IItem> gcIdAccessor = JfrItemUtils.getAccessor(iterable.getType(), "gcId");
+            IMemberAccessor<IQuantity, IItem> usedAccessor = JfrItemUtils.getAccessor(iterable.getType(), "heapUsed");
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "heapSize");
+            IMemberAccessor<String, IItem> whenAccessor = JfrItemUtils.getAccessor(iterable.getType(), "when");
+
+            if (gcIdAccessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity gcIdQ = gcIdAccessor.getMember(item);
+                    if (gcIdQ != null) {
+                        long gcId = gcIdQ.clampedLongValueIn(UnitLookup.NUMBER_UNITY);
+                        String when = whenAccessor != null ? whenAccessor.getMember(item) : "After GC";
+                        // We prefer "After GC" for trend analysis if multiple samples exist per GC
+                        if ("After GC".equals(when) || !cycleMap.containsKey(gcId)) {
+                            Map<String, IQuantity> data = new HashMap<>();
+                            if (usedAccessor != null) data.put("used", usedAccessor.getMember(item));
+                            if (sizeAccessor != null) data.put("size", sizeAccessor.getMember(item));
+                            cycleMap.put(gcId, data);
+                        }
+                    }
+                }
+            }
+        }
+
+        cycleMap.entrySet().stream().limit(20).forEach(entry ->
+                sb.append("| ").append(entry.getKey()).append(" | ")
+                        .append(JfrAnalysisService.display(entry.getValue().get("used"))).append(" | ")
+                        .append(JfrAnalysisService.display(entry.getValue().get("size"))).append(" |\n"));
+        if (cycleMap.size() > 20) {
+            sb.append("| ... | ... | ... |\n");
+        }
+        sb.append("\n");
+    }
+}

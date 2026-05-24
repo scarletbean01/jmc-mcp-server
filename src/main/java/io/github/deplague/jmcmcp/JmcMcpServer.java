@@ -41,6 +41,10 @@ public final class JmcMcpServer {
         // Register all tools
         List<McpServerFeatures.SyncToolSpecification> tools = List
                 .of(new JfrOverviewTool(analysisService).spec(),
+                        new GcDetailTool(analysisService).spec(),
+                        new IoHotspotsTool(analysisService).spec(),
+                        new SafepointAnalysisTool(analysisService).spec(),
+                        new ThreadActivityTool(analysisService).spec(),
                         new GcAnalysisTool(analysisService).spec(),
                         new HotMethodsTool(analysisService).spec(),
                         new ThreadContentionTool(analysisService).spec(),
