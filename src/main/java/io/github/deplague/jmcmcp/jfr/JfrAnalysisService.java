@@ -79,8 +79,9 @@ public final class JfrAnalysisService {
 
         if (startTimeStr != null) {
             try {
-                long epochNanos = Instant.parse(startTimeStr).toEpochMilli() * 1_000_000L;
-                start = UnitLookup.NANOSECOND.quantity(epochNanos);
+                Instant instant = Instant.parse(startTimeStr);
+                long epochNanos = instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
+                start = UnitLookup.EPOCH_NS.quantity(epochNanos);
             } catch (Exception e) {
                 LOG.warn("Failed to parse start_time: {}", startTimeStr);
             }
@@ -88,8 +89,9 @@ public final class JfrAnalysisService {
 
         if (endTimeStr != null) {
             try {
-                long epochNanos = Instant.parse(endTimeStr).toEpochMilli() * 1_000_000L;
-                end = UnitLookup.NANOSECOND.quantity(epochNanos);
+                Instant instant = Instant.parse(endTimeStr);
+                long epochNanos = instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
+                end = UnitLookup.EPOCH_NS.quantity(epochNanos);
             } catch (Exception e) {
                 LOG.warn("Failed to parse end_time: {}", endTimeStr);
             }

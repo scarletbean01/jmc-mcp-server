@@ -142,6 +142,21 @@ public final class SchemaUtil {
         return defaultValue;
     }
 
+    public static double getNumberOrDefault(Map<String, Object> args, String key, double defaultValue) {
+        Object val = args.get(key);
+        if (val instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (val instanceof String s) {
+            try {
+                return Double.parseDouble(s);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
     public static String formatBytes(long bytes) {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));

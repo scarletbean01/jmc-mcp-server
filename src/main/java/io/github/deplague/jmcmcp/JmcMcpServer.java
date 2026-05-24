@@ -87,7 +87,12 @@ public final class JmcMcpServer {
                         new JvmFlagsTool(analysisService).spec(),
                         new DirectBuffersTool(analysisService).spec(),
                         new ProcessInfoTool(analysisService).spec(),
-                        new HighCpuDiagnosticTool(analysisService).spec());
+                        new HighCpuDiagnosticTool(analysisService).spec(),
+                        new PredictiveLeakAnalysisTool(analysisService).spec(),
+                        new DeadlockDetectionTool(analysisService).spec(),
+                        new JdkBugReferenceTool(analysisService).spec(),
+                        new GcRecommendationsTool(analysisService).spec(),
+                        new ThreadPoolAnalysisTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

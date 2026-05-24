@@ -329,15 +329,17 @@ public final class CompareRecordingsTool {
             IItemCollection events = allEvents.apply(ItemFilters.type(typeId));
             for (IItemIterable iterable : events) {
                 IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
-                IMemberAccessor<IQuantity, IItem> allocAccessor = JfrItemUtils.getAccessor(iterable.getType(), typeId.contains("Outside") ? "allocationSize" : "tlabSize");
-                
-                if (classAccessor != null && allocAccessor != null) {
+                IMemberAccessor<Object, IItem> accessor = JfrItemUtils.getAccessor(iterable.getType(), typeId.contains("Outside") ? "allocationSize" : "tlabSize");
+
+                if (classAccessor != null && accessor != null) {
                     for (IItem item : iterable) {
                         Object cls = classAccessor.getMember(item);
-                        IQuantity alloc = allocAccessor.getMember(item);
-                        if (cls != null && alloc != null) {
-                            double bytes = alloc.doubleValue();
-                            rates.merge(cls.toString(), bytes / durationSec, Double::sum);
+                        Object rawAlloc = accessor.getMember(item);
+                        if (cls != null && rawAlloc != null) {
+                            double bytes = JfrItemUtils.toDouble(rawAlloc);
+                            if (!Double.isNaN(bytes)) {
+                                rates.merge(cls.toString(), bytes / durationSec, Double::sum);
+                            }
                         }
                     }
                 }

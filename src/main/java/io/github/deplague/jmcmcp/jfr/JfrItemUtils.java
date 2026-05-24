@@ -5,6 +5,8 @@ import org.openjdk.jmc.common.IMCMethod;
 import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
+import org.openjdk.jmc.common.unit.UnitLookup;
+import org.openjdk.jmc.flightrecorder.IParserStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,7 +26,7 @@ public final class JfrItemUtils {
     /**
      * Get an accessor for a specific attribute identifier on a given type.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"unchecked"})
     public static <T> IMemberAccessor<T, IItem> getAccessor(IType<?> type, String identifier) {
         for (java.util.Map.Entry<IAccessorKey<?>, ? extends org.openjdk.jmc.common.IDescribable> entry : type.getAccessorKeys().entrySet()) {
             if (identifier.equals(entry.getKey().getIdentifier())) {
@@ -50,20 +52,36 @@ public final class JfrItemUtils {
         return getMember(item, identifier);
     }
 
+    public static double toDouble(Object value) {
+        if (value instanceof IQuantity q) return q.doubleValue();
+        if (value instanceof Number n) return n.doubleValue();
+        return Double.NaN;
+    }
+
+    private static IQuantity toIQuantity(Object value) {
+        if (value instanceof IQuantity q) return q;
+        if (value instanceof Number n) return UnitLookup.NUMBER_UNITY.quantity(n.doubleValue());
+        return null;
+    }
+
     /**
      * Sum a quantity attribute across an item collection.
+     * Handles both IQuantity and Number-typed attributes.
      */
     public static IQuantity sumQuantity(IItemCollection items, String identifier) {
         double sum = 0;
         org.openjdk.jmc.common.unit.IUnit unit = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            IMemberAccessor<Object, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
-                    IQuantity q = accessor.getMember(item);
-                    if (q != null) {
-                        sum += q.doubleValue();
-                        if (unit == null) unit = q.getUnit();
+                    Object raw = accessor.getMember(item);
+                    if (raw != null) {
+                        IQuantity q = toIQuantity(raw);
+                        if (q != null) {
+                            sum += q.doubleValue();
+                            if (unit == null) unit = q.getUnit();
+                        }
                     }
                 }
             }
@@ -73,20 +91,24 @@ public final class JfrItemUtils {
 
     /**
      * Average a quantity attribute across an item collection.
+     * Handles both IQuantity and Number-typed attributes.
      */
     public static IQuantity avgQuantity(IItemCollection items, String identifier) {
         double sum = 0;
         long count = 0;
         org.openjdk.jmc.common.unit.IUnit unit = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            IMemberAccessor<Object, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
-                    IQuantity q = accessor.getMember(item);
-                    if (q != null) {
-                        sum += q.doubleValue();
-                        count++;
-                        if (unit == null) unit = q.getUnit();
+                    Object raw = accessor.getMember(item);
+                    if (raw != null) {
+                        IQuantity q = toIQuantity(raw);
+                        if (q != null) {
+                            sum += q.doubleValue();
+                            count++;
+                            if (unit == null) unit = q.getUnit();
+                        }
                     }
                 }
             }
@@ -96,17 +118,21 @@ public final class JfrItemUtils {
 
     /**
      * Max a quantity attribute across an item collection.
+     * Handles both IQuantity and Number-typed attributes.
      */
     public static IQuantity maxQuantity(IItemCollection items, String identifier) {
         IQuantity max = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            IMemberAccessor<Object, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
-                    IQuantity q = accessor.getMember(item);
-                    if (q != null) {
-                        if (max == null || q.compareTo(max) > 0) {
-                            max = q;
+                    Object raw = accessor.getMember(item);
+                    if (raw != null) {
+                        IQuantity q = toIQuantity(raw);
+                        if (q != null) {
+                            if (max == null || q.compareTo(max) > 0) {
+                                max = q;
+                            }
                         }
                     }
                 }
@@ -117,17 +143,21 @@ public final class JfrItemUtils {
 
     /**
      * Min a quantity attribute across an item collection.
+     * Handles both IQuantity and Number-typed attributes.
      */
     public static IQuantity minQuantity(IItemCollection items, String identifier) {
         IQuantity min = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            IMemberAccessor<Object, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
-                    IQuantity q = accessor.getMember(item);
-                    if (q != null) {
-                        if (min == null || q.compareTo(min) < 0) {
-                            min = q;
+                    Object raw = accessor.getMember(item);
+                    if (raw != null) {
+                        IQuantity q = toIQuantity(raw);
+                        if (q != null) {
+                            if (min == null || q.compareTo(min) < 0) {
+                                min = q;
+                            }
                         }
                     }
                 }
@@ -138,16 +168,20 @@ public final class JfrItemUtils {
 
     /**
      * Calculate a percentile for a quantity attribute across an item collection.
+     * Handles both IQuantity and Number-typed attributes.
      */
     public static IQuantity percentileQuantity(IItemCollection items, String identifier, double percentile) {
         List<IQuantity> values = new ArrayList<>();
         for (IItemIterable iterable : items) {
-            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            IMemberAccessor<Object, IItem> accessor = getAccessor(iterable.getType(), identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
-                    IQuantity q = accessor.getMember(item);
-                    if (q != null) {
-                        values.add(q);
+                    Object raw = accessor.getMember(item);
+                    if (raw != null) {
+                        IQuantity q = toIQuantity(raw);
+                        if (q != null) {
+                            values.add(q);
+                        }
                     }
                 }
             }
@@ -166,7 +200,7 @@ public final class JfrItemUtils {
     public static long count(IItemCollection items) {
         long count = 0;
         for (IItemIterable iterable : items) {
-            count += iterable.stream().count();
+            count += iterable.getItemCount();
         }
         return count;
     }
