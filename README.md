@@ -4,31 +4,53 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Features
 
-- **24 MCP tools** for comprehensive JFR analysis:
+- **28 MCP tools** for comprehensive JFR analysis:
+
+  **Overview & Discovery**
   - `jfr_overview` — Recording summary, event counts, JVM info
+  - `event_schema` — Discover JFR event types and field schemas in a recording
+  - `search_events` — Search for any JFR event type with detailed attribute listing
+  - `recording_settings` — Inspect the JFR configuration (events, thresholds, stack traces)
+  - `jfr_rules` — Automated bottleneck detection via JMC built-in rules
+  - `compare_recordings` — Perform a comprehensive A/B comparison of two JFR recordings
+
+  **Garbage Collection & Memory**
   - `gc_detail` — Detailed GC analysis: per-phase pause breakdowns, GC cause distribution, heap trends, and configuration
   - `gc_analysis` — GC pause times, frequencies, heap trends
-  - `io_hotspots` — Identify slow and frequent I/O operations by path/host with call-site breakdowns
-  - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
-  - `thread_activity` — Analyze thread lifecycle, creation/destruction rates, and sleep patterns
-  - `hot_methods` — Top CPU-hot methods from execution samples
-  - `thread_contention` — Monitor blocking, parking, wait times
-  - `allocation_hotspots` — Memory allocation by class and site
-  - `io_analysis` — File and socket I/O latency/throughput
-  - `exception_analysis` — Exception/error throw statistics
-  - `jfr_rules` — Automated bottleneck detection via JMC built-in rules
-  - `live_recording` — Connect to running JVMs via JMX and manage live JFR recordings
-  - `system_health` — CPU load, physical memory usage, and OS metrics
-  - `thread_dumps` — Extract periodic thread dumps from the recording
-  - `search_events` — Search for any JFR event type with detailed attribute listing
-  - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
+  - `heap_trends` — Time-bucketed heap, metaspace, and thread count trends for leak detection
   - `object_statistics` — Heap occupancy by class (instance count and total size)
-  - `system_properties` — List JVM system properties and environment variables
-  - `recording_settings` — Inspect the JFR configuration (events, thresholds, stack traces)
-  - `time_series` — Analyze performance trends over time using bucketed metrics
+
+  **CPU & Code**
+  - `hot_methods` — Top CPU-hot methods from execution samples
   - `jit_compilation` — Analyze JIT compilation and deoptimization events
+  - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
+  - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
+
+  **Threading & Locks**
+  - `thread_activity` — Analyze thread lifecycle, creation/destruction rates, and sleep patterns
+  - `thread_contention` — Monitor blocking, parking, wait times
+  - `thread_dumps` — Extract periodic thread dumps from the recording
+
+  **I/O & Network**
+  - `io_hotspots` — Identify slow and frequent I/O operations by path/host with call-site breakdowns
+  - `io_analysis` — File and socket I/O latency/throughput
+  - `network_analysis` — Socket connection hotspots: per-host:port latency, throughput, and failure tracking
+
+  **Errors & Exceptions**
+  - `error_analysis` — Analyze Java errors (OutOfMemoryError, StackOverflowError, etc.) with severity classification
+  - `exception_analysis` — Exception/error throw statistics
+
+  **Allocation & Classes**
+  - `allocation_hotspots` — Memory allocation by class and site
   - `class_loading` — Analyze class loading events and statistics
-  - `compare_recordings` — Perform a comprehensive A/B comparison of two JFR recordings
+
+  **System & Trends**
+  - `system_health` — CPU load, physical memory usage, and OS metrics
+  - `system_properties` — List JVM system properties and environment variables
+  - `time_series` — Analyze performance trends over time using bucketed metrics
+
+  **Live JVM**
+  - `live_recording` — Connect to running JVMs via JMX and manage live JFR recordings
 
 - **Powered by JMC 9.1.1** — Rich aggregation, filtering, and the JMC rules engine
 - **Built-in caching** — JFR recordings are cached by file path to avoid re-parsing
@@ -99,32 +121,78 @@ Once connected, ask your agent things like:
 
 ## Tool Reference
 
+### Overview & Discovery
+
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
 | `jfr_overview` | Recording summary | `jfr_file_path` | `start_time`, `end_time` |
+| `event_schema` | Event type discovery | `jfr_file_path` | `event_type` |
+| `search_events` | Search any event type | `jfr_file_path`, `event_type` | `start_time`, `end_time`, `limit` |
+| `recording_settings` | JFR config inspection | `jfr_file_path` | `start_time`, `end_time` |
+| `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `start_time`, `end_time`, `min_severity` |
+| `compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time` |
+
+### Garbage Collection & Memory
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
 | `gc_detail` | In-depth GC analysis | `jfr_file_path` | `start_time`, `end_time`, `detail_level` |
 | `gc_analysis` | Basic GC statistics | `jfr_file_path` | `start_time`, `end_time`, `stat_type` |
-| `io_hotspots` | I/O operation hotspots | `jfr_file_path` | `start_time`, `end_time`, `io_type`, `top_n` |
-| `safepoint_analysis` | Safepoint STW metrics | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `thread_activity` | Thread lifecycle stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `thread_contention` | Lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `allocation_hotspots` | Allocation hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `io_analysis` | I/O latency/throughput | `jfr_file_path` | `start_time`, `end_time`, `io_type` |
-| `exception_analysis` | Exception stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `start_time`, `end_time`, `min_severity` |
-| `live_recording` | Live JVM JFR management | `jmx_url`, `action` | `recording_name`, `duration_seconds`, `recording_id`, `output_path` |
-| `system_health` | System metrics | `jfr_file_path` | `start_time`, `end_time` |
-| `thread_dumps` | Extract thread dumps | `jfr_file_path` | `start_time`, `end_time`, `max_dumps` |
-| `search_events` | Search any event type | `jfr_file_path`, `event_type` | `start_time`, `end_time`, `limit` |
-| `vm_operations` | VM pauses/Safepoints | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `heap_trends` | Heap/metaspace trends | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
 | `object_statistics` | Heap occupancy | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `system_properties` | JVM properties/Env | `jfr_file_path` | `start_time`, `end_time`, `filter` |
-| `recording_settings` | JFR config inspection | `jfr_file_path` | `start_time`, `end_time` |
-| `time_series` | Trend analysis | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
+
+### CPU & Code
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `jit_compilation` | JIT compilation events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `safepoint_analysis` | Safepoint STW metrics | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `vm_operations` | VM pauses/Safepoints | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+
+### Threading & Locks
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `thread_activity` | Thread lifecycle stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `thread_contention` | Lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `thread_dumps` | Extract thread dumps | `jfr_file_path` | `start_time`, `end_time`, `max_dumps` |
+
+### I/O & Network
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `io_hotspots` | I/O operation hotspots | `jfr_file_path` | `start_time`, `end_time`, `io_type`, `top_n` |
+| `io_analysis` | I/O latency/throughput | `jfr_file_path` | `start_time`, `end_time`, `io_type` |
+| `network_analysis` | Socket connection analysis | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+
+### Errors & Exceptions
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `error_analysis` | Java error analysis | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `exception_analysis` | Exception stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+
+### Allocation & Classes
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `allocation_hotspots` | Allocation hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_loading` | Class loading stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `compare_recordings`| A/B JFR Comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time` |
+
+### System & Trends
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `system_health` | System metrics | `jfr_file_path` | `start_time`, `end_time` |
+| `system_properties` | JVM properties/Env | `jfr_file_path` | `start_time`, `end_time`, `filter` |
+| `time_series` | Trend analysis | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
+
+### Live JVM
+
+| Tool | Description | Required Args | Optional Args |
+|------|-------------|---------------|---------------|
+| `live_recording` | Live JVM JFR management | `jmx_url`, `action` | `recording_name`, `duration_seconds`, `recording_id`, `output_path` |
 
 ## Architecture
 

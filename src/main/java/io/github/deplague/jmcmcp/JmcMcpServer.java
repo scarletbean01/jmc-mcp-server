@@ -67,7 +67,11 @@ public final class JmcMcpServer {
                         new ErrorAnalysisTool(analysisService).spec(),
                         new HeapTrendsTool(analysisService).spec(),
                         new NetworkAnalysisTool(analysisService).spec(),
-                        new EventSchemaTool(analysisService).spec());
+                        new EventSchemaTool(analysisService).spec(),
+                        new NativeMemoryTool(analysisService).spec(),
+                        new ClassHistogramTool(analysisService).spec(),
+                        new CpuFlameTool(analysisService).spec(),
+                        new JfrEventStatsTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);
