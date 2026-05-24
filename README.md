@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Features
 
-- **9 MCP tools** for comprehensive JFR analysis:
+- **16 MCP tools** for comprehensive JFR analysis:
   - `jfr_overview` — Recording summary, event counts, JVM info
   - `gc_analysis` — GC pause times, frequencies, heap trends
   - `hot_methods` — Top CPU-hot methods from execution samples
@@ -14,6 +14,13 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   - `exception_analysis` — Exception/error throw statistics
   - `jfr_rules` — Automated bottleneck detection via JMC built-in rules
   - `live_recording` — Connect to running JVMs via JMX and manage live JFR recordings
+  - `system_health` — CPU load, physical memory usage, and OS metrics
+  - `thread_dumps` — Extract periodic thread dumps from the recording
+  - `search_events` — Search for any JFR event type with detailed attribute listing
+  - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
+  - `object_statistics` — Heap occupancy by class (instance count and total size)
+  - `system_properties` — List JVM system properties and environment variables
+  - `recording_settings` — Inspect the JFR configuration (events, thresholds, stack traces)
 
 - **Powered by JMC 9.1.1** — Rich aggregation, filtering, and the JMC rules engine
 - **Built-in caching** — JFR recordings are cached by file path to avoid re-parsing
@@ -76,6 +83,10 @@ Once connected, ask your agent things like:
 - "What are the top 20 hot methods in this JFR file?"
 - "Show me thread contention hotspots from `/tmp/flight.jfr`"
 - "Run all JMC rules on `/path/to/recording.jfr` and report any critical issues"
+- "Analyze VM operations and safepoint pauses in the recording."
+- "Show me the heap occupancy snapshot from the last GC."
+- "List all system properties starting with 'java.vm' from the recording."
+- "Search for all `jdk.JavaMonitorWait` events in `/path/to/recording.jfr`."
 - "Start a 30-second JFR recording on the JVM at `service:jmx:rmi:///jndi/rmi://localhost:9091/jmxrmi`"
 
 ## Tool Reference
@@ -91,6 +102,13 @@ Once connected, ask your agent things like:
 | `exception_analysis` | Exception stats | `jfr_file_path` | `top_n` (default 10) |
 | `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `min_score` (default 50) |
 | `live_recording` | Live JVM JFR management | `jmx_url`, `action` | `recording_name`, `duration_seconds`, `recording_id`, `output_path` |
+| `system_health` | System metrics | `jfr_file_path` | — |
+| `thread_dumps` | Extract thread dumps | `jfr_file_path` | `max_dumps` (default 5) |
+| `search_events` | Search any event type | `jfr_file_path`, `event_type` | `limit` (default 20) |
+| `vm_operations` | VM pauses/Safepoints | `jfr_file_path` | — |
+| `object_statistics` | Heap occupancy | `jfr_file_path` | `top_n` (default 20) |
+| `system_properties` | JVM properties/Env | `jfr_file_path` | `filter` |
+| `recording_settings` | JFR config inspection | `jfr_file_path` | — |
 
 ## Architecture
 
