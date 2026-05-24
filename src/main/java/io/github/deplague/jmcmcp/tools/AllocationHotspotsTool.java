@@ -8,6 +8,7 @@ import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -46,7 +47,14 @@ public final class AllocationHotspotsTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, topN);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -75,13 +83,18 @@ public final class AllocationHotspotsTool {
 
             Map<String, Long> classAllocations = new HashMap<>();
             for (var itemIterable : newTLAB) {
-                for (IItem item : itemIterable) {
-                    Object classObj = JfrItemUtils.getMember(item, "objectClass");
-                    IQuantity size = JfrItemUtils.getQuantity(item, "tlabSize");
-                    if (classObj != null && size != null) {
-                        String className = classObj.toString();
-                        long bytes = size.clampedLongValueIn(size.getUnit());
-                        classAllocations.merge(className, bytes, Long::sum);
+                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
+                IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "tlabSize");
+                
+                if (classAccessor != null && sizeAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object classObj = classAccessor.getMember(item);
+                        IQuantity size = sizeAccessor.getMember(item);
+                        if (classObj != null && size != null) {
+                            String className = classObj.toString();
+                            long bytes = size.clampedLongValueIn(size.getUnit());
+                            classAllocations.merge(className, bytes, Long::sum);
+                        }
                     }
                 }
             }
@@ -111,13 +124,18 @@ public final class AllocationHotspotsTool {
 
             Map<String, Long> classAllocations = new HashMap<>();
             for (var itemIterable : outsideTLAB) {
-                for (IItem item : itemIterable) {
-                    Object classObj = JfrItemUtils.getMember(item, "objectClass");
-                    IQuantity size = JfrItemUtils.getQuantity(item, "allocationSize");
-                    if (classObj != null && size != null) {
-                        String className = classObj.toString();
-                        long bytes = size.clampedLongValueIn(size.getUnit());
-                        classAllocations.merge(className, bytes, Long::sum);
+                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
+                IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "allocationSize");
+
+                if (classAccessor != null && sizeAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object classObj = classAccessor.getMember(item);
+                        IQuantity size = sizeAccessor.getMember(item);
+                        if (classObj != null && size != null) {
+                            String className = classObj.toString();
+                            long bytes = size.clampedLongValueIn(size.getUnit());
+                            classAllocations.merge(className, bytes, Long::sum);
+                        }
                     }
                 }
             }
@@ -145,13 +163,18 @@ public final class AllocationHotspotsTool {
 
             Map<String, Long> classAllocations = new HashMap<>();
             for (var itemIterable : allocSample) {
-                for (IItem item : itemIterable) {
-                    Object classObj = JfrItemUtils.getMember(item, "objectClass");
-                    IQuantity size = JfrItemUtils.getQuantity(item, "weight");
-                    if (classObj != null && size != null) {
-                        String className = classObj.toString();
-                        long bytes = size.clampedLongValueIn(size.getUnit());
-                        classAllocations.merge(className, bytes, Long::sum);
+                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "objectClass");
+                IMemberAccessor<IQuantity, IItem> weightAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "weight");
+
+                if (classAccessor != null && weightAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object classObj = classAccessor.getMember(item);
+                        IQuantity size = weightAccessor.getMember(item);
+                        if (classObj != null && size != null) {
+                            String className = classObj.toString();
+                            long bytes = size.clampedLongValueIn(size.getUnit());
+                            classAllocations.merge(className, bytes, Long::sum);
+                        }
                     }
                 }
             }

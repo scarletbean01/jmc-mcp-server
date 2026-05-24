@@ -5,11 +5,13 @@ import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.ItemFilters;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * MCP tool for system health analysis (CPU load, Physical Memory, etc.)
@@ -40,7 +42,14 @@ public final class SystemHealthTool {
                 .callHandler((exchange, request) -> {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
+                        
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -89,16 +98,25 @@ public final class SystemHealthTool {
             sb.append("\n");
         }
 
-        // OS Information (Environment Variables/System Properties are often in separate events)
-        // Usually jdk.CPUInformation, jdk.OSInformation
+        // OS Information
         var cpuInfo = events.apply(ItemFilters.type("jdk.CPUInformation"));
         if (cpuInfo.hasItems()) {
             sb.append("## CPU Information\n");
-            Object cpuName = JfrItemUtils.getMember(cpuInfo.iterator().next().iterator().next(), "cpu");
+            
+            // Get first available item safely
+            Optional<IItem> firstItem = cpuInfo.stream()
+                .flatMap(iterable -> iterable.stream())
+                .findFirst();
+
+            if (firstItem.isPresent()) {
+                IItem item = firstItem.get();
+                Object cpuName = JfrItemUtils.getMember(item, "cpu");
+                if (cpuName != null) sb.append(String.format("- **CPU:** %s%n", cpuName));
+            }
+
             double cores = JfrItemUtils.maxQuantity(cpuInfo, "cores");
             double sockets = JfrItemUtils.maxQuantity(cpuInfo, "sockets");
 
-            if (cpuName != null) sb.append(String.format("- **CPU:** %s%n", cpuName));
             sb.append(String.format("- **Cores:** %.0f%n", cores));
             sb.append(String.format("- **Sockets:** %.0f%n", sockets));
             sb.append("\n");

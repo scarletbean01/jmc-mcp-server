@@ -8,6 +8,7 @@ import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -45,7 +46,14 @@ public final class ExceptionAnalysisTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, topN);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -71,11 +79,14 @@ public final class ExceptionAnalysisTool {
 
             Map<String, Integer> typeCounts = new HashMap<>();
             for (var itemIterable : exceptions) {
-                for (IItem item : itemIterable) {
-                    Object thrownClass = JfrItemUtils.getMember(item, "thrownClass");
-                    if (thrownClass != null) {
-                        String type = thrownClass.toString();
-                        typeCounts.merge(type, 1, Integer::sum);
+                IMemberAccessor<Object, IItem> thrownClassAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "thrownClass");
+                if (thrownClassAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object thrownClass = thrownClassAccessor.getMember(item);
+                        if (thrownClass != null) {
+                            String type = thrownClass.toString();
+                            typeCounts.merge(type, 1, Integer::sum);
+                        }
                     }
                 }
             }
@@ -101,11 +112,14 @@ public final class ExceptionAnalysisTool {
 
             Map<String, Integer> typeCounts = new HashMap<>();
             for (var itemIterable : errors) {
-                for (IItem item : itemIterable) {
-                    Object thrownClass = JfrItemUtils.getMember(item, "thrownClass");
-                    if (thrownClass != null) {
-                        String type = thrownClass.toString();
-                        typeCounts.merge(type, 1, Integer::sum);
+                IMemberAccessor<Object, IItem> thrownClassAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "thrownClass");
+                if (thrownClassAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object thrownClass = thrownClassAccessor.getMember(item);
+                        if (thrownClass != null) {
+                            String type = thrownClass.toString();
+                            typeCounts.merge(type, 1, Integer::sum);
+                        }
                     }
                 }
             }

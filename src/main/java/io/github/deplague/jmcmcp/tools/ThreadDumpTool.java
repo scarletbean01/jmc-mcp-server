@@ -7,7 +7,9 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
@@ -44,7 +46,14 @@ public final class ThreadDumpTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         int maxDumps = getIntOrDefault(request.arguments(), "max_dumps", 5);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, maxDumps);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -70,18 +79,23 @@ public final class ThreadDumpTool {
 
         int count = 0;
         for (var itemIterable : threadDumps) {
-            for (IItem item : itemIterable) {
-                if (count >= maxDumps) break;
+            IMemberAccessor<Object, IItem> resultAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "result");
+            IMemberAccessor<IQuantity, IItem> startTimeAccessor = JfrAttributes.START_TIME.getAccessor(itemIterable.getType());
+            
+            if (resultAccessor != null && startTimeAccessor != null) {
+                for (IItem item : itemIterable) {
+                    if (count >= maxDumps) break;
 
-                Object result = JfrItemUtils.getMember(item, "result");
-                Object startTime = JfrAttributes.START_TIME.getAccessor(itemIterable.getType()).getMember(item);
+                    Object result = resultAccessor.getMember(item);
+                    Object startTime = startTimeAccessor.getMember(item);
 
-                if (result != null) {
-                    sb.append("## Dump at ").append(startTime).append("\n\n");
-                    sb.append("```\n");
-                    sb.append(result);
-                    sb.append("\n```\n\n");
-                    count++;
+                    if (result != null) {
+                        sb.append("## Dump at ").append(startTime).append("\n\n");
+                        sb.append("```\n");
+                        sb.append(result);
+                        sb.append("\n```\n\n");
+                        count++;
+                    }
                 }
             }
             if (count >= maxDumps) break;

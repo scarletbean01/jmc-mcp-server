@@ -8,6 +8,7 @@ import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
@@ -46,7 +47,14 @@ public final class ThreadContentionTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         int topN = getIntOrDefault(request.arguments(), "top_n", 10);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, topN);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -81,13 +89,18 @@ public final class ThreadContentionTool {
             // Top contended monitors by total duration
             Map<String, Long> monitorTimes = new HashMap<>();
             for (var itemIterable : monitorEnter) {
-                for (IItem item : itemIterable) {
-                    Object monitorObj = JfrItemUtils.getMember(item, "monitorClass");
-                    IQuantity duration = JfrItemUtils.getQuantity(item, "duration");
-                    if (monitorObj != null && duration != null) {
-                        String monitorClass = monitorObj.toString();
-                        long nanos = duration.clampedLongValueIn(duration.getUnit());
-                        monitorTimes.merge(monitorClass, nanos, Long::sum);
+                IMemberAccessor<Object, IItem> monitorAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "monitorClass");
+                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(itemIterable.getType());
+                
+                if (monitorAccessor != null && durationAccessor != null) {
+                    for (IItem item : itemIterable) {
+                        Object monitorObj = monitorAccessor.getMember(item);
+                        IQuantity duration = durationAccessor.getMember(item);
+                        if (monitorObj != null && duration != null) {
+                            String monitorClass = monitorObj.toString();
+                            long nanos = duration.clampedLongValueIn(duration.getUnit());
+                            monitorTimes.merge(monitorClass, nanos, Long::sum);
+                        }
                     }
                 }
             }

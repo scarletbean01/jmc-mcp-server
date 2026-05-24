@@ -45,7 +45,14 @@ public final class SearchEventsTool {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         String eventType = getString(request.arguments(), "event_type");
                         int limit = getIntOrDefault(request.arguments(), "limit", 20);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = search(filePath, eventType, limit);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -71,13 +78,14 @@ public final class SearchEventsTool {
         int count = 0;
         for (var itemIterable : filtered) {
             var type = itemIterable.getType();
-            var keys = type.getAccessorKeys().keySet();
+            var keyMap = type.getAccessorKeys();
 
             for (IItem item : itemIterable) {
                 if (count >= limit) break;
 
                 sb.append("### Event ").append(count + 1).append("\n");
-                for (var key : keys) {
+                for (var entry : keyMap.entrySet()) {
+                    var key = entry.getKey();
                     Object val = type.getAccessor(key).getMember(item);
                     if (val != null) {
                         sb.append("- **").append(key.getIdentifier()).append(":** ").append(val).append("\n");

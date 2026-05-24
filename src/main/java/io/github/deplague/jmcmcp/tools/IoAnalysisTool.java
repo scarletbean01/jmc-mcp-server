@@ -48,7 +48,14 @@ public final class IoAnalysisTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         String ioType = getStringOrDefault(request.arguments(), "io_type", "all");
+                        
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, ioType);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()

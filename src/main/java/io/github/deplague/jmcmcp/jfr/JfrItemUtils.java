@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.jfr;
 
+import org.openjdk.jmc.common.item.IAccessorKey;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
@@ -18,18 +19,25 @@ public final class JfrItemUtils {
     }
 
     /**
-     * Get a member value from an item by attribute identifier string.
+     * Get an accessor for a specific attribute identifier on a given type.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static <T> T getMember(IItem item, String identifier) {
-        final IType<?> type = item.getType();
-        for (java.util.Map.Entry<org.openjdk.jmc.common.item.IAccessorKey<?>, ? extends org.openjdk.jmc.common.IDescribable> entry : type.getAccessorKeys().entrySet()) {
+    public static <T> IMemberAccessor<T, IItem> getAccessor(IType<?> type, String identifier) {
+        for (java.util.Map.Entry<IAccessorKey<?>, ? extends org.openjdk.jmc.common.IDescribable> entry : type.getAccessorKeys().entrySet()) {
             if (identifier.equals(entry.getKey().getIdentifier())) {
-                IMemberAccessor accessor = type.getAccessor(entry.getKey());
-                return (T) accessor.getMember(item);
+                return (IMemberAccessor<T, IItem>) type.getAccessor((IAccessorKey<T>) entry.getKey());
             }
         }
         return null;
+    }
+
+    /**
+     * Get a member value from an item by attribute identifier string.
+     * Note: This is O(attributes) per call. Use getAccessor for batch processing.
+     */
+    public static <T> T getMember(IItem item, String identifier) {
+        IMemberAccessor<T, IItem> accessor = getAccessor(item.getType(), identifier);
+        return accessor != null ? accessor.getMember(item) : null;
     }
 
     /**
@@ -45,10 +53,13 @@ public final class JfrItemUtils {
     public static double sumQuantity(IItemCollection items, String identifier) {
         double sum = 0;
         for (IItemIterable iterable : items) {
-            for (IItem item : iterable) {
-                IQuantity q = getQuantity(item, identifier);
-                if (q != null) {
-                    sum += q.doubleValue();
+            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            if (accessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity q = accessor.getMember(item);
+                    if (q != null) {
+                        sum += q.doubleValue();
+                    }
                 }
             }
         }
@@ -62,11 +73,14 @@ public final class JfrItemUtils {
         double sum = 0;
         long count = 0;
         for (IItemIterable iterable : items) {
-            for (IItem item : iterable) {
-                IQuantity q = getQuantity(item, identifier);
-                if (q != null) {
-                    sum += q.doubleValue();
-                    count++;
+            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            if (accessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity q = accessor.getMember(item);
+                    if (q != null) {
+                        sum += q.doubleValue();
+                        count++;
+                    }
                 }
             }
         }
@@ -80,13 +94,16 @@ public final class JfrItemUtils {
         double max = Double.NEGATIVE_INFINITY;
         boolean any = false;
         for (IItemIterable iterable : items) {
-            for (IItem item : iterable) {
-                IQuantity q = getQuantity(item, identifier);
-                if (q != null) {
-                    double val = q.doubleValue();
-                    if (!any || val > max) {
-                        max = val;
-                        any = true;
+            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            if (accessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity q = accessor.getMember(item);
+                    if (q != null) {
+                        double val = q.doubleValue();
+                        if (!any || val > max) {
+                            max = val;
+                            any = true;
+                        }
                     }
                 }
             }
@@ -101,13 +118,16 @@ public final class JfrItemUtils {
         double min = Double.POSITIVE_INFINITY;
         boolean any = false;
         for (IItemIterable iterable : items) {
-            for (IItem item : iterable) {
-                IQuantity q = getQuantity(item, identifier);
-                if (q != null) {
-                    double val = q.doubleValue();
-                    if (!any || val < min) {
-                        min = val;
-                        any = true;
+            IMemberAccessor<IQuantity, IItem> accessor = getAccessor(iterable.getType(), identifier);
+            if (accessor != null) {
+                for (IItem item : iterable) {
+                    IQuantity q = accessor.getMember(item);
+                    if (q != null) {
+                        double val = q.doubleValue();
+                        if (!any || val < min) {
+                            min = val;
+                            any = true;
+                        }
                     }
                 }
             }
@@ -121,9 +141,7 @@ public final class JfrItemUtils {
     public static long count(IItemCollection items) {
         long count = 0;
         for (IItemIterable iterable : items) {
-            for (IItem ignored : iterable) {
-                count++;
-            }
+            count += iterable.stream().count();
         }
         return count;
     }

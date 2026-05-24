@@ -48,7 +48,14 @@ public final class GcAnalysisTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         String statType = getStringOrDefault(request.arguments(), "stat_type", "all");
+                        
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, statType);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
@@ -115,9 +122,9 @@ public final class GcAnalysisTool {
                 double maxHeap = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
                 double minHeap = JfrItemUtils.minQuantity(heapSummary, "heapUsed");
                 double avgHeap = JfrItemUtils.avgQuantity(heapSummary, "heapUsed");
-                sb.append(String.format("- **Max Heap Used:** %.2f%n", maxHeap));
-                sb.append(String.format("- **Min Heap Used:** %.2f%n", minHeap));
-                sb.append(String.format("- **Avg Heap Used:** %.2f%n", avgHeap));
+                sb.append(String.format("- **Max Heap Used:** %s%n", formatBytes((long) maxHeap)));
+                sb.append(String.format("- **Min Heap Used:** %s%n", formatBytes((long) minHeap)));
+                sb.append(String.format("- **Avg Heap Used:** %s%n", formatBytes((long) avgHeap)));
                 sb.append("\n");
             }
         }
@@ -127,6 +134,18 @@ public final class GcAnalysisTool {
         }
 
         return sb.toString();
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024L * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
     }
 
     @SuppressWarnings("unchecked")

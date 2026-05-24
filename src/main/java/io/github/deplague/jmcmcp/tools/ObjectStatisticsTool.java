@@ -44,7 +44,14 @@ public final class ObjectStatisticsTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         int topN = getIntOrDefault(request.arguments(), "top_n", 20);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, topN);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()

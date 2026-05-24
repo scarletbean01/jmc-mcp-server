@@ -7,17 +7,13 @@ import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
-import org.openjdk.jmc.flightrecorder.rules.jdk.messages.internal.Messages;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.EventAvailability;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Core service for loading JFR recordings and extracting summary / availability metadata.
@@ -25,11 +21,38 @@ import java.util.Map;
 public final class JfrAnalysisService {
 
     private static final Logger LOG = LoggerFactory.getLogger(JfrAnalysisService.class);
+    private static final int MAX_CACHE_ENTRIES = 50;
 
     private final JfrRecordingCache cache;
+    private final Map<String, String> resultCache = Collections.synchronizedMap(new LinkedHashMap<>(MAX_CACHE_ENTRIES, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > MAX_CACHE_ENTRIES;
+        }
+    });
 
     public JfrAnalysisService(JfrRecordingCache cache) {
         this.cache = cache;
+    }
+
+    /**
+     * Get a cached analysis result if available.
+     */
+    public String getCachedResult(String filePath, String toolName, Map<String, Object> args) {
+        String key = filePath + ":" + toolName + ":" + args.toString();
+        String result = resultCache.get(key);
+        if (result != null) {
+            LOG.debug("Analysis cache hit for {}: {}", toolName, filePath);
+        }
+        return result;
+    }
+
+    /**
+     * Cache an analysis result.
+     */
+    public void cacheResult(String filePath, String toolName, Map<String, Object> args, String result) {
+        String key = filePath + ":" + toolName + ":" + args.toString();
+        resultCache.put(key, result);
     }
 
     /**

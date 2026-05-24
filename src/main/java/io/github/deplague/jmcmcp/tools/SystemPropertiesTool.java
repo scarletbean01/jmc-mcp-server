@@ -43,7 +43,14 @@ public final class SystemPropertiesTool {
                     try {
                         String filePath = getString(request.arguments(), "jfr_file_path");
                         String filter = getStringOrDefault(request.arguments(), "filter", null);
+
+                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
+                        if (cached != null) {
+                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
+                        }
+
                         String result = analyze(filePath, filter);
+                        service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
                         return CallToolResult.builder()
