@@ -7,6 +7,7 @@ import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Utility methods for extracting values from JFR items without knowing the exact
@@ -35,15 +36,15 @@ public final class JfrItemUtils {
      * Get a member value from an item by attribute identifier string.
      * Note: This is O(attributes) per call. Use getAccessor for batch processing.
      */
-    public static <T> T getMember(IItem item, String identifier) {
+    public static <T> Optional<T> getMember(IItem item, String identifier) {
         IMemberAccessor<T, IItem> accessor = getAccessor(item.getType(), identifier);
-        return accessor != null ? accessor.getMember(item) : null;
+        return accessor != null ? Optional.ofNullable(accessor.getMember(item)) : Optional.empty();
     }
 
     /**
      * Get an {@link IQuantity} member from an item by attribute identifier.
      */
-    public static IQuantity getQuantity(IItem item, String identifier) {
+    public static Optional<IQuantity> getQuantity(IItem item, String identifier) {
         return getMember(item, identifier);
     }
 

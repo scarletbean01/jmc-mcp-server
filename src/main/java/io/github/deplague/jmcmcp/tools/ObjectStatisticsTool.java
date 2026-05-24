@@ -82,7 +82,7 @@ public final class ObjectStatisticsTool {
         long maxGcId = -1;
         for (var iterable : objectCounts) {
             for (IItem item : iterable) {
-                Number gcId = JfrItemUtils.getMember(item, "gcId");
+                Number gcId = JfrItemUtils.<Number>getMember(item, "gcId").orElse(null);
                 if (gcId != null && gcId.longValue() > maxGcId) {
                     maxGcId = gcId.longValue();
                 }
@@ -91,11 +91,11 @@ public final class ObjectStatisticsTool {
 
         for (var iterable : objectCounts) {
             for (IItem item : iterable) {
-                Number gcId = JfrItemUtils.getMember(item, "gcId");
+                Number gcId = JfrItemUtils.<Number>getMember(item, "gcId").orElse(null);
                 if (gcId != null && gcId.longValue() == maxGcId) {
-                    Object classObj = JfrItemUtils.getMember(item, "objectClass");
-                    IQuantity size = JfrItemUtils.getQuantity(item, "totalSize");
-                    IQuantity count = JfrItemUtils.getQuantity(item, "count");
+                    Object classObj = JfrItemUtils.getMember(item, "objectClass").orElse(null);
+                    IQuantity size = JfrItemUtils.getQuantity(item, "totalSize").orElse(null);
+                    IQuantity count = JfrItemUtils.getQuantity(item, "count").orElse(null);
 
                     if (classObj != null && size != null) {
                         String className = classObj.toString();

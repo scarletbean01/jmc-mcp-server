@@ -73,8 +73,8 @@ public final class SystemPropertiesTool {
             Map<String, String> sortedProps = new TreeMap<>();
             for (var iterable : props) {
                 for (var item : iterable) {
-                    String key = JfrItemUtils.getMember(item, "key");
-                    String value = JfrItemUtils.getMember(item, "value");
+                    String key = JfrItemUtils.<String>getMember(item, "key").orElse(null);
+                    String value = JfrItemUtils.<String>getMember(item, "value").orElse(null);
                     if (key != null && (filter == null || key.contains(filter.replace("*", "")))) {
                         sortedProps.put(key, value);
                     }
@@ -97,8 +97,8 @@ public final class SystemPropertiesTool {
             Map<String, String> sortedEnv = new TreeMap<>();
             for (var iterable : envVars) {
                 for (var item : iterable) {
-                    String key = JfrItemUtils.getMember(item, "key");
-                    String value = JfrItemUtils.getMember(item, "value");
+                    String key = JfrItemUtils.<String>getMember(item, "key").orElse(null);
+                    String value = JfrItemUtils.<String>getMember(item, "value").orElse(null);
                     if (key != null && (filter == null || key.contains(filter.replace("*", "")))) {
                         sortedEnv.put(key, value);
                     }

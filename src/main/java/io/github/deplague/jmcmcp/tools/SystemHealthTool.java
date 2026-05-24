@@ -114,7 +114,7 @@ public final class SystemHealthTool {
 
             if (firstItem.isPresent()) {
                 IItem item = firstItem.get();
-                Object cpuName = JfrItemUtils.getMember(item, "cpu");
+                Object cpuName = JfrItemUtils.getMember(item, "cpu").orElse(null);
                 if (cpuName != null) sb.append(String.format("- **CPU:** %s%n", cpuName));
             }
 

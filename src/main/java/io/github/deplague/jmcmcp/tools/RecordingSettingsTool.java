@@ -71,10 +71,10 @@ public final class RecordingSettingsTool {
             for (var iterable : settings) {
                 for (var item : iterable) {
                     sb.append("## Active Recording Details\n");
-                    sb.append("- **Name:** ").append(String.valueOf(JfrItemUtils.getMember(item, "name"))).append("\n");
-                    sb.append("- **Recording Start:** ").append(String.valueOf(JfrItemUtils.getMember(item, "recordingStart"))).append("\n");
-                    sb.append("- **Recording Duration:** ").append(String.valueOf(JfrItemUtils.getMember(item, "recordingDuration"))).append("\n");
-                    sb.append("- **Destination:** ").append(String.valueOf(JfrItemUtils.getMember(item, "destination"))).append("\n");
+                    sb.append("- **Name:** ").append(JfrItemUtils.getMember(item, "name").map(String::valueOf).orElse("null")).append("\n");
+                    sb.append("- **Recording Start:** ").append(JfrItemUtils.getMember(item, "recordingStart").map(String::valueOf).orElse("null")).append("\n");
+                    sb.append("- **Recording Duration:** ").append(JfrItemUtils.getMember(item, "recordingDuration").map(String::valueOf).orElse("null")).append("\n");
+                    sb.append("- **Destination:** ").append(JfrItemUtils.getMember(item, "destination").map(String::valueOf).orElse("null")).append("\n");
                     sb.append("\n");
                     break;
                 }
@@ -89,9 +89,9 @@ public final class RecordingSettingsTool {
             Map<String, Map<String, String>> eventToSettings = new TreeMap<>();
             for (var iterable : activeSettings) {
                 for (var item : iterable) {
-                    String eventName = JfrItemUtils.getMember(item, "id");
-                    String settingName = JfrItemUtils.getMember(item, "name");
-                    String settingValue = JfrItemUtils.getMember(item, "value");
+                    String eventName = JfrItemUtils.<String>getMember(item, "id").orElse(null);
+                    String settingName = JfrItemUtils.<String>getMember(item, "name").orElse(null);
+                    String settingValue = JfrItemUtils.<String>getMember(item, "value").orElse(null);
                     if (eventName != null && settingName != null) {
                         eventToSettings.computeIfAbsent(eventName, k -> new TreeMap<>())
                                 .put(settingName, settingValue);

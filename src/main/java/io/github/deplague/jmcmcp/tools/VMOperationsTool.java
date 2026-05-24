@@ -102,17 +102,17 @@ public final class VMOperationsTool {
 
             sortedOps.stream()
                     .sorted((a, b) -> {
-                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier());
-                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier());
+                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                         if (da == null) return (db == null) ? 0 : 1;
                         if (db == null) return -1;
                         return db.compareTo(da);
                     })
                     .limit(10)
                     .forEach(item -> {
-                        Object operation = JfrItemUtils.getMember(item, "operation");
-                        Object caller = JfrItemUtils.getMember(item, "caller");
-                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier());
+                        Object operation = JfrItemUtils.getMember(item, "operation").orElse(null);
+                        Object caller = JfrItemUtils.getMember(item, "caller").orElse(null);
+                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                         sb.append(String.format("| %s | %s | %s |%n", operation, caller, JfrAnalysisService.display(duration)));
                     });
             sb.append("\n");

@@ -100,17 +100,17 @@ public final class JitCompilationTool {
             compilations.forEach(iterable -> iterable.forEach(sortedComp::add));
             sortedComp.stream()
                     .sorted((a, b) -> {
-                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier());
-                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier());
+                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                         if (da == null) return (db == null) ? 0 : 1;
                         if (db == null) return -1;
                         return db.compareTo(da);
                     })
                     .limit(topN)
                     .forEach(item -> {
-                        Object method = JfrItemUtils.getMember(item, "method");
-                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier());
-                        Object level = JfrItemUtils.getMember(item, "compilationId"); // JMC often labels level here or separate
+                        Object method = JfrItemUtils.getMember(item, "method").orElse(null);
+                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        Object level = JfrItemUtils.getMember(item, "compilationId").orElse(null); // JMC often labels level here or separate
                         sb.append(String.format("| `%s` | %s | %s |%n", method, JfrAnalysisService.display(duration), level));
                     });
             sb.append("\n");

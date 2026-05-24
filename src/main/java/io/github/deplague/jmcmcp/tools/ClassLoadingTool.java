@@ -93,17 +93,17 @@ public final class ClassLoadingTool {
 
             sortedLoads.stream()
                     .sorted((a, b) -> {
-                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier());
-                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier());
+                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                         if (da == null) return (db == null) ? 0 : 1;
                         if (db == null) return -1;
                         return db.compareTo(da);
                     })
                     .limit(topN)
                     .forEach(item -> {
-                        Object loadedClass = JfrItemUtils.getMember(item, "loadedClass");
-                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier());
-                        Object loader = JfrItemUtils.getMember(item, "initiatingClassLoader");
+                        Object loadedClass = JfrItemUtils.getMember(item, "loadedClass").orElse(null);
+                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        Object loader = JfrItemUtils.getMember(item, "initiatingClassLoader").orElse(null);
                         sb.append(String.format("| `%s` | %s | %s |%n", loadedClass, JfrAnalysisService.display(duration), loader));
                     });
             sb.append("\n");
