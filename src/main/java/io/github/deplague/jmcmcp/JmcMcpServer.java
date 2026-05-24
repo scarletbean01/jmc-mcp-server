@@ -63,7 +63,11 @@ public final class JmcMcpServer {
                         new TimeSeriesTool(analysisService).spec(),
                         new JitCompilationTool(analysisService).spec(),
                         new ClassLoadingTool(analysisService).spec(),
-                        new CompareRecordingsTool(analysisService).spec());
+                        new CompareRecordingsTool(analysisService).spec(),
+                        new ErrorAnalysisTool(analysisService).spec(),
+                        new HeapTrendsTool(analysisService).spec(),
+                        new NetworkAnalysisTool(analysisService).spec(),
+                        new EventSchemaTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

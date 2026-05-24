@@ -2,6 +2,8 @@ package io.github.deplague.jmcmcp.tools;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,5 +147,27 @@ public final class SchemaUtil {
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         String pre = "KMGTPE".charAt(exp - 1) + "";
         return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+
+    public static Duration parseDuration(String s) {
+        if (s == null || s.isEmpty()) return Duration.ofMinutes(1);
+        try {
+            long value = Long.parseLong(s.substring(0, s.length() - 1));
+            if (s.endsWith("s")) return Duration.ofSeconds(value);
+            if (s.endsWith("m")) return Duration.ofMinutes(value);
+            if (s.endsWith("h")) return Duration.ofHours(value);
+            return Duration.ofMinutes(Long.parseLong(s));
+        } catch (Exception e) {
+            return Duration.ofMinutes(1);
+        }
+    }
+
+    public static String formatTime(long millis) {
+        return Instant.ofEpochMilli(millis).toString().substring(11, 19);
+    }
+
+    public static String formatDuration(long millis) {
+        if (millis < 1000) return millis + "ms";
+        return (millis / 1000.0) + "s";
     }
 }

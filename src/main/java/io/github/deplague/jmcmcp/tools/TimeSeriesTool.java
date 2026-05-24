@@ -14,8 +14,6 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 
 import static io.github.deplague.jmcmcp.tools.SchemaUtil.formatBytes;
 
@@ -86,7 +84,7 @@ public final class TimeSeriesTool {
 
         long startMillis = startQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS);
         long endMillis = endQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS);
-        long bucketMillis = parseDuration(bucketSizeStr).toMillis();
+        long bucketMillis = SchemaUtil.parseDuration(bucketSizeStr).toMillis();
 
         if (bucketMillis <= 0) bucketMillis = 60_000L; // default 1m
 
@@ -111,15 +109,15 @@ public final class TimeSeriesTool {
         processMetric(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", startMillis, bucketMillis, buckets, MetricType.SUM);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("# Performance Trends (Bucket Size: ").append(formatDuration(bucketMillis)).append(")\n\n");
+        sb.append("# Performance Trends (Bucket Size: ").append(SchemaUtil.formatDuration(bucketMillis)).append(")\n\n");
         sb.append("| Time | Avg CPU Load | GC Pause Sum | Total Allocation |\n");
         sb.append("|------|--------------|--------------|------------------|\n");
 
         for (Bucket b : buckets) {
             sb.append(String.format("| %s | %.2f%% | %s | %s |%n",
-                    formatTime(b.startTime),
+                    SchemaUtil.formatTime(b.startTime),
                     b.cpuSum / (b.cpuCount == 0 ? 1 : b.cpuCount) * 100,
-                    formatDuration(b.gcPauseSum / 1_000_000L),
+                    SchemaUtil.formatDuration(b.gcPauseSum / 1_000_000L),
                     formatBytes(b.allocSum)));
         }
 
@@ -168,27 +166,5 @@ public final class TimeSeriesTool {
     }
 
     enum MetricType {SUM, AVERAGE}
-
-    private static Duration parseDuration(String s) {
-        if (s == null || s.isEmpty()) return Duration.ofMinutes(1);
-        try {
-            if (s.endsWith("s")) return Duration.ofSeconds(Long.parseLong(s.substring(0, s.length() - 1)));
-            if (s.endsWith("m")) return Duration.ofMinutes(Long.parseLong(s.substring(0, s.length() - 1)));
-            if (s.endsWith("h")) return Duration.ofHours(Long.parseLong(s.substring(0, s.length() - 1)));
-            return Duration.ofMinutes(Long.parseLong(s));
-        } catch (Exception e) {
-            return Duration.ofMinutes(1);
-        }
-    }
-
-    private static String formatTime(long millis) {
-        return Instant.ofEpochMilli(millis).toString().substring(11, 19);
-    }
-
-    private static String formatDuration(long millis) {
-        if (millis < 1000) return millis + "ms";
-        return (millis / 1000.0) + "s";
-    }
-
 
 }
