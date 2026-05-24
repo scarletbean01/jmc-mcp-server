@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Features
 
-- **35 MCP tools** for comprehensive JFR analysis:
+- **38 MCP tools** for comprehensive JFR analysis:
 
   **Overview & Discovery**
   - `jfr_overview` — Recording summary, event counts, JVM info
@@ -26,6 +26,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   **CPU & Code**
   - `hot_methods` — Top CPU-hot methods from execution samples
   - `cpu_flame` — Provide CPU flame graph data including thread states and hottest call paths
+  - `incident_timeline` — Recreate an incident timeline around a specific event or time
   - `jit_compilation` — Analyze JIT compilation and deoptimization events
   - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
   - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
@@ -35,6 +36,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   - `thread_contention` — Monitor blocking, parking, wait times
   - `lock_analysis` — Analyze ThreadPark and Biased Lock Revocation events for advanced lock contention
   - `thread_dumps` — Extract periodic thread dumps from the recording
+  - `lock_flame` — Provide lock contention flame graph data
 
   **I/O & Network**
   - `io_hotspots` — Identify slow and frequent I/O operations by path/host with call-site breakdowns
@@ -49,6 +51,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   - `allocation_hotspots` — Memory allocation by class and site
   - `class_histogram` — Provide a class instance allocation histogram and top allocating classes
   - `class_loading` — Analyze class loading events and statistics
+  - `allocation_flame` — Provide allocation flame graph data
 
   **System & Trends**
   - `system_health` — CPU load, physical memory usage, and OS metrics
@@ -157,6 +160,7 @@ Once connected, ask your agent things like:
 |------|-------------|---------------|---------------|
 | `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `thread_name`, `top_n` |
 | `cpu_flame` | CPU flame graph paths | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `incident_timeline` | Chronological event context | `jfr_file_path` | `anchor_event`, `anchor_time`, `window_ms` |
 | `jit_compilation` | JIT compilation events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `safepoint_analysis` | Safepoint STW metrics | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `vm_operations` | VM pauses/Safepoints | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
@@ -169,6 +173,7 @@ Once connected, ask your agent things like:
 | `thread_contention` | Monitor lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `lock_analysis` | ThreadPark & Biased locks | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `thread_dumps` | Extract thread dumps | `jfr_file_path` | `start_time`, `end_time`, `max_dumps` |
+| `lock_flame` | Lock contention flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 
 ### I/O & Network
 
@@ -192,6 +197,7 @@ Once connected, ask your agent things like:
 | `allocation_hotspots` | Allocation hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_histogram` | Allocation histogram | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_loading` | Class loading stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `allocation_flame` | Allocation flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 
 ### System & Trends
 

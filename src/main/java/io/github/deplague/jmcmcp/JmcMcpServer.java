@@ -74,7 +74,10 @@ public final class JmcMcpServer {
                         new JfrEventStatsTool(analysisService).spec(),
                         new MemoryLeaksTool(analysisService).spec(),
                         new LockAnalysisTool(analysisService).spec(),
-                        new ContainerMetricsTool(analysisService).spec());
+                        new ContainerMetricsTool(analysisService).spec(),
+                        new IncidentTimelineTool(analysisService).spec(),
+                        new AllocationFlameTool(analysisService).spec(),
+                        new LockFlameTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

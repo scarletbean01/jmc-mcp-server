@@ -189,8 +189,65 @@ public final class CompareRecordingsTool {
 
         appendHotMethodDiff(sb, baseline, target, bDurationSec, tDurationSec);
         appendAllocationDiff(sb, baseline, target, bDurationSec, tDurationSec);
+        appendContentionDiff(sb, baseline, target, bDurationSec, tDurationSec);
+        appendExceptionDiff(sb, baseline, target, bDurationSec, tDurationSec);
 
         return sb.toString();
+    }
+
+    private void appendContentionDiff(StringBuilder sb, IItemCollection baseline, IItemCollection target, double bDur, double tDur) {
+        sb.append("## Lock Contention Regressions\n\n");
+        Map<String, Double> bRates = calculateContentionRates(baseline, bDur);
+        Map<String, Double> tRates = calculateContentionRates(target, tDur);
+        appendRegressionTable(sb, bRates, tRates, "Nanos/sec");
+    }
+
+    private Map<String, Double> calculateContentionRates(IItemCollection allEvents, double durationSec) {
+        Map<String, Double> rates = new HashMap<>();
+        for (String typeId : new String[]{"jdk.JavaMonitorEnter", "jdk.ThreadPark"}) {
+            IItemCollection events = allEvents.apply(ItemFilters.type(typeId));
+            for (IItemIterable iterable : events) {
+                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
+                if (stackAccessor != null && durationAccessor != null) {
+                    for (IItem item : iterable) {
+                        Object st = stackAccessor.getMember(item);
+                        IQuantity dur = durationAccessor.getMember(item);
+                        if (st != null && dur != null) {
+                            String trace = JfrItemUtils.formatStackTrace(st, 5);
+                            rates.merge(trace, dur.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND) / durationSec, Double::sum);
+                        }
+                    }
+                }
+            }
+        }
+        return rates;
+    }
+
+    private void appendExceptionDiff(StringBuilder sb, IItemCollection baseline, IItemCollection target, double bDur, double tDur) {
+        sb.append("## Exception & Error Regressions\n\n");
+        Map<String, Double> bRates = calculateExceptionRates(baseline, bDur);
+        Map<String, Double> tRates = calculateExceptionRates(target, tDur);
+        appendRegressionTable(sb, bRates, tRates, "Throws/sec");
+    }
+
+    private Map<String, Double> calculateExceptionRates(IItemCollection allEvents, double durationSec) {
+        Map<String, Double> rates = new HashMap<>();
+        for (String typeId : new String[]{"jdk.JavaExceptionThrow", "jdk.JavaErrorThrow"}) {
+            IItemCollection events = allEvents.apply(ItemFilters.type(typeId));
+            for (IItemIterable iterable : events) {
+                IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "thrownClass");
+                if (classAccessor != null) {
+                    for (IItem item : iterable) {
+                        Object cls = classAccessor.getMember(item);
+                        if (cls != null) {
+                            rates.merge(cls.toString(), 1.0 / durationSec, Double::sum);
+                        }
+                    }
+                }
+            }
+        }
+        return rates;
     }
 
     private void appendHotMethodDiff(StringBuilder sb, IItemCollection baseline, IItemCollection target, double bDur, double tDur) {
@@ -245,6 +302,10 @@ public final class CompareRecordingsTool {
                         dStr = "+" + SchemaUtil.formatBytes((long) delta) + "/s";
                         bStr = SchemaUtil.formatBytes((long) bRate) + "/s";
                         tStr = SchemaUtil.formatBytes((long) tRate) + "/s";
+                    } else if (unit.equals("Nanos/sec")) {
+                        dStr = "+" + SchemaUtil.formatDuration((long) (delta / 1_000_000)) + "/s";
+                        bStr = SchemaUtil.formatDuration((long) (bRate / 1_000_000)) + "/s";
+                        tStr = SchemaUtil.formatDuration((long) (tRate / 1_000_000)) + "/s";
                     }
 
                     sb.append(String.format("| %s | %s | %s | `%s` |\n",
