@@ -4,12 +4,13 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Features
 
-- **28 MCP tools** for comprehensive JFR analysis:
+- **35 MCP tools** for comprehensive JFR analysis:
 
   **Overview & Discovery**
   - `jfr_overview` — Recording summary, event counts, JVM info
   - `event_schema` — Discover JFR event types and field schemas in a recording
   - `search_events` — Search for any JFR event type with detailed attribute listing
+  - `jfr_event_stats` — Provide statistical summaries for specific event types
   - `recording_settings` — Inspect the JFR configuration (events, thresholds, stack traces)
   - `jfr_rules` — Automated bottleneck detection via JMC built-in rules
   - `compare_recordings` — Perform a comprehensive A/B comparison of two JFR recordings
@@ -19,9 +20,12 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   - `gc_analysis` — GC pause times, frequencies, heap trends
   - `heap_trends` — Time-bucketed heap, metaspace, and thread count trends for leak detection
   - `object_statistics` — Heap occupancy by class (instance count and total size)
+  - `memory_leaks` — Analyze old object samples to identify potential memory leaks and leaking classes
+  - `native_memory` — Provide a memory footprint overview including native libraries and direct buffer limits
 
   **CPU & Code**
   - `hot_methods` — Top CPU-hot methods from execution samples
+  - `cpu_flame` — Provide CPU flame graph data including thread states and hottest call paths
   - `jit_compilation` — Analyze JIT compilation and deoptimization events
   - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
   - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
@@ -29,6 +33,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
   **Threading & Locks**
   - `thread_activity` — Analyze thread lifecycle, creation/destruction rates, and sleep patterns
   - `thread_contention` — Monitor blocking, parking, wait times
+  - `lock_analysis` — Analyze ThreadPark and Biased Lock Revocation events for advanced lock contention
   - `thread_dumps` — Extract periodic thread dumps from the recording
 
   **I/O & Network**
@@ -42,10 +47,12 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
   **Allocation & Classes**
   - `allocation_hotspots` — Memory allocation by class and site
+  - `class_histogram` — Provide a class instance allocation histogram and top allocating classes
   - `class_loading` — Analyze class loading events and statistics
 
   **System & Trends**
   - `system_health` — CPU load, physical memory usage, and OS metrics
+  - `container_metrics` — Analyze container resource limits and usage (Docker/Kubernetes)
   - `system_properties` — List JVM system properties and environment variables
   - `time_series` — Analyze performance trends over time using bucketed metrics
 
@@ -128,6 +135,7 @@ Once connected, ask your agent things like:
 | `jfr_overview` | Recording summary | `jfr_file_path` | `start_time`, `end_time` |
 | `event_schema` | Event type discovery | `jfr_file_path` | `event_type` |
 | `search_events` | Search any event type | `jfr_file_path`, `event_type` | `start_time`, `end_time`, `limit` |
+| `jfr_event_stats`| Event type statistics | `jfr_file_path`, `event_type` | `start_time`, `end_time` |
 | `recording_settings` | JFR config inspection | `jfr_file_path` | `start_time`, `end_time` |
 | `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `start_time`, `end_time`, `min_severity` |
 | `compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time` |
@@ -140,12 +148,15 @@ Once connected, ask your agent things like:
 | `gc_analysis` | Basic GC statistics | `jfr_file_path` | `start_time`, `end_time`, `stat_type` |
 | `heap_trends` | Heap/metaspace trends | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
 | `object_statistics` | Heap occupancy | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `memory_leaks` | Old object sampling | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `native_memory` | Native lib & buffer memory | `jfr_file_path` | `start_time`, `end_time` |
 
 ### CPU & Code
 
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
-| `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `thread_name`, `top_n` |
+| `cpu_flame` | CPU flame graph paths | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `jit_compilation` | JIT compilation events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `safepoint_analysis` | Safepoint STW metrics | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `vm_operations` | VM pauses/Safepoints | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
@@ -155,7 +166,8 @@ Once connected, ask your agent things like:
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
 | `thread_activity` | Thread lifecycle stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `thread_contention` | Lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `thread_contention` | Monitor lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `lock_analysis` | ThreadPark & Biased locks | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `thread_dumps` | Extract thread dumps | `jfr_file_path` | `start_time`, `end_time`, `max_dumps` |
 
 ### I/O & Network
@@ -178,6 +190,7 @@ Once connected, ask your agent things like:
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
 | `allocation_hotspots` | Allocation hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `class_histogram` | Allocation histogram | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_loading` | Class loading stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 
 ### System & Trends
@@ -185,8 +198,9 @@ Once connected, ask your agent things like:
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
 | `system_health` | System metrics | `jfr_file_path` | `start_time`, `end_time` |
+| `container_metrics` | Container resource usage | `jfr_file_path` | `start_time`, `end_time` |
 | `system_properties` | JVM properties/Env | `jfr_file_path` | `start_time`, `end_time`, `filter` |
-| `time_series` | Trend analysis | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
+| `time_series` | Trend analysis | `jfr_file_path` | `start_time`, `end_time`, `bucket_size`, `metric` |
 
 ### Live JVM
 
