@@ -83,7 +83,10 @@ public final class JmcMcpServer {
                         new VirtualThreadsTool(analysisService).spec(),
                         new GcCauseTool(analysisService).spec(),
                         new ThreadAllocationTool(analysisService).spec(),
-                        new CodeCacheTool(analysisService).spec());
+                        new CodeCacheTool(analysisService).spec(),
+                        new JvmFlagsTool(analysisService).spec(),
+                        new DirectBuffersTool(analysisService).spec(),
+                        new ProcessInfoTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

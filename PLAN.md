@@ -1,95 +1,86 @@
-# Tier 4 — Critical Profiling Gap Analysis
+# Tier 6 — Final Profiling Gap Analysis
 
-## Current Coverage
+## Current State
 
-42 JFR event types covered across 28 tools. Analysis of production profiling workflows reveals 3 critical gaps and 2 medium-priority enhancements.
+44 tools, 55 JFR event types covered. The project has excellent coverage across all major profiling areas. This analysis identifies the last remaining gaps for comprehensive production profiling.
 
-### Critical Gaps
+### Coverage Assessment
 
-| Profiling Area | Current Tools | Events Covered | Gap |
+| Area | Tools | Events | Assessment |
 |---|---|---|---|
-| Memory Leak Detection | `heap_trends`, `object_statistics` | `jdk.GCHeapSummary`, `jdk.ObjectCount` | No `jdk.OldObjectSample` — can't identify which objects are leaking |
-| Lock Contention | `thread_contention` | `jdk.JavaMonitorEnter`, `jdk.JavaMonitorWait` | Missing `jdk.ThreadPark` (LockSupport.park — CompletableFuture, conditions), `jdk.BiasedLockRevocation` (revocation storms) |
-| Container Awareness | `system_health` | `jdk.CPULoad`, `jdk.PhysicalMemory` | Missing `jdk.ContainerConfiguration`, `jdk.ContainerCPUUsage`, `jdk.ContainerMemoryUsage` — most production JVMs run in containers |
+| GC & Memory | `gc_detail`, `gc_analysis`, `heap_trends`, `object_statistics`, `memory_leaks`, `native_memory` | 12+ | ✅ Strong |
+| CPU & Code | `hot_methods`, `cpu_flame`, `incident_timeline`, `jit_compilation`, `safepoint_analysis`, `vm_operations` | 7 | ✅ Strong |
+| Threading & Locks | `thread_activity`, `thread_contention`, `lock_analysis`, `lock_flame`, `thread_dumps` | 10 | ✅ Strong |
+| I/O & Network | `io_hotspots`, `io_analysis`, `network_analysis` | 5 | ✅ Strong |
+| Errors & Exceptions | `error_analysis`, `exception_analysis` | 2 | ✅ Adequate |
+| Allocation & Classes | `allocation_hotspots`, `class_histogram`, `class_loading`, `allocation_flame` | 4 | ✅ Strong |
+| System & Container | `system_health`, `container_metrics`, `system_properties`, `time_series` | 7 | ✅ Strong |
+| Overview & Discovery | `jfr_overview`, `event_schema`, `search_events`, `jfr_event_stats`, `recording_settings`, `jfr_rules`, `compare_recordings` | Dynamic | ✅ Strong |
+| Per-Thread Analysis | `thread_cpu`, `blocking_summary`, `thread_allocation` | 9+ | ✅ Strong |
+| Virtual Threads | `virtual_threads` | 3 | ✅ Strong |
+| GC Deep Dive | `gc_cause` | 2 | ✅ Adequate |
+| JIT Internals | `code_cache` | 2 | ✅ Adequate |
+
+### Remaining Gaps
+
+| Priority | Gap | Why It Matters |
+|---|---|---|
+| 🟡 High | No JVM flags/ergonomics tool | JVM tuning decisions require knowing runtime flag values (`UseG1GC`, `CompileThreshold`, etc.). `system_properties` only shows `-D` properties, not `-XX:` flags. |
+| 🟡 High | No direct buffer / off-heap tool | Off-heap memory leaks via `ByteBuffer.allocateDirect()` are notoriously hard to diagnose. `native_memory` only shows system property limits, not actual direct buffer pool usage. |
+| 🟠 Medium | No process/environment tool | OS version, CPU count, virtualization type (KVM/VMware/container) is essential context for performance analysis. Currently scattered across `jfr_overview` and `system_health`. |
 
 ---
 
-## Tool 13: `MemoryLeaksTool` — Old Object Sampling (CRITICAL)
+## Tool 22: `JvmFlagsTool` — JVM Runtime Flags & Ergonomics (HIGH)
 
-**Name:** `memory_leaks`
+**Name:** `jvm_flags`
 
-**Gap:** `heap_trends` shows memory growing, `object_statistics` shows what's on-heap at GC time, but neither tells you *which specific objects are surviving and potentially leaking*. `jdk.OldObjectSample` is JFR's purpose-built event for this — it samples objects that have survived multiple GC cycles, giving you the actual leaking object references, their age, and their allocation stack traces.
+**Gap:** When analyzing a performance problem, knowing the actual runtime GC algorithm (`UseG1GC` vs `UseZGC`), heap sizing heuristics (`MinHeapFreeRatio`, `MaxHeapFreeRatio`), and compiler thresholds (`CompileThreshold`) is essential context. `system_properties` only shows `-D` system properties, not `-XX:` JVM flags. JFR emits flag events at recording start that capture all runtime flag values.
 
 **JFR Events:**
 
 | Event | Fields Used | Purpose |
 |-------|------------|---------|
-| `jdk.OldObjectSample` | `objectClass`, `age`, `description`, `stackTrace` | Sampled objects surviving multiple GCs |
+| `jdk.IntFlag` | `name`, `value` | Integer JVM flags (e.g., `CompileThreshold`) |
+| `jdk.UintFlag` | `name`, `value` | Unsigned integer JVM flags |
+| `jdk.DoubleFlag` | `name`, `value` | Double JVM flags (e.g., `G1HeapWastePercent`) |
+| `jdk.BooleanFlag` | `name`, `value` | Boolean JVM flags (e.g., `UseG1GC`, `UseCompressedOops`) |
 
 **Input Parameters:**
 
 - `jfr_file_path` (required)
-- `start_time` (optional)
-- `end_time` (optional)
-- `top_n` (optional, default 20)
+- `filter` (optional) — substring filter for flag names (e.g., "GC", "Compile", "Heap")
 
 **Output Sections:**
 
-1. **Leak Summary** — Total sampled objects, total retained bytes
-2. **Top Leaking Classes** — Table: class name, object count, total retained bytes, avg age (GC generations survived)
-3. **Top Leak Allocation Sites** — Table: stack trace, object count, total bytes
-4. **Oldest Surviving Objects** — Table: object class, age (GC cycles), description
+1. **GC Configuration** — All flags containing "GC" or "Heap" in their name, grouped by relevance
+2. **Compiler Flags** — All flags containing "Compile" or "Tiered" in their name
+3. **Memory Flags** — All flags containing "Memory", "Heap", "Metaspace", or "Compressed" in their name
+4. **All Flags** (if no filter) or **Filtered Flags** — Table: flag name, value, type
 
-**Estimated Lines:** ~140
+**Key Implementation Details:**
+
+- Iterate all 4 flag event types, collect name/value pairs
+- Group by type (boolean, int, uint, double) for display
+- If `filter` is provided, only show flags whose name contains the filter string (case-insensitive)
+- Sort alphabetically within each section
+- No `start_time`/`end_time` needed — flags are emitted once at recording start
+
+**Estimated Lines:** ~120
 
 ---
 
-## Tool 14: `LockAnalysisTool` — Deep Lock & Contention Analysis
+## Tool 23: `DirectBuffersTool` — Off-Heap Buffer Statistics (HIGH)
 
-**Name:** `lock_analysis`
+**Name:** `direct_buffers`
 
-**Gap:** `thread_contention` only covers `jdk.JavaMonitorEnter` and `jdk.JavaMonitorWait`. Modern Java uses `LockSupport.park()` heavily (CompletableFuture, StampedLock, ReentrantLock, conditions), which emits `jdk.ThreadPark`. Biased lock revocation (`jdk.BiasedLockRevocation`) causes stop-the-world safepoints that tank throughput under contention — a well-known production issue pattern that's invisible without this event.
+**Gap:** Direct buffer (off-heap `ByteBuffer.allocateDirect()`) leaks are a real production issue. `native_memory` shows system property limits (`MaxDirectMemorySize`) but not actual pool usage. `jdk.DirectBufferStatistics` provides the actual count, total capacity, and memory used by direct buffers over time.
 
 **JFR Events:**
 
 | Event | Fields Used | Purpose |
 |-------|------------|---------|
-| `jdk.ThreadPark` | `stackTrace`, `duration` | LockSupport.park() wait times and call sites |
-| `jdk.BiasedLockRevocation` | `lockClass`, `stackTrace` | Single biased lock revocation events |
-| `jdk.BiasedLockClassRevocation` | `revokedClass` | Bulk/class-level biased lock revocation |
-| `jdk.BiasedLockSelfRevocation` | `lockClass` | Self-revocation of biased locks |
-
-**Input Parameters:**
-
-- `jfr_file_path` (required)
-- `start_time` (optional)
-- `end_time` (optional)
-- `top_n` (optional, default 10)
-
-**Output Sections:**
-
-1. **Park Summary** — Total park events, avg/max park duration, top park reasons
-2. **Top Park Sites** — Table: stack trace, count, avg duration, max duration
-3. **Biased Lock Revocations** — Table: lock class, revocation count, revocation type (single/class/bulk)
-4. **Revocation Hotspots** — Table: lock class + stack trace, count
-
-**Estimated Lines:** ~160
-
----
-
-## Tool 15: `ContainerMetricsTool` — Container Resource Limits & Usage
-
-**Name:** `container_metrics`
-
-**Gap:** Most production JVMs run in Docker/Kubernetes. `system_health` shows host-level CPU/memory, but inside a container the JVM sees container limits, not host resources. Without `jdk.ContainerConfiguration`/`jdk.ContainerCPUUsage`/`jdk.ContainerMemoryUsage`, you can't tell if the container is throttled, near its memory limit, or misconfigured.
-
-**JFR Events:**
-
-| Event | Fields Used | Purpose |
-|-------|------------|---------|
-| `jdk.ContainerConfiguration` | `cpuShares`, `cpuPeriod`, `cpuQuota`, `memoryLimit`, `swapLimit`, `oomKillDisable` | Container resource limits |
-| `jdk.ContainerCPUUsage` | `cpuTime`, `cpuTimeSystem` | Effective CPU usage vs. container quota |
-| `jdk.ContainerMemoryUsage` | `memoryUsage`, `memoryAndSwapUsage` | Memory usage vs. container memory limit |
+| `jdk.DirectBufferStatistics` | `directBufferCount`, `directTotalCapacity`, `directMemoryUsed` | Direct buffer pool usage |
 
 **Input Parameters:**
 
@@ -99,25 +90,66 @@
 
 **Output Sections:**
 
-1. **Container Configuration** — CPU shares/period/quota, memory limit, swap limit, OOM kill disable
-2. **CPU Usage Trend** — Effective CPU usage vs. container CPU quota (time-bucketed)
-3. **Memory Usage Trend** — Memory usage vs. container memory limit (time-bucketed)
-4. If no container events found, note that JVM is likely running without container awareness
+1. **Direct Buffer Summary** — Current/max buffer count, total capacity, memory used
+2. **Direct Buffer Trend** — Time-bucketed table: time, buffer count, total capacity, memory used (if multiple samples)
+3. **Memory Pressure Warning** — If direct memory used approaches `MaxDirectMemorySize` (from `jdk.InitialSystemProperty`), flag risk
 
-**Estimated Lines:** ~130
+**Key Implementation Details:**
+
+- Use `JfrItemUtils.getAccessor()` for `directBufferCount`, `directTotalCapacity`, `directMemoryUsed`
+- Use `JfrItemUtils.avgQuantity/maxQuantity/minQuantity` for summary statistics
+- If multiple samples exist, use time-bucketing pattern from `HeapTrendsTool`
+- Cross-reference `jdk.InitialSystemProperty` for `sun.nio.MaxDirectMemorySize` to compute utilization %
+- Use `SchemaUtil.formatBytes()` for byte formatting
+
+**Estimated Lines:** ~100
 
 ---
 
-## Existing Tool Enhancements (Updated)
+## Tool 24: `ProcessInfoTool` — OS & Environment Context (MEDIUM)
 
-| Tool | Enhancement | Priority |
-|------|-------------|----------|
-| `SystemHealthTool` | Add `start_time`/`end_time` params (currently missing) | High |
-| `SystemHealthTool` | Add container metrics fallback — if `jdk.ContainerConfiguration` events exist, show container limits alongside host metrics | Medium |
-| `GcDetailTool` | Add `jdk.GCReferenceStatistics` — show reference processing impact on GC pause times | Medium |
-| `SearchEventsTool` | Add `event_type` display name resolution (use `event_schema` data) | Low |
-| `TimeSeriesTool` | Add `metric` filter param (cpu/gc/alloc/all) | Low |
-| `ExceptionAnalysisTool` | Add error-to-exception ratio (cross-reference `jdk.JavaErrorThrow`) | Low |
+**Name:** `process_info`
+
+**Gap:** Knowing the OS version, CPU architecture, virtualization type (KVM/VMware/container), and what processes are running alongside the JVM is valuable diagnostic context. This information is currently scattered across `jfr_overview` and `system_health` or not available at all. A consolidated tool provides a single place to check the runtime environment.
+
+**JFR Events:**
+
+| Event | Fields Used | Purpose |
+|-------|------------|---------|
+| `jdk.OSInformation` | `osVersion`, `osName`, `osArch` | Operating system details |
+| `jdk.VirtualizationInformation` | `virtualizationTechnology` | Whether running in a VM/container |
+| `jdk.SystemProcess` | `pid`, `commandLine` | Running processes at recording start |
+
+**Input Parameters:**
+
+- `jfr_file_path` (required)
+
+**Output Sections:**
+
+1. **Operating System** — OS name, version, architecture
+2. **Virtualization** — Virtualization technology (if detected), or "bare metal" / "unknown"
+3. **Running Processes** — Table: PID, command line (limited to top 50 for readability)
+
+**Key Implementation Details:**
+
+- These events are emitted once at recording start, so no time-range filtering needed
+- Use `JfrItemUtils.getMember()` for field extraction
+- `jdk.VirtualizationInformation` may not be present in all recordings — handle gracefully
+- `jdk.SystemProcess` can have many entries — limit to top 50
+- No `start_time`/`end_time` needed — environment events are point-in-time at recording start
+
+**Estimated Lines:** ~80
+
+---
+
+## Not Recommended (Too Niche)
+
+| Tool | Events | Why Not |
+|---|---|---|
+| Module events | `jdk.ModuleExport`, `jdk.ModuleRequire` | Only useful for JPMS debugging, not general profiling |
+| Security events | `jdk.X509Certificate`, `jdk.TLSHandshake`, `jdk.SecurityPropertyModification` | TLS/certificate analysis is a different domain |
+| GC reference processing | `jdk.GCReferenceStatistics` (deeper) | Already covered in `gc_detail`; diminishing returns for a separate tool |
+| Thread stack depth | `jdk.ThreadStack` | Redundant with `thread_dumps` |
 
 ---
 
@@ -125,9 +157,9 @@
 
 | Step | File | Description |
 |------|------|-------------|
-| 1 | `MemoryLeaksTool.java` | Old object sampling — #1 production memory leak root cause |
-| 2 | `LockAnalysisTool.java` | Thread park + biased lock revocation analysis |
-| 3 | `ContainerMetricsTool.java` | Container resource limits and usage trends |
+| 1 | `JvmFlagsTool.java` | JVM runtime flags — essential for tuning context |
+| 2 | `DirectBuffersTool.java` | Off-heap buffer statistics — direct buffer leak detection |
+| 3 | `ProcessInfoTool.java` | OS & environment context — diagnostic context consolidation |
 | 4 | `JmcMcpServer.java` | Register all 3 new tools |
 
 ---
@@ -136,23 +168,26 @@
 
 | New Event Type | Tool |
 |----------------|------|
-| `jdk.OldObjectSample` | `memory_leaks` |
-| `jdk.ThreadPark` | `lock_analysis` |
-| `jdk.BiasedLockRevocation` | `lock_analysis` |
-| `jdk.BiasedLockClassRevocation` | `lock_analysis` |
-| `jdk.BiasedLockSelfRevocation` | `lock_analysis` |
-| `jdk.ContainerConfiguration` | `container_metrics` |
-| `jdk.ContainerCPUUsage` | `container_metrics` |
-| `jdk.ContainerMemoryUsage` | `container_metrics` |
+| `jdk.IntFlag` | `jvm_flags` |
+| `jdk.UintFlag` | `jvm_flags` |
+| `jdk.DoubleFlag` | `jvm_flags` |
+| `jdk.BooleanFlag` | `jvm_flags` |
+| `jdk.DirectBufferStatistics` | `direct_buffers` |
+| `jdk.OSInformation` | `process_info` |
+| `jdk.VirtualizationInformation` | `process_info` |
+| `jdk.SystemProcess` | `process_info` |
 
-## Completed: Tier 4 Tools (3 tools)
+Total event types after Tier 6: **~63**. Total tool count: **47** (44 current + 3 Tier 6).
 
-| Tool | Name | Status |
-|------|------|--------|
-| `MemoryLeaksTool` | `memory_leaks` | ✅ Done |
-| `LockAnalysisTool` | `lock_analysis` | ✅ Done |
-| `ContainerMetricsTool` | `container_metrics` | ✅ Done |
+**Beyond Tier 6, the tool set covers virtually every critical JFR event for production profiling.** The remaining events are either too niche (module exports, TLS handshakes) or already adequately covered by existing tools.
 
-Current tool count: **35** (20 original + 4 Tier 1 + 4 Tier 2 + 4 Tier 3 + 3 Tier 4)
+---
 
-**Note:** Container events (`jdk.ContainerConfiguration`, `jdk.ContainerCPUUsage`, `jdk.ContainerMemoryUsage`) and biased lock events (`jdk.BiasedLockRevocation`, `jdk.BiasedLockClassRevocation`, `jdk.BiasedLockSelfRevocation`) may require specific JFR configuration settings to be enabled. The tools should gracefully handle their absence with informative messages.
+## Existing Tool Enhancements (Backlog)
+
+| Tool | Enhancement | Priority |
+|------|-------------|----------|
+| `SystemHealthTool` | Add `start_time`/`end_time` params (currently missing) | High |
+| `GcDetailTool` | Add deeper `jdk.GCReferenceStatistics` breakdown per reference type | Medium |
+| `SearchEventsTool` | Add `event_type` display name resolution (use `event_schema` data) | Low |
+| `ExceptionAnalysisTool` | Add error-to-exception ratio (cross-reference `jdk.JavaErrorThrow`) | Low |
