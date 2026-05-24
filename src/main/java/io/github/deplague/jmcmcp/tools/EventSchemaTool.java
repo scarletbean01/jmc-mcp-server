@@ -1,15 +1,10 @@
 package io.github.deplague.jmcmcp.tools;
 
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.IAccessorKey;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IType;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
