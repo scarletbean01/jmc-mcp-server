@@ -188,14 +188,25 @@ public final class BlockingSummaryTool {
         sb.append("\n## Blocking Time Distribution\n\n");
         sb.append("| Category | Total Time | Event Count | Avg Duration |\n");
         sb.append("|----------|------------|-------------|--------------|\n");
-        categoryStatsMap.values().stream()
+        
+        boolean monitorContentionDetected = false;
+        var sortedCats = categoryStatsMap.values().stream()
                 .sorted((a, b) -> Long.compare(b.totalNanos, a.totalNanos))
-                .forEach(cs -> {
-                    sb.append("| ").append(cs.category).append(" | ")
-                            .append(JfrAnalysisService.display(UnitLookup.NANOSECOND.quantity(cs.totalNanos))).append(" | ")
-                            .append(cs.count).append(" | ")
-                            .append(JfrAnalysisService.display(UnitLookup.NANOSECOND.quantity(cs.totalNanos / cs.count))).append(" |\n");
-                });
+                .toList();
+
+        for (CategoryStats cs : sortedCats) {
+            if (cs.category.equals("MONITOR_ENTER") || cs.category.equals("MONITOR_WAIT")) {
+                monitorContentionDetected = true;
+            }
+            sb.append("| ").append(cs.category).append(" | ")
+                    .append(JfrAnalysisService.display(UnitLookup.NANOSECOND.quantity(cs.totalNanos))).append(" | ")
+                    .append(cs.count).append(" | ")
+                    .append(JfrAnalysisService.display(UnitLookup.NANOSECOND.quantity(cs.totalNanos / cs.count))).append(" |\n");
+        }
+
+        if (monitorContentionDetected) {
+            sb.append("\n<agent_hint>Monitor lock contention detected. Use 'thread_contention' or 'lock_analysis' to investigate which threads are holding the locks and causing these blockages.</agent_hint>\n");
+        }
 
         return sb.toString();
     }

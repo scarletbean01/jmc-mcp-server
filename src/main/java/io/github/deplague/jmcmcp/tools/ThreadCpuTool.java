@@ -35,6 +35,7 @@ public final class ThreadCpuTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
+                                        "package_prefix", SchemaUtil.stringProp("Optional package prefix to filter stack traces (e.g., 'com.mycompany')"),
                                         "top_n", SchemaUtil.intProp("Number of top hot threads to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
@@ -45,6 +46,7 @@ public final class ThreadCpuTool {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String packagePrefix = SchemaUtil.getStringOrDefault(request.arguments(), "package_prefix", null);
                         int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
@@ -52,7 +54,7 @@ public final class ThreadCpuTool {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, packagePrefix, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -65,7 +67,7 @@ public final class ThreadCpuTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+    public String analyze(String filePath, String startTimeStr, String endTimeStr, String packagePrefix, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -103,7 +105,7 @@ public final class ThreadCpuTool {
                     if (stackAccessor != null) {
                         Object st = stackAccessor.getMember(item);
                         if (st != null) {
-                            String topFrame = JfrItemUtils.formatStackTrace(st, 1).trim();
+                            String topFrame = JfrItemUtils.formatStackTraceFocusingOn(st, 1, packagePrefix).trim();
                             if (!topFrame.isEmpty()) {
                                 stats.methodCounts.merge(topFrame, 1L, Long::sum);
                             }

@@ -58,11 +58,13 @@ public final class SystemHealthTool {
         }).build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr) throws IOException {
+    public String analyze(String filePath, String startTimeStr, String endTimeStr) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         StringBuilder sb = new StringBuilder();
         sb.append("# System Health Analysis\n\n");
+
+        boolean highCpuDetected = false;
 
         // CPU Load
         var cpuLoad = events.apply(ItemFilters.type("jdk.CPULoad"));
@@ -73,10 +75,16 @@ public final class SystemHealthTool {
             IQuantity avgJvmUser = JfrItemUtils.avgQuantity(cpuLoad, "jvmUser");
             IQuantity avgJvmSystem = JfrItemUtils.avgQuantity(cpuLoad, "jvmSystem");
 
-            if (avgMachineTotal != null)
-                sb.append(String.format("- **Avg Machine Total:** %.2f%%%n", avgMachineTotal.doubleValue() * 100));
-            if (maxMachineTotal != null)
-                sb.append(String.format("- **Max Machine Total:** %.2f%%%n", maxMachineTotal.doubleValue() * 100));
+            if (avgMachineTotal != null) {
+                double val = avgMachineTotal.doubleValue();
+                if (val > 0.8) highCpuDetected = true;
+                sb.append(String.format("- **Avg Machine Total:** %.2f%%%n", val * 100));
+            }
+            if (maxMachineTotal != null) {
+                double val = maxMachineTotal.doubleValue();
+                if (val > 0.9) highCpuDetected = true;
+                sb.append(String.format("- **Max Machine Total:** %.2f%%%n", val * 100));
+            }
             if (avgJvmUser != null)
                 sb.append(String.format("- **Avg JVM User:** %.2f%%%n", avgJvmUser.doubleValue() * 100));
             if (avgJvmSystem != null)
@@ -135,6 +143,10 @@ public final class SystemHealthTool {
 
         if (!cpuLoad.hasItems() && !physicalMem.hasItems() && !cpuInfo.hasItems() && !containerConfig.hasItems()) {
             sb.append("No system health events found in this recording.\n");
+        }
+
+        if (highCpuDetected) {
+            sb.append("\n<agent_hint>High CPU load detected. Use 'thread_cpu' or 'hot_methods' to identify the culprit. Or use the new 'diagnose_high_cpu' macro tool for an automated analysis.</agent_hint>\n");
         }
 
         return sb.toString();

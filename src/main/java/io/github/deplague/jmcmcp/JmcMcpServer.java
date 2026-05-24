@@ -86,7 +86,8 @@ public final class JmcMcpServer {
                         new CodeCacheTool(analysisService).spec(),
                         new JvmFlagsTool(analysisService).spec(),
                         new DirectBuffersTool(analysisService).spec(),
-                        new ProcessInfoTool(analysisService).spec());
+                        new ProcessInfoTool(analysisService).spec(),
+                        new HighCpuDiagnosticTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

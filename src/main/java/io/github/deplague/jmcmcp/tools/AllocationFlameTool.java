@@ -30,6 +30,7 @@ public final class AllocationFlameTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
+                                        "package_prefix", SchemaUtil.stringProp("Optional package prefix to filter stack traces (e.g., 'com.mycompany')"),
                                         "top_n", SchemaUtil.intProp("Number of top call paths (default 20)", 20)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
@@ -40,13 +41,14 @@ public final class AllocationFlameTool {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String packagePrefix = SchemaUtil.getStringOrDefault(request.arguments(), "package_prefix", null);
                         int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
                         if (cached != null) {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, packagePrefix, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -55,7 +57,7 @@ public final class AllocationFlameTool {
                 }).build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws Exception {
+    public String analyze(String filePath, String startTimeStr, String endTimeStr, String packagePrefix, int topN) throws Exception {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -75,7 +77,7 @@ public final class AllocationFlameTool {
                         if (stackObj != null && size != null) {
                             long bytes = size.longValue();
                             totalBytes += bytes;
-                            String path = JfrItemUtils.formatStackTrace(stackObj, 10);
+                            String path = JfrItemUtils.formatStackTraceFocusingOn(stackObj, 10, packagePrefix);
                             pathDist.merge(path, bytes, Long::sum);
                         }
                     }

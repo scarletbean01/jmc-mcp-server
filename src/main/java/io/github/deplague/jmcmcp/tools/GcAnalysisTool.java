@@ -121,6 +121,8 @@ public final class GcAnalysisTool {
 
         if (!gcPauses.hasItems() && !youngGC.hasItems() && !oldGC.hasItems()) {
             sb.append("No garbage collection events found in this recording range.\n");
+        } else {
+            sb.append("\n<agent_hint>Garbage collection events detected. Consider using 'gc_cause' to understand what triggered these GCs (e.g. Allocation Failure, System.gc()), or 'gc_detail' for an in-depth breakdown of GC phases and reference processing.</agent_hint>\n");
         }
 
         return sb.toString();

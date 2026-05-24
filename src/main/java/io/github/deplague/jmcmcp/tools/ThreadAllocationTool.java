@@ -109,23 +109,35 @@ public final class ThreadAllocationTool {
         sb.append("| Thread Name | Total Allocated (Estimated) | Allocation Rate |\n");
         sb.append("|-------------|-----------------------------|-----------------|\n");
 
-        threadStatsMap.entrySet().stream()
+        boolean heavyAllocation = false;
+
+        var sortedEntries = threadStatsMap.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().maxAllocated - b.getValue().minAllocated, a.getValue().maxAllocated - a.getValue().minAllocated))
                 .limit(topN)
-                .forEach(e -> {
-                    ThreadAllocStats s = e.getValue();
-                    long diff = s.maxAllocated - s.minAllocated;
-                    String rate = "N/A";
-                    if (s.maxTime > s.minTime) {
-                        double seconds = (s.maxTime - s.minTime) / 1_000_000_000.0;
-                        if (seconds > 0) {
-                            rate = formatBytes((long) (diff / seconds)) + "/s";
-                        }
-                    }
-                    sb.append("| ").append(e.getKey()).append(" | ")
-                            .append(formatBytes(diff)).append(" | ")
-                            .append(rate).append(" |\n");
-                });
+                .toList();
+
+        for (var e : sortedEntries) {
+            ThreadAllocStats s = e.getValue();
+            long diff = s.maxAllocated - s.minAllocated;
+            if (diff > 10 * 1024 * 1024) heavyAllocation = true; // >10MB
+            
+            String rate = "N/A";
+            if (s.maxTime > s.minTime) {
+                double seconds = (s.maxTime - s.minTime) / 1_000_000_000.0;
+                if (seconds > 0) {
+                    long rateBytes = (long) (diff / seconds);
+                    rate = formatBytes(rateBytes) + "/s";
+                    if (rateBytes > 10 * 1024 * 1024) heavyAllocation = true; // >10MB/s rate
+                }
+            }
+            sb.append("| ").append(e.getKey()).append(" | ")
+                    .append(formatBytes(diff)).append(" | ")
+                    .append(rate).append(" |\n");
+        }
+
+        if (heavyAllocation) {
+            sb.append("\n<agent_hint>High allocation detected. Use 'allocation_hotspots' or 'allocation_flame' with an optional 'package_prefix' to find the exact classes and call paths responsible for this memory pressure.</agent_hint>\n");
+        }
 
         return sb.toString();
     }

@@ -38,6 +38,7 @@ public final class AllocationHotspotsTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
+                                        "package_prefix", SchemaUtil.stringProp("Optional package prefix to filter stack traces (e.g., 'com.mycompany')"),
                                         "top_n", SchemaUtil.intProp("Number of top allocation sites to return (default 10)", 10)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
@@ -48,6 +49,7 @@ public final class AllocationHotspotsTool {
                         String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
                         String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
                         String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String packagePrefix = SchemaUtil.getStringOrDefault(request.arguments(), "package_prefix", null);
                         int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
 
                         String cached = service.getCachedResult(filePath, NAME, request.arguments());
@@ -55,7 +57,7 @@ public final class AllocationHotspotsTool {
                             return CallToolResult.builder().addTextContent(cached).isError(false).build();
                         }
 
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
+                        String result = analyze(filePath, startTimeStr, endTimeStr, packagePrefix, topN);
                         service.cacheResult(filePath, NAME, request.arguments(), result);
                         return CallToolResult.builder().addTextContent(result).isError(false).build();
                     } catch (Exception e) {
@@ -68,14 +70,14 @@ public final class AllocationHotspotsTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+    public String analyze(String filePath, String startTimeStr, String endTimeStr, String packagePrefix, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
         Map<AllocationKey, Long> allocationMap = new HashMap<>();
 
-        processAllocations(events, "jdk.ObjectAllocationInNewTLAB", "tlabSize", allocationMap);
-        processAllocations(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", allocationMap);
+        processAllocations(events, "jdk.ObjectAllocationInNewTLAB", "tlabSize", allocationMap, packagePrefix);
+        processAllocations(events, "jdk.ObjectAllocationOutsideTLAB", "allocationSize", allocationMap, packagePrefix);
 
         if (allocationMap.isEmpty()) {
             return "# Allocation Hotspots\n\nNo allocation events found in the recording.";
@@ -98,7 +100,7 @@ public final class AllocationHotspotsTool {
         return sb.toString();
     }
 
-    private void processAllocations(IItemCollection events, String typeId, String sizeAttr, Map<AllocationKey, Long> map) {
+    private void processAllocations(IItemCollection events, String typeId, String sizeAttr, Map<AllocationKey, Long> map, String packagePrefix) {
         IItemCollection filtered = events.apply(ItemFilters.type(typeId));
         for (IItemIterable iterable : filtered) {
             IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
@@ -113,7 +115,7 @@ public final class AllocationHotspotsTool {
 
                     if (classObj != null && sizeQ != null && stackObj != null) {
                         String className = classObj.toString();
-                        String trace = JfrItemUtils.formatStackTrace(stackObj, 5);
+                        String trace = JfrItemUtils.formatStackTraceFocusingOn(stackObj, 5, packagePrefix);
                         AllocationKey key = new AllocationKey(className, trace);
                         map.merge(key, sizeQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.BYTE), Long::sum);
                     }

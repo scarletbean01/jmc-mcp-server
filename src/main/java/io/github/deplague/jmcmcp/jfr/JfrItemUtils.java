@@ -172,9 +172,16 @@ public final class JfrItemUtils {
     }
 
     /**
-     * Formats a stack trace object (expected to be an IMCStackTrace) into a truncated string.
+     * Formats a stack trace object into a truncated string.
      */
     public static String formatStackTrace(Object stackTraceObj, int maxFrames) {
+        return formatStackTraceFocusingOn(stackTraceObj, maxFrames, null);
+    }
+
+    /**
+     * Formats a stack trace object, optionally focusing on a specific package prefix by skipping framework internals.
+     */
+    public static String formatStackTraceFocusingOn(Object stackTraceObj, int maxFrames, String packagePrefix) {
         if (!(stackTraceObj instanceof IMCStackTrace stackTrace)) {
             return "No stack trace available";
         }
@@ -186,20 +193,36 @@ public final class JfrItemUtils {
 
         StringBuilder sb = new StringBuilder();
         int count = 0;
+        boolean foundPrefix = false;
+
         for (IMCFrame frame : frames) {
+            IMCMethod method = frame.getMethod();
+            if (method == null) continue;
+            
+            String typeName = method.getType().getFullName();
+            
+            if (packagePrefix != null && !packagePrefix.isBlank() && !foundPrefix) {
+                if (typeName.startsWith(packagePrefix)) {
+                    foundPrefix = true;
+                } else {
+                    continue; // Skip framework frames until we hit the business logic
+                }
+            }
+
             if (count >= maxFrames) {
                 sb.append("  ...");
                 break;
             }
-            IMCMethod method = frame.getMethod();
-            if (method != null) {
-                if (count > 0) sb.append("\n");
-                sb.append("  at ");
-                String typeName = method.getType().getFullName();
-                sb.append(typeName).append(".").append(method.getMethodName()).append("()");
-                count++;
-            }
+            
+            if (count > 0) sb.append("\n");
+            sb.append("  at ").append(typeName).append(".").append(method.getMethodName()).append("()");
+            count++;
         }
+        
+        if (count == 0 && packagePrefix != null && !packagePrefix.isBlank()) {
+            return "No frames matched package prefix: " + packagePrefix;
+        }
+        
         return sb.toString();
     }
 }
