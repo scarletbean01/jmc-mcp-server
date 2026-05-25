@@ -3,7 +3,6 @@ package io.github.deplague.jmcmcp.tools;
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
 import java.io.IOException;
 

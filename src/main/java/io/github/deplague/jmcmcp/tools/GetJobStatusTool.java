@@ -7,8 +7,6 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
-import java.util.Map;
-
 /**
  * MCP tool for polling the status of an asynchronous analysis job.
  */

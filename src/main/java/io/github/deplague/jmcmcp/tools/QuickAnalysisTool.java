@@ -4,13 +4,14 @@ import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Macro tool for one-click overview dashboard.
