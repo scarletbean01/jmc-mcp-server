@@ -46,33 +46,19 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top N+1 patterns to return (default 5)", 5)
+                                        "top_n", SchemaUtil.intProp("Number of top N+1 patterns to return (default 5)", 5),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
+                    return analyze(filePath, startTimeStr, endTimeStr, topN);
+                }))
                 .build();
     }
 
@@ -129,7 +115,7 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
         }
 
         // Agent hint
-        NPlusOnePattern worst = patterns.get(0);
+        NPlusOnePattern worst = patterns.getFirst();
         StringBuilder hint = new StringBuilder();
         hint.append("Detected an N+1 query pattern in `").append(worst.triggeringMethod).append("`. ");
         hint.append(worst.totalReads).append(" sequential DB socket reads occurred in ");
@@ -164,12 +150,12 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
                 if (threadObj == null || startTime == null) continue;
 
                 String threadName = extractThreadName(threadObj);
-                long startNanos = startTime.clampedLongValueIn(UnitLookup.NANOSECOND);
+                long startNanos = startTime.clampedLongValueIn(UnitLookup.EPOCH_NS);
                 long durationNanos = duration != null ? duration.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
-                String fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
 
-                // Only include DB-related socket events
-                if (fullTrace != null && JDBC_PATTERN.matcher(fullTrace).find()) {
+                // Only include DB-related socket events (filter before formatting to avoid string allocation)
+                if (JfrItemUtils.stackTraceMatches(stackObj, JDBC_PATTERN)) {
+                    String fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
                     result.add(new SocketEvent(threadName, startNanos, durationNanos, fullTrace));
                 }
             }
@@ -246,7 +232,7 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
                     ));
                 }
 
-                i = j > i + 1 ? j : i + 1;
+                i = Math.max(j, i + 1);
             }
         }
 

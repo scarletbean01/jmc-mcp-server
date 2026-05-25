@@ -4,7 +4,7 @@ import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
@@ -43,33 +43,19 @@ public final class SmartLockResolverTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top lock issues to return (default 5)", 5)
+                                        "top_n", SchemaUtil.intProp("Number of top lock issues to return (default 5)", 5),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
+                    return analyze(filePath, startTimeStr, endTimeStr, topN);
+                }))
                 .build();
     }
 
@@ -84,6 +70,7 @@ public final class SmartLockResolverTool {
 
         // Step 1: Aggregate blocked threads per lock holder
         Map<LockHolderKey, LockHolderStats> holderStats = new HashMap<>();
+        Map<IMCStackTrace, String> traceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : monitorEnters) {
             IMemberAccessor<Object, IItem> monitorClassAcc = JfrItemUtils.getAccessor(iterable.getType(), "monitorClass");
             IMemberAccessor<Object, IItem> prevOwnerAcc = JfrItemUtils.getAccessor(iterable.getType(), "previousOwner");
@@ -106,7 +93,13 @@ public final class SmartLockResolverTool {
                 String holderName = extractThreadName(prevOwnerObj);
                 String blockedThread = threadObj != null ? extractThreadName(threadObj) : "unknown";
                 long nanos = duration.clampedLongValueIn(UnitLookup.NANOSECOND);
-                String blockedTrace = JfrItemUtils.formatStackTrace(stackObj, 5);
+
+                String blockedTrace;
+                if (stackObj instanceof IMCStackTrace st) {
+                    blockedTrace = traceCache.computeIfAbsent(st, k -> JfrItemUtils.formatStackTrace(k, 5));
+                } else {
+                    blockedTrace = JfrItemUtils.formatStackTrace(stackObj, 5);
+                }
 
                 LockHolderKey key = new LockHolderKey(monitorClass, holderName);
                 LockHolderStats stats = holderStats.computeIfAbsent(key, k -> new LockHolderStats());
@@ -209,6 +202,7 @@ public final class SmartLockResolverTool {
             holderNames.add(entry.getKey().holderName());
         }
 
+        Map<IMCStackTrace, String> fullTraceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : execSamples) {
             IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
             IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
@@ -221,7 +215,12 @@ public final class SmartLockResolverTool {
                 if (!holderNames.contains(threadName)) continue;
 
                 Object stackObj = stackAcc.getMember(item);
-                String fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
+                String fullTrace;
+                if (stackObj instanceof IMCStackTrace st) {
+                    fullTrace = fullTraceCache.computeIfAbsent(st, JfrItemUtils::formatFullStackTrace);
+                } else {
+                    fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
+                }
                 if (fullTrace == null || fullTrace.isEmpty()) continue;
 
                 HolderActivity activity = result.computeIfAbsent(threadName, k -> new HolderActivity());

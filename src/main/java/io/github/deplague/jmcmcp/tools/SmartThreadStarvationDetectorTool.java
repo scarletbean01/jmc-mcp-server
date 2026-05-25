@@ -12,6 +12,7 @@ import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -25,8 +26,7 @@ public final class SmartThreadStarvationDetectorTool {
 
     private static final Pattern POOL_PATTERN = Pattern.compile(
             "com\\.zaxxer\\.hikari|org\\.apache\\.tomcat\\.jdbc|com\\.mchange\\.v2\\.c3p0|org\\.apache\\.commons\\.dbcp|oracle\\.ucp");
-    private static final Pattern BLOCKED_STATE = Pattern.compile("java\\.lang\\.Thread\\.State:\\s*BLOCKED");
-    private static final Pattern WAITING_STATE = Pattern.compile("java\\.lang\\.Thread\\.State:\\s*WAITING|java\\.lang\\.Thread\\.State:\\s*TIMED_WAITING");
+    private static final Pattern THREAD_STATE_PATTERN = Pattern.compile("java\\.lang\\.Thread\\.State:\\s*(\\w+)");
 
     public SmartThreadStarvationDetectorTool(JfrAnalysisService service) {
         this.service = service;
@@ -44,33 +44,19 @@ public final class SmartThreadStarvationDetectorTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top starvation issues (default 5)", 5)
+                                        "top_n", SchemaUtil.intProp("Number of top starvation issues (default 5)", 5),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 5);
+                    return analyze(filePath, startTimeStr, endTimeStr, topN);
+                }))
                 .build();
     }
 
@@ -94,17 +80,21 @@ public final class SmartThreadStarvationDetectorTool {
             }
         }
 
-        // 3. Blocked thread analysis
+        // 3. Blocked thread analysis (MonitorEnter merged with pool detection)
         Map<String, BlockedStats> blockedStats = new HashMap<>();
-        analyzeBlocking(events, "jdk.JavaMonitorEnter", blockedStats);
+        ConnectionPoolSummary poolSummary = new ConnectionPoolSummary();
+        analyzeMonitorEnterBlocking(events, blockedStats, poolSummary);
         analyzeBlocking(events, "jdk.ThreadPark", blockedStats);
         analyzeBlocking(events, "jdk.JavaMonitorWait", blockedStats);
 
+        if (poolSummary.blockEvents > 10) {
+            poolSummary.poolDetected = true;
+            poolSummary.threadsWaiting = poolSummary.waitingThreads.size();
+            poolSummary.confidence = Math.min(1.0, poolSummary.blockEvents / 100.0);
+        }
+
         // 4. Thread dump state analysis
         ThreadDumpSummary dumpSummary = analyzeThreadDumps(events);
-
-        // 5. Connection pool detection
-        ConnectionPoolSummary poolSummary = detectConnectionPoolStarvation(events, blockedStats);
 
         // Build diagnosis
         StringBuilder sb = new StringBuilder();
@@ -272,59 +262,65 @@ public final class SmartThreadStarvationDetectorTool {
                 if (result == null) continue;
                 String text = result.toString();
 
-                // Count thread states
-                int runnable = countMatches(text, "java.lang.Thread.State: RUNNABLE");
-                int blocked = countMatches(text, "java.lang.Thread.State: BLOCKED");
-                int waiting = countMatches(text, "java.lang.Thread.State: WAITING");
-                int timedWaiting = countMatches(text, "java.lang.Thread.State: TIMED_WAITING");
-
-                totalThreads += runnable + blocked + waiting + timedWaiting;
-                blockedCount += blocked;
-                waitingCount += waiting + timedWaiting;
+                // Single-pass thread state counting using compiled regex
+                Matcher m = THREAD_STATE_PATTERN.matcher(text);
+                while (m.find()) {
+                    totalThreads++;
+                    String state = m.group(1);
+                    if ("BLOCKED".equals(state)) {
+                        blockedCount++;
+                    } else if ("WAITING".equals(state) || "TIMED_WAITING".equals(state)) {
+                        waitingCount++;
+                    }
+                }
             }
         }
 
         return new ThreadDumpSummary(totalThreads, blockedCount, waitingCount);
     }
 
-    private ConnectionPoolSummary detectConnectionPoolStarvation(IItemCollection events,
-                                                                   Map<String, BlockedStats> blockedStats) {
-        ConnectionPoolSummary result = new ConnectionPoolSummary();
-
-        // Look for pool packages in blocked thread stack traces
-        IItemCollection monitorEnters = events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
-        for (IItemIterable iterable : monitorEnters) {
-            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+    private void analyzeMonitorEnterBlocking(IItemCollection events,
+                                               Map<String, BlockedStats> blockedStats,
+                                               ConnectionPoolSummary poolSummary) {
+        IItemCollection filtered = events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
+        for (IItemIterable iterable : filtered) {
             IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            if (stackAcc == null || threadAcc == null) continue;
+            IMemberAccessor<IQuantity, IItem> durationAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            if (threadAcc == null) continue;
 
             for (IItem item : iterable) {
-                Object stackObj = stackAcc.getMember(item);
                 Object threadObj = threadAcc.getMember(item);
-                if (stackObj == null || threadObj == null) continue;
+                if (threadObj == null) continue;
+                String threadName = extractThreadName(threadObj);
+                String pool = extractPoolPrefix(threadName);
 
-                String trace = JfrItemUtils.formatFullStackTrace(stackObj);
-                if (trace == null) continue;
+                // Blocking stats
+                BlockedStats s = blockedStats.computeIfAbsent(pool, k -> new BlockedStats());
+                s.blockCount++;
+                if (durationAcc != null) {
+                    IQuantity duration = durationAcc.getMember(item);
+                    if (duration != null) {
+                        s.totalBlockedNanos += duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                    }
+                }
 
-                if (POOL_PATTERN.matcher(trace).find()) {
-                    result.blockEvents++;
-                    String threadName = extractThreadName(threadObj);
-                    result.waitingThreads.add(threadName);
-                    // Try to extract pool name
-                    if (result.poolName == null) {
-                        result.poolName = extractPoolName(trace);
+                // Connection pool detection (filter before formatting to avoid string allocation)
+                if (stackAcc != null) {
+                    Object stackObj = stackAcc.getMember(item);
+                    if (stackObj != null && JfrItemUtils.stackTraceMatches(stackObj, POOL_PATTERN)) {
+                        String trace = JfrItemUtils.formatFullStackTrace(stackObj);
+                        if (trace != null) {
+                            poolSummary.blockEvents++;
+                            poolSummary.waitingThreads.add(threadName);
+                            if (poolSummary.poolName == null) {
+                                poolSummary.poolName = extractPoolName(trace);
+                            }
+                        }
                     }
                 }
             }
         }
-
-        if (result.blockEvents > 10) {
-            result.poolDetected = true;
-            result.threadsWaiting = result.waitingThreads.size();
-            result.confidence = Math.min(1.0, result.blockEvents / 100.0);
-        }
-
-        return result;
     }
 
     private String diagnose(CpuLoadSummary cpu, int activeThreads,
@@ -398,15 +394,7 @@ public final class SmartThreadStarvationDetectorTool {
         return "Unknown Pool";
     }
 
-    private static int countMatches(String text, String pattern) {
-        int count = 0;
-        int idx = 0;
-        while ((idx = text.indexOf(pattern, idx)) != -1) {
-            count++;
-            idx += pattern.length();
-        }
-        return count;
-    }
+
 
     private record CpuLoadSummary(double avgJvmUser, double avgJvmSystem, double avgMachineTotal,
                                    double efficiency, int sampleCount) {
