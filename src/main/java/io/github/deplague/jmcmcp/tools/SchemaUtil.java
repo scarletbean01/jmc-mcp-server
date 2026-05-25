@@ -75,6 +75,18 @@ public final class SchemaUtil {
         return p;
     }
 
+    public static Map<String, Object> boolProp(String description, Object defaultValue) {
+        Map<String, Object> p = new HashMap<>();
+        p.put("type", "boolean");
+        if (description != null) {
+            p.put("description", description);
+        }
+        if (defaultValue != null) {
+            p.put("default", defaultValue);
+        }
+        return p;
+    }
+
     public static Map<String, Object> jfrFileProp() {
         return stringProp("Absolute or relative path to the .jfr recording file");
     }

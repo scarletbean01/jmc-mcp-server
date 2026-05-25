@@ -47,34 +47,20 @@ public final class RequestWaterfallTool {
                                         "thread_name", SchemaUtil.stringProp("Exact thread name or regex pattern to match"),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "max_events", SchemaUtil.intProp("Maximum events in waterfall (default 100)", 100)
+                                        "max_events", SchemaUtil.intProp("Maximum events in waterfall (default 100)", 100),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path", "thread_name")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String threadName = SchemaUtil.getString(request.arguments(), "thread_name");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int maxEvents = SchemaUtil.getIntOrDefault(request.arguments(), "max_events", 100);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, threadName, startTimeStr, endTimeStr, maxEvents);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String threadName = SchemaUtil.getString(request.arguments(), "thread_name");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int maxEvents = SchemaUtil.getIntOrDefault(request.arguments(), "max_events", 100);
+                    return analyze(filePath, threadName, startTimeStr, endTimeStr, maxEvents);
+                }))
                 .build();
     }
 

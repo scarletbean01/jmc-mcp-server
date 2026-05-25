@@ -8,6 +8,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - **Enterprise-grade security** — path traversal protection, configurable access controls
 - **Async execution** — offload long-running analysis to background jobs with polling
 - **Smart caching** — TTL-based recording cache with file-change detection and memory-pressure eviction
+- **Performance-optimized search** — `stack_trace_search` uses frame-level regex matching instead of expensive full-trace formatting
 - **Health monitoring** — built-in health check with JVM metrics, cache stats, and job queue state
 
 ### Tool Categories
@@ -171,7 +172,7 @@ Once connected, ask your agent things like:
 
 ## Async Execution
 
-Long-running tools (e.g., `quick_analysis`, `correlate`, `compare_recordings`) can be executed asynchronously:
+The following heavyweight tools support asynchronous execution via the `async` parameter. When `async: true`, the server immediately returns a job ID and processes the analysis in the background:
 
 ```json
 {
@@ -183,11 +184,18 @@ Long-running tools (e.g., `quick_analysis`, `correlate`, `compare_recordings`) c
 }
 ```
 
-The server responds immediately with a job ID:
-```
-Job submitted. ID: a1b2c3d4...
+The server responds immediately with a job ID and status:
+```markdown
+# Async Job Submitted
+
+- **Job ID:** `a1b2c3d4...`
+- **Tool:** `quick_analysis`
+- **Status:** PENDING
+
 Use `get_job_status` to check progress and `get_job_result` to retrieve the output.
 ```
+
+**Tools supporting async:** `stack_trace_search`, `quick_analysis`, `correlate`, `request_waterfall`, `diff_stack_traces`, `compare_recordings`, `cpu_flame`, `allocation_flame`, `lock_flame`, `memory_leaks`, `predictive_leak_analysis`, `high_cpu_diagnostic`
 
 Poll for completion:
 ```json
@@ -292,7 +300,7 @@ Use `health_check` to monitor server state:
 | `jfr_event_stats`| Event type statistics | `jfr_file_path`, `event_type` | `start_time`, `end_time` |
 | `recording_settings` | JFR config inspection | `jfr_file_path` | `start_time`, `end_time` |
 | `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `start_time`, `end_time`, `min_severity` |
-| `compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time` |
+| `compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time`, `async` |
 | `health_check` | Server health & metrics | — | — |
 
 ### Garbage Collection & Memory
@@ -305,8 +313,8 @@ Use `health_check` to monitor server state:
 | `gc_recommendations` | JVM tuning advice | `jfr_file_path` | `start_time`, `end_time` |
 | `heap_trends` | Heap/metaspace trends | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
 | `object_statistics` | Heap occupancy | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `memory_leaks` | Old object sampling | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `predictive_leak_analysis` | Mathematical leak detection | `jfr_file_path` | `start_time`, `end_time`, `r_squared_threshold` |
+| `memory_leaks` | Old object sampling | `jfr_file_path` | `start_time`, `end_time`, `top_n`, `async` |
+| `predictive_leak_analysis` | Mathematical leak detection | `jfr_file_path` | `start_time`, `end_time`, `r_squared_threshold`, `async` |
 | `native_memory` | Native lib & buffer memory | `jfr_file_path` | `start_time`, `end_time` |
 | `direct_buffers` | Off-heap buffer stats | `jfr_file_path` | `start_time`, `end_time` |
 
@@ -316,8 +324,8 @@ Use `health_check` to monitor server state:
 |------|-------------|---------------|---------------|
 | `hot_methods` | CPU hotspots | `jfr_file_path` | `start_time`, `end_time`, `thread_name`, `package_prefix`, `top_n` |
 | `thread_cpu` | Per-thread CPU usage | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `top_n` |
-| `cpu_flame` | CPU flame graph paths | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `top_n` |
-| `high_cpu_diagnostic` | Orchestrated CPU diagnosis | `jfr_file_path` | `start_time`, `end_time`, `package_prefix` |
+| `cpu_flame` | CPU flame graph paths | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `top_n`, `async` |
+| `high_cpu_diagnostic` | Orchestrated CPU diagnosis | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `async` |
 | `incident_timeline` | Chronological event context | `jfr_file_path` | `anchor_event`, `anchor_time`, `window_ms` |
 | `jit_compilation` | JIT compilation events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `code_cache` | Code cache stats | `jfr_file_path` | `start_time`, `end_time` |
@@ -332,7 +340,7 @@ Use `health_check` to monitor server state:
 | `thread_contention` | Monitor lock contention | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `lock_analysis` | ThreadPark & Biased locks | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `thread_dumps` | Extract thread dumps | `jfr_file_path` | `start_time`, `end_time`, `max_dumps` |
-| `lock_flame` | Lock contention flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `lock_flame` | Lock contention flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n`, `async` |
 | `deadlock_detection` | Deadlock cycle detection | `jfr_file_path` | `start_time`, `end_time` |
 | `blocking_summary` | Aggregate blocking events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `thread_pool_analysis` | Thread pool utilization | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
@@ -359,7 +367,7 @@ Use `health_check` to monitor server state:
 | `allocation_hotspots` | Allocation hotspots | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_histogram` | Allocation histogram | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `class_loading` | Class loading stats | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
-| `allocation_flame` | Allocation flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
+| `allocation_flame` | Allocation flame graph | `jfr_file_path` | `start_time`, `end_time`, `top_n`, `async` |
 
 ### System & Trends
 
@@ -376,9 +384,9 @@ Use `health_check` to monitor server state:
 
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
-| `stack_trace_search` | Regex search across all event stack traces | `jfr_file_path`, `class_pattern` | `event_type`, `start_time`, `end_time`, `limit` |
-| `request_waterfall` | Per-thread chronological event trace | `jfr_file_path`, `thread_name` | `start_time`, `end_time`, `max_events` |
-| `correlate` | Lock↔I/O↔hot-method correlation | `jfr_file_path` | `dimension`, `start_time`, `end_time`, `top_n` |
+| `stack_trace_search` | Regex search across all event stack traces | `jfr_file_path`, `class_pattern` | `event_type`, `start_time`, `end_time`, `limit`, `async` |
+| `request_waterfall` | Per-thread chronological event trace | `jfr_file_path`, `thread_name` | `start_time`, `end_time`, `max_events`, `async` |
+| `correlate` | Lock↔I/O↔hot-method correlation | `jfr_file_path` | `dimension`, `start_time`, `end_time`, `top_n`, `async` |
 | `quick_analysis` | Severity-classified dashboard | `jfr_file_path` | `start_time`, `end_time`, `focus`, `async` |
 | `diff_stack_traces` | Method-level diff between recordings | `baseline_jfr_path`, `target_jfr_path` | `package_prefix`, `top_n`, `async` |
 

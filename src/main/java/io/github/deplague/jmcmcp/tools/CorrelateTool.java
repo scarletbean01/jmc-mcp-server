@@ -40,34 +40,20 @@ public final class CorrelateTool {
                                         "dimension", SchemaUtil.stringProp("Correlation dimension: lock_io_db, cpu_gc, or all (default)", List.of("lock_io_db", "cpu_gc", "all")),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top results per section (default 10)", 10)
+                                        "top_n", SchemaUtil.intProp("Number of top results per section (default 10)", 10),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String dimension = SchemaUtil.getStringOrDefault(request.arguments(), "dimension", "all");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, dimension, startTimeStr, endTimeStr, topN);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String dimension = SchemaUtil.getStringOrDefault(request.arguments(), "dimension", "all");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 10);
+                    return analyze(filePath, dimension, startTimeStr, endTimeStr, topN);
+                }))
                 .build();
     }
 

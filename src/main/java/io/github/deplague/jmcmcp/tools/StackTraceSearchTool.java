@@ -10,6 +10,8 @@ import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
+import org.openjdk.jmc.common.IMCStackTrace;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -63,35 +65,21 @@ public final class StackTraceSearchTool {
                                         "event_type", SchemaUtil.stringProp("Filter to specific event type (e.g., 'jdk.JavaMonitorEnter'), or 'all'"),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "limit", SchemaUtil.intProp("Maximum results to return (default 20)", 20)
+                                        "limit", SchemaUtil.intProp("Maximum results to return (default 20)", 20),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path", "class_pattern")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String classPattern = SchemaUtil.getString(request.arguments(), "class_pattern");
-                        String eventType = SchemaUtil.getStringOrDefault(request.arguments(), "event_type", "all");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int limit = SchemaUtil.getIntOrDefault(request.arguments(), "limit", 20);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, classPattern, eventType, startTimeStr, endTimeStr, limit);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String classPattern = SchemaUtil.getString(request.arguments(), "class_pattern");
+                    String eventType = SchemaUtil.getStringOrDefault(request.arguments(), "event_type", "all");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int limit = SchemaUtil.getIntOrDefault(request.arguments(), "limit", 20);
+                    return analyze(filePath, classPattern, eventType, startTimeStr, endTimeStr, limit);
+                }))
                 .build();
     }
 
@@ -110,6 +98,10 @@ public final class StackTraceSearchTool {
 
         List<MatchResult> matches = new ArrayList<>();
         Map<String, Long> distribution = new LinkedHashMap<>();
+
+        // Caches leveraging JFR stack-trace deduplication (same IMCStackTrace instance reused)
+        Map<IMCStackTrace, Boolean> matchCache = new IdentityHashMap<>();
+        Map<IMCStackTrace, String> formattedTraceCache = new IdentityHashMap<>();
 
         for (String typeId : typesToSearch) {
             IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
@@ -137,13 +129,23 @@ public final class StackTraceSearchTool {
 
                 for (IItem item : iterable) {
                     Object stackObj = stackAccessor.getMember(item);
-                    if (stackObj == null) continue;
+                    if (!(stackObj instanceof IMCStackTrace stackTrace)) continue;
 
-                    String fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
-                    if (!pattern.matcher(fullTrace).find()) continue;
+                    Boolean cachedMatch = matchCache.get(stackTrace);
+                    if (cachedMatch == null) {
+                        boolean isMatch = JfrItemUtils.stackTraceMatches(stackTrace, pattern);
+                        matchCache.put(stackTrace, isMatch);
+                        cachedMatch = isMatch;
+                        if (isMatch) {
+                            formattedTraceCache.put(stackTrace, JfrItemUtils.formatFullStackTrace(stackTrace));
+                        }
+                    }
 
+                    if (!cachedMatch) continue;
                     typeMatchCount++;
                     if (matches.size() >= limit) continue;
+
+                    String fullTrace = formattedTraceCache.get(stackTrace);
 
                     String threadName = threadAccessor != null ? threadAccessor.getMember(item).toString() : "Unknown";
                     String timestamp = startTimeAccessor != null ? JfrAnalysisService.display(startTimeAccessor.getMember(item)) : "N/A";

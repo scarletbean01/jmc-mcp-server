@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * Utility methods for extracting values from JFR items without knowing the exact
@@ -211,6 +212,32 @@ public final class JfrItemUtils {
      */
     public static String formatFullStackTrace(Object stackTraceObj) {
         return formatStackTrace(stackTraceObj, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Check whether any frame in a stack trace matches the given regex pattern.
+     * Avoids the cost of formatting the full trace string for non-matching events.
+     */
+    public static boolean stackTraceMatches(Object stackTraceObj, Pattern pattern) {
+        if (!(stackTraceObj instanceof IMCStackTrace stackTrace)) {
+            return false;
+        }
+        List<? extends IMCFrame> frames = stackTrace.getFrames();
+        if (frames == null || frames.isEmpty()) {
+            return false;
+        }
+        for (IMCFrame frame : frames) {
+            IMCMethod method = frame.getMethod();
+            if (method == null) continue;
+            String typeName = method.getType().getFullName();
+            String methodName = method.getMethodName();
+            if (pattern.matcher(typeName).find()
+                    || pattern.matcher(methodName).find()
+                    || pattern.matcher(typeName + "." + methodName).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

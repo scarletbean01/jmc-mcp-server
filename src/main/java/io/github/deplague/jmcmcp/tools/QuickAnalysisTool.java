@@ -38,33 +38,19 @@ public final class QuickAnalysisTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "focus", SchemaUtil.stringProp("Focus area: cpu, memory, latency, locks, or auto (default)", List.of("cpu", "memory", "latency", "locks", "auto"))
+                                        "focus", SchemaUtil.stringProp("Focus area: cpu, memory, latency, locks, or auto (default)", List.of("cpu", "memory", "latency", "locks", "auto")),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        String focus = SchemaUtil.getStringOrDefault(request.arguments(), "focus", "auto");
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(filePath, startTimeStr, endTimeStr, focus);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    String focus = SchemaUtil.getStringOrDefault(request.arguments(), "focus", "auto");
+                    return analyze(filePath, startTimeStr, endTimeStr, focus);
+                }))
                 .build();
     }
 

@@ -30,29 +30,19 @@ public final class MemoryLeaksTool {
                                         "jfr_file_path", SchemaUtil.jfrFileProp(),
                                         "start_time", SchemaUtil.startTimeProp(),
                                         "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top leaking classes/sites (default 20)", 20)
+                                        "top_n", SchemaUtil.intProp("Number of top leaking classes/sites (default 20)", 20),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("jfr_file_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
-
-                        String cached = service.getCachedResult(filePath, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-                        String result = analyze(filePath, startTimeStr, endTimeStr, topN);
-                        service.cacheResult(filePath, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder().addTextContent("Error: " + e.getMessage()).isError(true).build();
-                    }
-                }).build();
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
+                    return analyze(filePath, startTimeStr, endTimeStr, topN);
+                })).build();
     }
 
     private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws Exception {

@@ -79,32 +79,17 @@ public final class CompareRecordingsTool {
                         .inputSchema(SchemaUtil.objectSchema(
                                 SchemaUtil.props(
                                         "baseline_jfr_path", SchemaUtil.jfrFileProp(),
-                                        "target_jfr_path", SchemaUtil.jfrFileProp()
+                                        "target_jfr_path", SchemaUtil.jfrFileProp(),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("baseline_jfr_path", "target_jfr_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String baselinePath = SchemaUtil.getString(request.arguments(), "baseline_jfr_path");
-                        String targetPath = SchemaUtil.getString(request.arguments(), "target_jfr_path");
-
-                        String cacheKey = baselinePath + "::" + targetPath;
-                        String cached = service.getCachedResult(cacheKey, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(baselinePath, targetPath);
-                        service.cacheResult(cacheKey, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String baselinePath = SchemaUtil.getString(request.arguments(), "baseline_jfr_path");
+                    String targetPath = SchemaUtil.getString(request.arguments(), "target_jfr_path");
+                    return analyze(baselinePath, targetPath);
+                }))
                 .build();
     }
 

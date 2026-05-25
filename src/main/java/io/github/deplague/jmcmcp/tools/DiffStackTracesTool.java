@@ -39,34 +39,19 @@ public final class DiffStackTracesTool {
                                         "baseline_jfr_path", SchemaUtil.stringProp("Path to baseline JFR recording"),
                                         "target_jfr_path", SchemaUtil.stringProp("Path to target JFR recording"),
                                         "package_prefix", SchemaUtil.stringProp("Optional package prefix to filter (e.g., 'com.mycompany')"),
-                                        "top_n", SchemaUtil.intProp("Number of top methods per category (default 20)", 20)
+                                        "top_n", SchemaUtil.intProp("Number of top methods per category (default 20)", 20),
+                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
                                 ),
                                 SchemaUtil.required("baseline_jfr_path", "target_jfr_path")
                         ))
                         .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String baselinePath = SchemaUtil.getString(request.arguments(), "baseline_jfr_path");
-                        String targetPath = SchemaUtil.getString(request.arguments(), "target_jfr_path");
-                        String packagePrefix = SchemaUtil.getStringOrDefault(request.arguments(), "package_prefix", null);
-                        int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
-
-                        String cacheKey = baselinePath + "::" + targetPath;
-                        String cached = service.getCachedResult(cacheKey, NAME, request.arguments());
-                        if (cached != null) {
-                            return CallToolResult.builder().addTextContent(cached).isError(false).build();
-                        }
-
-                        String result = analyze(baselinePath, targetPath, packagePrefix, topN);
-                        service.cacheResult(cacheKey, NAME, request.arguments(), result);
-                        return CallToolResult.builder().addTextContent(result).isError(false).build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
+                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
+                    String baselinePath = SchemaUtil.getString(request.arguments(), "baseline_jfr_path");
+                    String targetPath = SchemaUtil.getString(request.arguments(), "target_jfr_path");
+                    String packagePrefix = SchemaUtil.getStringOrDefault(request.arguments(), "package_prefix", null);
+                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
+                    return analyze(baselinePath, targetPath, packagePrefix, topN);
+                }))
                 .build();
     }
 
