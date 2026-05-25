@@ -20,7 +20,7 @@ import java.util.Set;
 
 public final class IncidentTimelineTool {
 
-    private static final String NAME = "incident_timeline";
+    private static final String NAME = "smart_incident_timeline";
     private final JfrAnalysisService service;
 
     private static final Set<String> SIGNIFICANT_EVENTS = Set.of(

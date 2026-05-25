@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * MCP tool for expanding a specific node in a cached call tree.
@@ -17,7 +16,7 @@ import java.util.Map;
 public final class ExpandCallTreeTool {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExpandCallTreeTool.class);
-    private static final String NAME = "expand_node";
+    private static final String NAME = "smart_expand_node";
 
     private final CallTreeCache callTreeCache;
 

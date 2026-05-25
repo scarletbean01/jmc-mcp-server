@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  */
 public final class StackTraceSearchTool {
 
-    private static final String NAME = "stack_trace_search";
+    private static final String NAME = "smart_stack_trace_search";
 
     private static final List<String> SEARCHABLE_EVENT_TYPES = List.of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",

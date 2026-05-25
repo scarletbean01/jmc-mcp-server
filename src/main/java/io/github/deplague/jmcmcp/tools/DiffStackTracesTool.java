@@ -19,7 +19,7 @@ import java.util.*;
  */
 public final class DiffStackTracesTool {
 
-    private static final String NAME = "diff_stack_traces";
+    private static final String NAME = "smart_diff_stack_traces";
 
     private final JfrAnalysisService service;
 

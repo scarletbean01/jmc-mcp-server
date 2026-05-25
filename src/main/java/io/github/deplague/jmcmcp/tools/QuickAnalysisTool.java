@@ -20,7 +20,7 @@ import java.util.List;
  */
 public final class QuickAnalysisTool {
 
-    private static final String NAME = "quick_analysis";
+    private static final String NAME = "smart_quick_analysis";
 
     private final JfrAnalysisService service;
 

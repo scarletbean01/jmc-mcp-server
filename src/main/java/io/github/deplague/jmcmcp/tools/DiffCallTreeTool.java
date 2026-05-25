@@ -4,9 +4,7 @@ import io.github.deplague.jmcmcp.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.flightrecorder.stacktrace.FrameSeparator;
 import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
 import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
@@ -28,7 +26,7 @@ import java.util.Map;
 public final class DiffCallTreeTool {
 
     private static final Logger LOG = LoggerFactory.getLogger(DiffCallTreeTool.class);
-    private static final String NAME = "get_diff_tree";
+    private static final String NAME = "smart_get_diff_tree";
 
     private final JfrAnalysisService service;
     private final CallTreeCache callTreeCache;

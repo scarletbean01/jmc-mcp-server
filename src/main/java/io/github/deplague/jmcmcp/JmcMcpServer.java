@@ -1,6 +1,7 @@
 package io.github.deplague.jmcmcp;
 
 import io.github.deplague.jmcmcp.async.AsyncJobService;
+import io.github.deplague.jmcmcp.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.security.RecordingAccessController;
@@ -35,7 +36,7 @@ public final class JmcMcpServer {
         RecordingAccessController accessController = new RecordingAccessController();
         AsyncJobService asyncJobService = new AsyncJobService();
         JfrAnalysisService analysisService = new JfrAnalysisService(cache, accessController, asyncJobService);
-        io.github.deplague.jmcmcp.jfr.CallTreeCache callTreeCache = new io.github.deplague.jmcmcp.jfr.CallTreeCache();
+        CallTreeCache callTreeCache = new CallTreeCache();
 
         // Create stdio transport provider with Jackson 3 JSON mapper
         JsonMapper jsonMapper = JsonMapper.builder().build();

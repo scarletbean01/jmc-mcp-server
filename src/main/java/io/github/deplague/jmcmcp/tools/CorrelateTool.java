@@ -19,7 +19,7 @@ import java.util.*;
  */
 public final class CorrelateTool {
 
-    private static final String NAME = "correlate";
+    private static final String NAME = "smart_correlate";
 
     private final JfrAnalysisService service;
 

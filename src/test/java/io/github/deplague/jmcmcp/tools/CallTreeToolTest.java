@@ -48,7 +48,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeReturnsTreeIdAndNodes() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu")));
 
@@ -63,7 +63,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeWithSocketSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "socket")));
 
@@ -75,7 +75,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeWithFileSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "file")));
 
@@ -87,7 +87,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeWithLockSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "lock")));
 
@@ -99,7 +99,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeWithPackageFilter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu",
                         "package_filter", "java.lang")));
@@ -112,7 +112,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeWithTimeRange() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu",
                         "start_time", "2025-01-01T00:00:00Z",
@@ -125,7 +125,7 @@ class CallTreeToolTest {
 
     @Test
     void getCallTreeCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("get_call_tree", Map.of(
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                 "jfr_file_path", afterPath,
                 "subsystem", "cpu"));
 
@@ -140,7 +140,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeReturnsErrorForMissingFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", "/nonexistent/path.jfr",
                         "subsystem", "cpu")));
 
@@ -151,7 +151,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeReturnsErrorForMissingArgument() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of()));
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of()));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Missing required argument");
@@ -160,7 +160,7 @@ class CallTreeToolTest {
     @Test
     void getCallTreeCachesTreeInCallTreeCache() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu")));
 
@@ -172,7 +172,7 @@ class CallTreeToolTest {
     void expandNodeReturnsChildren() {
         // First create a tree
         CallToolResult treeResult = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu")));
 
@@ -181,7 +181,7 @@ class CallTreeToolTest {
 
         ExpandCallTreeTool expandTool = new ExpandCallTreeTool(tool.getCallTreeCache());
         CallToolResult expandResult = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_node", Map.of(
                         "tree_id", treeId,
                         "node_id", "root-0")));
 
@@ -195,7 +195,7 @@ class CallTreeToolTest {
     void expandNodeReturnsErrorForExpiredTree() {
         ExpandCallTreeTool expandTool = new ExpandCallTreeTool(tool.getCallTreeCache());
         CallToolResult result = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_node", Map.of(
                         "tree_id", "nonexistent-tree-id",
                         "node_id", "root-0")));
 
@@ -206,7 +206,7 @@ class CallTreeToolTest {
     @Test
     void expandNodeReturnsErrorForInvalidNodeId() {
         CallToolResult treeResult = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_call_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_call_tree", Map.of(
                         "jfr_file_path", afterPath,
                         "subsystem", "cpu")));
 
@@ -214,7 +214,7 @@ class CallTreeToolTest {
 
         ExpandCallTreeTool expandTool = new ExpandCallTreeTool(tool.getCallTreeCache());
         CallToolResult result = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_node", Map.of(
                         "tree_id", treeId,
                         "node_id", "root-999999")));
 

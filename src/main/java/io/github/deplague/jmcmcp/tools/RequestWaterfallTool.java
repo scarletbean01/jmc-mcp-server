@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  */
 public final class RequestWaterfallTool {
 
-    private static final String NAME = "request_waterfall";
+    private static final String NAME = "smart_request_waterfall";
 
     private static final List<String> WATERFALL_EVENT_TYPES = List.of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",

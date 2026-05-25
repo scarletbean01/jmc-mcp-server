@@ -6,7 +6,6 @@ import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.IParserStats;
 
 import java.util.ArrayList;
 import java.util.Collections;

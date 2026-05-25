@@ -48,7 +48,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallShowsResultFromAfterFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", afterPath,
                         "thread_name", ".*")));
 
@@ -59,7 +59,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallShowsResultFromBeforeFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*")));
 
@@ -70,7 +70,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallContainsThreadSummary() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*")));
 
@@ -86,7 +86,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallContainsWaterfallTimeline() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*")));
 
@@ -100,7 +100,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallContainsPhaseBreakdown() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*")));
 
@@ -114,7 +114,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallContainsAgentHint() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*")));
 
@@ -127,7 +127,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallWithMaxEventsLimit() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", ".*",
                         "max_events", 5)));
@@ -140,7 +140,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallWithTimeRange() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", afterPath,
                         "thread_name", ".*",
                         "start_time", "2025-01-01T00:00:00Z",
@@ -153,7 +153,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallNoEventsForNonexistentThread() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", "ZZZNonExistentThreadZZZ")));
 
@@ -165,7 +165,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallReturnsErrorForMissingFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", "/nonexistent/path.jfr",
                         "thread_name", "main")));
 
@@ -176,7 +176,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallReturnsErrorForMissingThreadName() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isTrue();
@@ -186,7 +186,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallReturnsErrorForMissingJfrFilePath() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "thread_name", "main")));
 
         assertThat(result.isError()).isTrue();
@@ -195,7 +195,7 @@ class RequestWaterfallToolTest {
 
     @Test
     void waterfallCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("request_waterfall", Map.of(
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                 "jfr_file_path", afterPath,
                 "thread_name", ".*"));
 
@@ -210,7 +210,7 @@ class RequestWaterfallToolTest {
     @Test
     void waterfallWithExactThreadName() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("request_waterfall", Map.of(
+                new McpSchema.CallToolRequest("smart_request_waterfall", Map.of(
                         "jfr_file_path", beforePath,
                         "thread_name", "main")));
 

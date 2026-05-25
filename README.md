@@ -8,7 +8,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - **Enterprise-grade security** — path traversal protection, configurable access controls
 - **Async execution** — offload long-running analysis to background jobs with polling
 - **Smart caching** — TTL-based recording cache with file-change detection and memory-pressure eviction
-- **Performance-optimized search** — `stack_trace_search` uses frame-level regex matching instead of expensive full-trace formatting
+- **Performance-optimized search** — `smart_stack_trace_search` uses frame-level regex matching instead of expensive full-trace formatting
 - **Health monitoring** — built-in health check with JVM metrics, cache stats, and job queue state
 
 ### Tool Categories
@@ -20,7 +20,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `jfr_event_stats` — Provide statistical summaries for specific event types
 - `recording_settings` — Inspect the JFR configuration (events, thresholds, stack traces)
 - `jfr_rules` — Automated bottleneck detection via JMC built-in rules
-- `compare_recordings` — Perform a comprehensive A/B comparison of two JFR recordings
+- `smart_compare_recordings` — Perform a comprehensive A/B comparison of two JFR recordings
 - `health_check` — Server health, JVM memory, cache stats, and async job queue state
 
 **Garbage Collection & Memory**
@@ -31,7 +31,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `heap_trends` — Time-bucketed heap, metaspace, and thread count trends for leak detection
 - `object_statistics` — Heap occupancy by class (instance count and total size)
 - `memory_leaks` — Analyze old object samples to identify potential memory leaks and leaking classes
-- `predictive_leak_analysis` — Mathematically detect memory leaks using linear regression on post-GC heap usage
+- `smart_predictive_leak_analysis` — Mathematically detect memory leaks using linear regression on post-GC heap usage
 - `native_memory` — Provide a memory footprint overview including native libraries and direct buffer limits
 - `direct_buffers` — Analyze off-heap direct buffer statistics to detect potential memory leaks
 
@@ -40,7 +40,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `thread_cpu` — Identify which threads are consuming the most CPU based on execution samples
 - `cpu_flame` — Provide CPU flame graph data including thread states and hottest call paths
 - `high_cpu_diagnostic` — Macro tool that orchestrates system health, thread CPU, and hot methods
-- `incident_timeline` — Recreate an incident timeline around a specific event or time
+- `smart_incident_timeline` — Recreate an incident timeline around a specific event or time
 - `jit_compilation` — Analyze JIT compilation and deoptimization events
 - `code_cache` — Analyze Code Cache usage and JIT compiler statistics
 - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
@@ -80,11 +80,11 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `jvm_flags` — Analyze JVM runtime flags and ergonomics
 
 **Expert Diagnostics (Phase 1)**
-- `stack_trace_search` — Full-text regex search across 13 JFR event types with non-truncated stack traces
-- `request_waterfall` — End-to-end request tracing: chronological lock→I/O→CPU→exception sequence per thread
-- `correlate` — Cross-dimensional correlation engine linking locks↔I/O↔hot methods with bottleneck chains
-- `quick_analysis` — One-click macro dashboard with severity classification and auto-detected dominant bottleneck
-- `diff_stack_traces` — Method-level diff between two recordings (new, disappeared, changed prominence)
+- `smart_stack_trace_search` — Full-text regex search across 13 JFR event types with non-truncated stack traces
+- `smart_request_waterfall` — End-to-end request tracing: chronological lock→I/O→CPU→exception sequence per thread
+- `smart_correlate` — Cross-dimensional correlation engine linking locks↔I/O↔hot methods with bottleneck chains
+- `smart_quick_analysis` — One-click macro dashboard with severity classification and auto-detected dominant bottleneck
+- `smart_diff_stack_traces` — Method-level diff between two recordings (new, disappeared, changed prominence)
 
 **Virtual Threads & Advanced**
 - `virtual_threads` — Analyze virtual thread pinning sites and execution failures (Java 21+)
@@ -163,7 +163,7 @@ Once connected, ask your agent things like:
 - "List all system properties starting with 'java.vm' from the recording."
 - "Search for all `jdk.JavaMonitorWait` events in `/path/to/recording.jfr`."
 - "Start a 30-second JFR recording on the JVM at `service:jmx:rmi:///jndi/rmi://localhost:9091/jmxrmi`"
-- "Run a quick_analysis on `/path/to/recording.jfr` with focus=memory"
+- "Run a smart_quick_analysis on `/path/to/recording.jfr` with focus=memory"
 - "Search stack traces for `.*TenantService.*` in `/path/to/recording.jfr`"
 - "Trace the request waterfall for thread `http-nio-8080-exec-3`"
 - "Correlate locks and I/O in `/path/to/recording.jfr`"
@@ -176,7 +176,7 @@ The following heavyweight tools support asynchronous execution via the `async` p
 
 ```json
 {
-  "tool": "quick_analysis",
+  "tool": "smart_quick_analysis",
   "arguments": {
     "jfr_file_path": "/path/to/huge-recording.jfr",
     "async": true
@@ -189,13 +189,13 @@ The server responds immediately with a job ID and status:
 # Async Job Submitted
 
 - **Job ID:** `a1b2c3d4...`
-- **Tool:** `quick_analysis`
+- **Tool:** `smart_quick_analysis`
 - **Status:** PENDING
 
 Use `get_job_status` to check progress and `get_job_result` to retrieve the output.
 ```
 
-**Tools supporting async:** `stack_trace_search`, `quick_analysis`, `correlate`, `request_waterfall`, `diff_stack_traces`, `compare_recordings`, `cpu_flame`, `allocation_flame`, `lock_flame`, `memory_leaks`, `predictive_leak_analysis`, `high_cpu_diagnostic`
+**Tools supporting async:** `smart_stack_trace_search`, `smart_quick_analysis`, `smart_correlate`, `smart_request_waterfall`, `smart_diff_stack_traces`, `smart_compare_recordings`, `cpu_flame`, `allocation_flame`, `lock_flame`, `memory_leaks`, `smart_predictive_leak_analysis`, `high_cpu_diagnostic`
 
 Poll for completion:
 ```json
@@ -300,7 +300,7 @@ Use `health_check` to monitor server state:
 | `jfr_event_stats`| Event type statistics | `jfr_file_path`, `event_type` | `start_time`, `end_time` |
 | `recording_settings` | JFR config inspection | `jfr_file_path` | `start_time`, `end_time` |
 | `jfr_rules` | Auto bottleneck detection | `jfr_file_path` | `start_time`, `end_time`, `min_severity` |
-| `compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time`, `async` |
+| `smart_compare_recordings` | A/B JFR comparison | `baseline_jfr_path`, `target_jfr_path` | `start_time`, `end_time`, `async` |
 | `health_check` | Server health & metrics | — | — |
 
 ### Garbage Collection & Memory
@@ -314,7 +314,7 @@ Use `health_check` to monitor server state:
 | `heap_trends` | Heap/metaspace trends | `jfr_file_path` | `start_time`, `end_time`, `bucket_size` |
 | `object_statistics` | Heap occupancy | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `memory_leaks` | Old object sampling | `jfr_file_path` | `start_time`, `end_time`, `top_n`, `async` |
-| `predictive_leak_analysis` | Mathematical leak detection | `jfr_file_path` | `start_time`, `end_time`, `r_squared_threshold`, `async` |
+| `smart_predictive_leak_analysis` | Mathematical leak detection | `jfr_file_path` | `start_time`, `end_time`, `r_squared_threshold`, `async` |
 | `native_memory` | Native lib & buffer memory | `jfr_file_path` | `start_time`, `end_time` |
 | `direct_buffers` | Off-heap buffer stats | `jfr_file_path` | `start_time`, `end_time` |
 
@@ -326,7 +326,7 @@ Use `health_check` to monitor server state:
 | `thread_cpu` | Per-thread CPU usage | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `top_n` |
 | `cpu_flame` | CPU flame graph paths | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `top_n`, `async` |
 | `high_cpu_diagnostic` | Orchestrated CPU diagnosis | `jfr_file_path` | `start_time`, `end_time`, `package_prefix`, `async` |
-| `incident_timeline` | Chronological event context | `jfr_file_path` | `anchor_event`, `anchor_time`, `window_ms` |
+| `smart_incident_timeline` | Chronological event context | `jfr_file_path` | `anchor_event`, `anchor_time`, `window_ms` |
 | `jit_compilation` | JIT compilation events | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
 | `code_cache` | Code cache stats | `jfr_file_path` | `start_time`, `end_time` |
 | `safepoint_analysis` | Safepoint STW metrics | `jfr_file_path` | `start_time`, `end_time`, `top_n` |
@@ -384,11 +384,11 @@ Use `health_check` to monitor server state:
 
 | Tool | Description | Required Args | Optional Args |
 |------|-------------|---------------|---------------|
-| `stack_trace_search` | Regex search across all event stack traces | `jfr_file_path`, `class_pattern` | `event_type`, `start_time`, `end_time`, `limit`, `async` |
-| `request_waterfall` | Per-thread chronological event trace | `jfr_file_path`, `thread_name` | `start_time`, `end_time`, `max_events`, `async` |
-| `correlate` | Lock↔I/O↔hot-method correlation | `jfr_file_path` | `dimension`, `start_time`, `end_time`, `top_n`, `async` |
-| `quick_analysis` | Severity-classified dashboard | `jfr_file_path` | `start_time`, `end_time`, `focus`, `async` |
-| `diff_stack_traces` | Method-level diff between recordings | `baseline_jfr_path`, `target_jfr_path` | `package_prefix`, `top_n`, `async` |
+| `smart_stack_trace_search` | Regex search across all event stack traces | `jfr_file_path`, `class_pattern` | `event_type`, `start_time`, `end_time`, `limit`, `async` |
+| `smart_request_waterfall` | Per-thread chronological event trace | `jfr_file_path`, `thread_name` | `start_time`, `end_time`, `max_events`, `async` |
+| `smart_correlate` | Lock↔I/O↔hot-method correlation | `jfr_file_path` | `dimension`, `start_time`, `end_time`, `top_n`, `async` |
+| `smart_quick_analysis` | Severity-classified dashboard | `jfr_file_path` | `start_time`, `end_time`, `focus`, `async` |
+| `smart_diff_stack_traces` | Method-level diff between recordings | `baseline_jfr_path`, `target_jfr_path` | `package_prefix`, `top_n`, `async` |
 
 ### Advanced
 

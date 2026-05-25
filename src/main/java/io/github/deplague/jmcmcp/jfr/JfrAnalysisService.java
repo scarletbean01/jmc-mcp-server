@@ -2,6 +2,8 @@ package io.github.deplague.jmcmcp.jfr;
 
 import io.github.deplague.jmcmcp.async.AsyncJobService;
 import io.github.deplague.jmcmcp.security.RecordingAccessController;
+import io.github.deplague.jmcmcp.tools.SchemaUtil;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.openjdk.jmc.common.IDisplayable;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
@@ -13,9 +15,6 @@ import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.EventAvailability;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.github.deplague.jmcmcp.tools.SchemaUtil;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
 import java.io.IOException;
 import java.time.Instant;

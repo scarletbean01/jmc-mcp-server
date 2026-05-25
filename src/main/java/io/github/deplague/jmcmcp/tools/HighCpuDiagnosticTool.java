@@ -12,7 +12,7 @@ import java.io.IOException;
  */
 public final class HighCpuDiagnosticTool {
 
-    private static final String NAME = "diagnose_high_cpu";
+    private static final String NAME = "smart_diagnose_high_cpu";
 
     private final JfrAnalysisService service;
 

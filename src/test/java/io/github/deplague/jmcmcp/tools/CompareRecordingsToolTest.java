@@ -48,7 +48,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareShowsResultFromTwoJfrFiles() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -65,7 +65,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsCategorySections() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -87,7 +87,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsMetricTables() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -102,7 +102,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsRulesSection() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -117,7 +117,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsCpuMetrics() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -134,7 +134,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsGcMetrics() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -150,7 +150,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsRegressionSections() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -168,7 +168,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsNormalizationNote() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -183,7 +183,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareContainsFileNames() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -199,7 +199,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareReturnsErrorForMissingBaselineFile() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", "/nonexistent/baseline.jfr", "target_jfr_path", targetPath)
         );
 
@@ -213,7 +213,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareReturnsErrorForMissingTargetFile() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", "/nonexistent/target.jfr")
         );
 
@@ -227,7 +227,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareReturnsErrorForMissingBaselineArgument() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("target_jfr_path", targetPath)
         );
 
@@ -241,7 +241,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareReturnsErrorForMissingTargetArgument() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath)
         );
 
@@ -255,7 +255,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareCachesResultOnSecondCall() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 
@@ -270,7 +270,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareSameFileAsBaselineAndTarget() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", baselinePath)
         );
 
@@ -286,7 +286,7 @@ class CompareRecordingsToolTest {
     @Test
     void compareDeltaValuesContainPercentSign() {
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
-                "compare_recordings",
+                "smart_compare_recordings",
                 Map.of("baseline_jfr_path", baselinePath, "target_jfr_path", targetPath)
         );
 

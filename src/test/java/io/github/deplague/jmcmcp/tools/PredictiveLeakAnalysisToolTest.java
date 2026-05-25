@@ -48,7 +48,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisShowsResultFromAfterFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         assertThat(extractText(result)).contains("# Predictive Leak Analysis");
@@ -57,7 +57,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisShowsResultFromBeforeFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         assertThat(extractText(result)).contains("# Predictive Leak Analysis");
@@ -66,7 +66,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsVerdict() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -81,7 +81,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisVerdictIsOneOfExpectedTypes() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -101,7 +101,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsLeakMetrics() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -119,7 +119,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsCurrentPostGcHeap() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -134,7 +134,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisGrowthRateIsInKBPerMin() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -149,7 +149,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsRegressionDetails() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -167,7 +167,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsLeakSuspectsSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -182,7 +182,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisLeakSuspectsContainsClassTableWhenAvailable() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -195,7 +195,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisLeakSuspectsShowsNoOldObjectSamplesMessageWhenMissing() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -212,7 +212,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisContainsTableHeaders() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -228,7 +228,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisRoundedValueFormat() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -244,7 +244,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisWithCustomRSquaredThreshold() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath, "r_squared_threshold", 0.5)));
 
         assertThat(result.isError()).isFalse();
@@ -261,7 +261,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisWithHighRSquaredThreshold() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath, "r_squared_threshold", 0.99)));
 
         assertThat(result.isError()).isFalse();
@@ -271,7 +271,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisWithRSquaredThresholdAsString() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath, "r_squared_threshold", "0.9")));
 
         assertThat(result.isError()).isFalse();
@@ -281,7 +281,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisWithTimeRange() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath,
                         "start_time", "2025-01-01T00:00:00Z",
                         "end_time", "2099-12-31T23:59:59Z")));
@@ -293,7 +293,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisOomProjectionWhenLeakDetected() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -311,7 +311,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisOomProjectionContainsAlreadyExceededWhenApplicable() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -324,7 +324,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisMaxHeapSizeWhenAvailable() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -337,7 +337,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisHeapUtilizationPercentage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -350,7 +350,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisNoLeakVerdictMessage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -363,7 +363,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisInconclusiveVerdictMessage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -376,7 +376,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisPossibleLeakVerdictMessage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -389,7 +389,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisReturnsErrorForMissingFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", "/nonexistent/path.jfr")));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", "/nonexistent/path.jfr")));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Error:");
@@ -398,7 +398,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisReturnsErrorForMissingArgument() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of()));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of()));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Missing required argument: jfr_file_path");
@@ -406,7 +406,7 @@ class PredictiveLeakAnalysisToolTest {
 
     @Test
     void analysisCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath));
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath));
 
         CallToolResult first = tool.spec().callHandler().apply(null, request);
         CallToolResult second = tool.spec().callHandler().apply(null, request);
@@ -419,7 +419,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisInsufficientDataPointsMessage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath,
                         "start_time", "2099-12-31T23:59:59Z",
                         "end_time", "2099-12-31T23:59:58Z")));
@@ -435,7 +435,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisNoHeapEventsMessage() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of(
                         "jfr_file_path", afterPath,
                         "start_time", "2099-12-31T23:59:59Z",
                         "end_time", "2099-12-31T23:59:58Z")));
@@ -451,7 +451,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisDataPointsCount() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -467,7 +467,7 @@ class PredictiveLeakAnalysisToolTest {
     @Test
     void analysisSlopeAndInterceptFormat() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_predictive_leak_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);

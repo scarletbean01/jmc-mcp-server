@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  */
 public final class CompareRecordingsTool {
 
-    private static final String NAME = "compare_recordings";
+    private static final String NAME = "smart_compare_recordings";
 
     private static final Map<String, Map<String, Severity>> RULES_CACHE = new ConcurrentHashMap<>();
 

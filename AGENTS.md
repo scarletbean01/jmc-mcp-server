@@ -122,7 +122,7 @@ after.jfr
 Many tools append an `<agent_hint>` block at the end of their output to guide the LLM to the next most useful tool. Example from `HotMethodsTool`:
 
 ```markdown
-<agent_hint>Top hot method is `SomeClass.someMethod()`. Consider `thread_cpu` to see which threads consume the most CPU, `stack_trace_search` with `class_pattern` to find all events involving this class, or `correlate` to see if this method is associated with lock contention or I/O.</agent_hint>
+<agent_hint>Top hot method is `SomeClass.someMethod()`. Consider `thread_cpu` to see which threads consume the most CPU, `smart_stack_trace_search` with `class_pattern` to find all events involving this class, or `smart_correlate` to see if this method is associated with lock contention or I/O.</agent_hint>
 ```
 
 When modifying existing tools, preserve or enhance these hints.
@@ -231,7 +231,7 @@ The codebase follows a consistent but lightweight style:
 ## Useful References
 
 - `README.md` — Full tool catalog with descriptions, arguments, and client configuration examples (Claude Desktop, VS Code).
-- `PLAN.md` — Detailed implementation plan for Phase 1 diagnostic tools (`stack_trace_search`, `request_waterfall`, `correlate`, `quick_analysis`, `diff_stack_traces`).
+- `PLAN.md` — Detailed implementation plan for Phase 1 diagnostic tools (`smart_stack_trace_search`, `smart_request_waterfall`, `smart_correlate`, `smart_quick_analysis`, `smart_diff_stack_traces`).
 - `PLAN-ENTERPRISE.md` — Strategic roadmap for cloud-native features, PII sanitization, Kubernetes integration, and advanced heuristics.
 
 🛠️ MCP Tool Priority Rules (FASTER — Use These First)

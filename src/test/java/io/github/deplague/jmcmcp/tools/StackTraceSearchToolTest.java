@@ -48,7 +48,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchShowsResultFromAfterFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", afterPath,
                         "class_pattern", ".*java.*")));
 
@@ -59,7 +59,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchShowsResultFromBeforeFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*")));
 
@@ -70,7 +70,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchContainsPatternAndEventTypesInOutput() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*")));
 
@@ -85,7 +85,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchContainsClassDistributionSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*")));
 
@@ -99,7 +99,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchWithEventTypeFilter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*",
                         "event_type", "jdk.ExecutionSample")));
@@ -114,7 +114,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchWithLimitParameter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*",
                         "limit", 5)));
@@ -128,7 +128,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchWithTimeRange() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", afterPath,
                         "class_pattern", ".*java.*",
                         "start_time", "2025-01-01T00:00:00Z",
@@ -141,7 +141,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchReturnsErrorForInvalidRegex() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", "[invalid")));
 
@@ -153,7 +153,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchReturnsErrorForMissingFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", "/nonexistent/path.jfr",
                         "class_pattern", ".*DAO.*")));
 
@@ -164,7 +164,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchReturnsErrorForMissingClassPattern() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isTrue();
@@ -174,7 +174,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchReturnsErrorForMissingJfrFilePath() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "class_pattern", ".*DAO.*")));
 
         assertThat(result.isError()).isTrue();
@@ -183,7 +183,7 @@ class StackTraceSearchToolTest {
 
     @Test
     void searchCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                 "jfr_file_path", afterPath,
                 "class_pattern", ".*java.*"));
 
@@ -198,7 +198,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchNoMatchesReturnsEmptyDistribution() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", "ZZZNonExistentClassZZZ")));
 
@@ -211,7 +211,7 @@ class StackTraceSearchToolTest {
     @Test
     void searchResultContainsAgentHintWhenMatchesFound() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("stack_trace_search", Map.of(
+                new McpSchema.CallToolRequest("smart_stack_trace_search", Map.of(
                         "jfr_file_path", beforePath,
                         "class_pattern", ".*java.*")));
 

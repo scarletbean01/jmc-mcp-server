@@ -48,7 +48,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffShowsResultForBeforeVsAfter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -60,7 +60,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsRecordingContext() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -75,7 +75,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsNewMethodsSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -87,7 +87,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsDisappearedMethodsSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -99,7 +99,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsChangedProminenceSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -111,7 +111,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsStableMethodsSection() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -123,7 +123,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffContainsAgentHint() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath)));
 
@@ -135,7 +135,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffWithPackagePrefix() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "package_prefix", "java")));
@@ -147,7 +147,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffWithTopNParameter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "top_n", 5)));
@@ -158,7 +158,7 @@ class DiffStackTracesToolTest {
 
     @Test
     void diffCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                 "baseline_jfr_path", beforePath,
                 "target_jfr_path", afterPath));
 
@@ -173,7 +173,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffReturnsErrorForMissingBaselinePath() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "target_jfr_path", afterPath)));
 
         assertThat(result.isError()).isTrue();
@@ -183,7 +183,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffReturnsErrorForMissingTargetPath() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath)));
 
         assertThat(result.isError()).isTrue();
@@ -193,7 +193,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffReturnsErrorForMissingBaselineFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", "/nonexistent/path.jfr",
                         "target_jfr_path", afterPath)));
 
@@ -204,7 +204,7 @@ class DiffStackTracesToolTest {
     @Test
     void diffReturnsErrorForMissingTargetFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("diff_stack_traces", Map.of(
+                new McpSchema.CallToolRequest("smart_diff_stack_traces", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", "/nonexistent/path.jfr")));
 

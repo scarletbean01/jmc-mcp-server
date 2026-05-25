@@ -48,7 +48,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeReturnsTreeIdAndNodes() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu")));
@@ -65,7 +65,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeWithSocketSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "socket")));
@@ -78,7 +78,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeWithFileSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "file")));
@@ -91,7 +91,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeWithLockSubsystem() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "lock")));
@@ -104,7 +104,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeWithPackageFilter() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu",
@@ -118,7 +118,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeReturnsErrorForMissingBaseline() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", "/nonexistent/baseline.jfr",
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu")));
@@ -130,7 +130,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeReturnsErrorForMissingTarget() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", "/nonexistent/target.jfr",
                         "subsystem", "cpu")));
@@ -142,7 +142,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeReturnsErrorForMissingArgument() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of()));
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of()));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Missing required argument");
@@ -151,7 +151,7 @@ class DiffCallTreeToolTest {
     @Test
     void getDiffTreeCachesTreeInCallTreeCache() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu")));
@@ -163,7 +163,7 @@ class DiffCallTreeToolTest {
     @Test
     void expandDiffNodeReturnsChildren() {
         CallToolResult treeResult = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu")));
@@ -173,7 +173,7 @@ class DiffCallTreeToolTest {
 
         ExpandDiffCallTreeTool expandTool = new ExpandDiffCallTreeTool(tool.getCallTreeCache());
         CallToolResult expandResult = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_diff_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_diff_node", Map.of(
                         "tree_id", treeId,
                         "node_id", "root-0")));
 
@@ -187,7 +187,7 @@ class DiffCallTreeToolTest {
     void expandDiffNodeReturnsErrorForExpiredTree() {
         ExpandDiffCallTreeTool expandTool = new ExpandDiffCallTreeTool(tool.getCallTreeCache());
         CallToolResult result = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_diff_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_diff_node", Map.of(
                         "tree_id", "nonexistent-tree-id",
                         "node_id", "root-0")));
 
@@ -198,7 +198,7 @@ class DiffCallTreeToolTest {
     @Test
     void expandDiffNodeReturnsErrorForInvalidNodeId() {
         CallToolResult treeResult = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("get_diff_tree", Map.of(
+                new McpSchema.CallToolRequest("smart_get_diff_tree", Map.of(
                         "baseline_jfr_path", beforePath,
                         "target_jfr_path", afterPath,
                         "subsystem", "cpu")));
@@ -207,7 +207,7 @@ class DiffCallTreeToolTest {
 
         ExpandDiffCallTreeTool expandTool = new ExpandDiffCallTreeTool(tool.getCallTreeCache());
         CallToolResult result = expandTool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("expand_diff_node", Map.of(
+                new McpSchema.CallToolRequest("smart_expand_diff_node", Map.of(
                         "tree_id", treeId,
                         "node_id", "root-999999")));
 

@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * MCP tool for initializing an interactive call tree from a JFR recording.
@@ -26,7 +25,7 @@ import java.util.Map;
 public final class CallTreeTool {
 
     private static final Logger LOG = LoggerFactory.getLogger(CallTreeTool.class);
-    private static final String NAME = "get_call_tree";
+    private static final String NAME = "smart_get_call_tree";
 
     private final JfrAnalysisService service;
     private final CallTreeCache callTreeCache;

@@ -17,7 +17,7 @@ import java.util.Map;
 
 public final class PredictiveLeakAnalysisTool {
 
-    private static final String NAME = "predictive_leak_analysis";
+    private static final String NAME = "smart_predictive_leak_analysis";
 
     private final JfrAnalysisService service;
 

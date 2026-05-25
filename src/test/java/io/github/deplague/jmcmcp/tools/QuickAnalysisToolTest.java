@@ -48,7 +48,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisShowsResultFromAfterFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", afterPath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", afterPath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -58,7 +58,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisShowsResultFromBeforeFixesFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -68,7 +68,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisContainsRecordingOverview() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -79,7 +79,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisContainsSystemHealth() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -89,7 +89,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisContainsSeverityFindings() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -99,7 +99,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisContainsRecommendedNextSteps() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", beforePath)));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", beforePath)));
 
         assertThat(result.isError()).isFalse();
         String text = extractText(result);
@@ -109,7 +109,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisAutoFocus() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", beforePath,
                         "focus", "auto")));
 
@@ -121,7 +121,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisCpuFocus() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", beforePath,
                         "focus", "cpu")));
 
@@ -133,7 +133,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisMemoryFocus() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", beforePath,
                         "focus", "memory")));
 
@@ -145,7 +145,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisLatencyFocus() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", beforePath,
                         "focus", "latency")));
 
@@ -157,7 +157,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisLocksFocus() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", beforePath,
                         "focus", "locks")));
 
@@ -169,7 +169,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisWithTimeRange() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of(
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of(
                         "jfr_file_path", afterPath,
                         "start_time", "2025-01-01T00:00:00Z",
                         "end_time", "2099-12-31T23:59:59Z")));
@@ -181,7 +181,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisReturnsErrorForMissingFile() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", "/nonexistent/path.jfr")));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", "/nonexistent/path.jfr")));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Error:");
@@ -190,7 +190,7 @@ class QuickAnalysisToolTest {
     @Test
     void quickAnalysisReturnsErrorForMissingJfrFilePath() {
         CallToolResult result = tool.spec().callHandler().apply(null,
-                new McpSchema.CallToolRequest("quick_analysis", Map.of()));
+                new McpSchema.CallToolRequest("smart_quick_analysis", Map.of()));
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Missing required argument: jfr_file_path");
@@ -198,7 +198,7 @@ class QuickAnalysisToolTest {
 
     @Test
     void quickAnalysisCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("quick_analysis", Map.of("jfr_file_path", afterPath));
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("smart_quick_analysis", Map.of("jfr_file_path", afterPath));
 
         CallToolResult first = tool.spec().callHandler().apply(null, request);
         CallToolResult second = tool.spec().callHandler().apply(null, request);

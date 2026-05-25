@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * MCP tool for expanding a specific node in a cached diff call tree.
@@ -16,7 +15,7 @@ import java.util.Map;
 public final class ExpandDiffCallTreeTool {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExpandDiffCallTreeTool.class);
-    private static final String NAME = "expand_diff_node";
+    private static final String NAME = "smart_expand_diff_node";
 
     private final CallTreeCache callTreeCache;
 
