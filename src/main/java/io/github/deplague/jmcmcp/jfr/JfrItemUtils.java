@@ -249,7 +249,7 @@ public final class JfrItemUtils {
             }
             
             if (count > 0) sb.append("\n");
-            sb.append("  at ").append(typeName).append(".").append(method.getMethodName()).append("()");
+            sb.append("  at ").append(typeName).append(".").append(method.getMethodName()).append("():").append(frame.getFrameLineNumber());
             count++;
         }
         
