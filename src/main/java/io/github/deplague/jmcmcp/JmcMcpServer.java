@@ -111,6 +111,10 @@ public final class JmcMcpServer {
                         new ExpandCallTreeTool(callTreeCache).spec(),
                         new DiffCallTreeTool(analysisService, callTreeCache).spec(),
                         new ExpandDiffCallTreeTool(callTreeCache).spec(),
+                        // Smart heuristic tools
+                        new SmartLockResolverTool(analysisService).spec(),
+                        new SmartThreadStarvationDetectorTool(analysisService).spec(),
+                        new SmartJdbcNPlusOneAnalyzerTool(analysisService).spec(),
                         // Enterprise infrastructure tools
                         new HealthCheckTool(cache, asyncJobService).spec(),
                         new GetJobStatusTool(asyncJobService).spec(),
