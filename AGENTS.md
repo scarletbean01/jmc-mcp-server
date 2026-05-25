@@ -233,3 +233,502 @@ The codebase follows a consistent but lightweight style:
 - `README.md` — Full tool catalog with descriptions, arguments, and client configuration examples (Claude Desktop, VS Code).
 - `PLAN.md` — Detailed implementation plan for Phase 1 diagnostic tools (`stack_trace_search`, `request_waterfall`, `correlate`, `quick_analysis`, `diff_stack_traces`).
 - `PLAN-ENTERPRISE.md` — Strategic roadmap for cloud-native features, PII sanitization, Kubernetes integration, and advanced heuristics.
+
+🛠️ MCP Tool Priority Rules (FASTER — Use These First)
+
+Two MCP servers are available that are SIGNIFICANTLY faster than shell commands
+or the context engine. They use IntelliJ's live index (O(1) symbol lookup,
+instant build feedback, direct file access). ALWAYS prefer them.
+
+Available servers:
+• intellij-mcpserver  — file I/O, search, build, run, debug
+• mcp-steroid         — IntelliJ API execution, PSI analysis, advanced ops
+
+═══════════════════════════════════════════════
+📂 FILE DISCOVERY & READING
+═══════════════════════════════════════════════
+
+❌ AVOID: codebase-retrieval, view, shell find/ls/tree/dir
+✅ USE instead:
+
+• Find file by name keyword (fastest — O(1) indexed, name only):
+find_files_by_name_keyword("UserService")
+
+• Find files by glob pattern (recursive, filesystem-based):
+find_files_by_glob("**/*.java")
+find_files_by_glob("src/**/Service*.java")
+
+• Find files by glob using IntelliJ's search engine (supports path filters and ! excludes):
+search_file("UserService")                           ← treated as **/UserService
+search_file("**/*.java", paths=["src/", "!**/test/**"])
+
+• Read file content (project-relative path):
+get_file_text_by_path — full file or truncated (truncateMode: START/MIDDLE/END/NONE)
+read_file             — slice, lines, line_columns, offsets, or indentation mode
+
+• List directory tree (replaces ls/tree/dir):
+list_directory_tree(directoryPath, maxDepth)
+
+• Get currently open files in the editor:
+get_all_open_file_paths()  ← returns active editor + all open editor paths
+
+• Open a specific file in the IDE editor:
+open_file_in_editor(filePath)
+
+═══════════════════════════════════════════════
+🗂️ PROJECT STRUCTURE & VCS
+═══════════════════════════════════════════════
+
+• List all project modules (with module types):
+get_project_modules()
+
+• List all project library dependencies (names):
+get_project_dependencies()
+
+• List all VCS roots in the project:
+get_repositories()
+
+═══════════════════════════════════════════════
+🔍 CODE SEARCH
+═══════════════════════════════════════════════
+
+❌ AVOID: codebase-retrieval, shell grep/ripgrep
+✅ USE instead:
+
+• Find class / method / field by name:
+search_symbol("UserService")
+search_symbol("getUserById", include_external=true)  ← for SDK symbols
+
+• Search by text substring (with snippets + coordinates):
+search_text("getAuthToken")
+search_in_files_by_text("getAuthToken", fileMask="*.java")
+
+• Search by regex (with snippets + coordinates):
+search_regex("public\\s+\\w+\\s+get[A-Z]")
+search_in_files_by_regex("\\bgetUser\\b", fileMask="*.java")
+
+• Get symbol declaration / docs at a file position:
+get_symbol_info(filePath, line, column)
+
+═══════════════════════════════════════════════
+✏️ FILE EDITING
+═══════════════════════════════════════════════
+
+• Targeted text replacement (preferred, auto-saves):
+replace_text_in_file(pathInProject, oldText, newText)
+
+• Create new file (auto-creates parent directories):
+create_new_file(pathInProject, text)
+
+• Rename symbol across entire project (updates ALL references):
+rename_refactoring(pathInProject, symbolName, newName)
+
+• Reformat file after edits:
+reformat_file(path)
+
+═══════════════════════════════════════════════
+🏗️ BUILD & COMPILE
+═══════════════════════════════════════════════
+
+❌ AVOID: launch-process with gradle / mvn commands
+✅ USE instead:
+
+• Compile all modules and get errors immediately:
+build_project()
+
+• Compile specific files only (faster):
+build_project(filesToRebuild=["src/com/imprivata/Foo.java"])
+
+• Full rebuild:
+build_project(rebuild=true)
+
+• Analyze problems in a single file (inspections/errors/warnings):
+get_file_problems(filePath)
+
+═══════════════════════════════════════════════
+🧪 TEST EXECUTION
+═══════════════════════════════════════════════
+
+❌ AVOID: launch-process with gradle test / browser URL launch (for run configs)
+✅ USE instead:
+
+• List all run configurations in the project:
+get_run_configurations()
+
+• Find runnable entry points (test methods, main) in a file:
+get_run_configurations(filePath="src/.../FooTest.java")
+
+• Run a named configuration or a specific test by file+line:
+execute_run_configuration(configurationName="MyTest")
+execute_run_configuration(filePath="...", line=42, waitForExit=true)
+
+NOTE: The browser-based TestNG launcher (http://localhost:8080/sso/testng)
+is still needed for container/unit groups when no run config exists.
+
+═══════════════════════════════════════════════
+💻 TERMINAL COMMANDS
+═══════════════════════════════════════════════
+
+Run a shell command in the IDE's integrated terminal:
+execute_terminal_command("git status")
+execute_terminal_command("./gradlew dependencies", timeout=60000, executeInShell=true)
+
+Options:
+executeInShell            — run in user's default shell (bash/zsh), preserves env
+reuseExistingTerminalWindow — avoid opening multiple terminal tabs
+maxLinesCount / truncateMode — control output length (START/MIDDLE/END/NONE)
+
+⚠️ Prefer build_project / execute_run_configuration over terminal when possible.
+Use terminal for tasks not covered by dedicated tools (e.g. git commands, scripts).
+
+═══════════════════════════════════════════════
+🔍 CUSTOM INSPECTIONS (InspectionKTS)
+═══════════════════════════════════════════════
+
+Write and run custom code inspections directly inside IntelliJ without plugins:
+
+• Get InspectionKTS API documentation for Java or Kotlin:
+generate_inspection_kts_api(language="Java")
+generate_inspection_kts_api(language="Kotlin")
+
+• Get inspection.kts template examples to guide script writing:
+generate_inspection_kts_examples(language="Java", includeAdditionalExamples=true)
+
+• Visualize the PSI tree of a code snippet (essential for writing inspections):
+generate_psi_tree(code="public void foo() {}", language="Java")
+
+• Compile and run an inspection script against a project file:
+run_inspection_kts(inspectionKtsCode="...", contextPath="src/.../Foo.java")
+
+Typical workflow:
+generate_inspection_kts_api → generate_psi_tree → write script → run_inspection_kts
+
+
+═══════════════════════════════════════════════
+🔬 MCP-STEROID — EXCLUSIVE CAPABILITIES
+═══════════════════════════════════════════════
+
+Use mcp-steroid for operations that intellij-mcpserver CANNOT do.
+Its core power is steroid_execute_code: arbitrary Kotlin code running
+inside IntelliJ's own JVM with full API access.
+
+ALWAYS fetch the skill guide before the first steroid_execute_code call:
+steroid_fetch_resource("mcp-steroid://prompt/skill")          ← any IDE task
+steroid_fetch_resource("mcp-steroid://prompt/test-skill")     ← build/test
+steroid_fetch_resource("mcp-steroid://prompt/debugger-skill") ← debugging
+
+Additional resource URIs (fetch before using these features):
+steroid_fetch_resource("mcp-steroid://skill/apply-patch-tool-description") ← steroid_apply_patch usage
+steroid_fetch_resource("mcp-steroid://ide/apply-patch")                    ← apply-patch DSL reference
+steroid_fetch_resource("mcp-steroid://skill/execute-code-gradle")          ← Gradle test execution
+
+steroid_execute_code options:
+dialog_killer: true   ← force-enable the EDT dialog killer for this call (dismisses blocking DialogWrapper windows)
+dialog_killer: false  ← force-disable (default: registry setting)
+Note: DialogKiller replaces the old ModalityStateMonitor; Maven/Gradle test runs no longer get
+cancelled mid-flight; SDK-lookup banners are no longer incorrectly flagged as blocking modals.
+
+───────────────────────────────────────────────
+🔎 PSI SEARCH & ANALYSIS (no intellij-mcpserver equivalent)
+───────────────────────────────────────────────
+
+intellij-mcpserver search_symbol finds by name only.
+mcp-steroid can answer semantic questions: who calls this? who extends this?
+
+• Find all subclasses / implementors of a class or interface:
+
+     val scope = GlobalSearchScope.projectScope(project)
+     val cls = readAction {
+         JavaPsiFacade.getInstance(project)
+             .findClass("com.imprivata.auth.AuthService", scope)
+     }
+     val subs = readAction {
+         ClassInheritorsSearch.search(cls!!, scope, true).toList()
+     }
+     println(subs.map { it.qualifiedName })
+
+• Find all call sites of a method (find usages):
+
+     val method = readAction { cls!!.findMethodsByName("authenticate", false).first() }
+     val usages = readAction {
+         ReferencesSearch.search(method, scope).toList()
+     }
+     usages.forEach { println("${it.element.containingFile.name}:${it.element.textOffset}") }
+
+• Analyse PSI tree of a file (inspect AST structure):
+
+     val psiFile = readAction {
+         PsiManager.getInstance(project).findFile(
+             LocalFileSystem.getInstance().findFileByPath("/abs/path/Foo.java")!!
+         )
+     }
+     readAction { println(psiFile?.text?.take(500)) }
+
+• Batch file discovery via FilenameIndex (faster than glob for large trees):
+
+     val files = readAction {
+         FilenameIndex.getAllFilesByExt(
+             project, "java", GlobalSearchScope.projectScope(project)
+         )
+     }
+     println(files.map { it.path })
+
+───────────────────────────────────────────────
+⚡ ACTION DISCOVERY & INVOCATION AT A CARET
+───────────────────────────────────────────────
+
+intellij-mcpserver has rename_refactoring only.
+mcp-steroid can discover and invoke ANY IDE action available at a caret position.
+
+STEP 1 — Discover available actions at a file location:
+
+steroid_action_discovery(
+project_name = "eam-server",
+file_path    = "dev/server/src1.8/com/imprivata/auth/AuthService.java",
+caret_offset = 1423,     ← character offset in the file
+task_id      = "my-task"
+)
+
+Returns:
+• Quick-fix action IDs   (e.g. "Fix access modifier", "Add @Override")
+• Intention action names  (e.g. "Extract Method", "Introduce Variable")
+• Gutter icon actions     (Run, Debug — with exact Action IDs)
+• Refactoring actions     (e.g. "Inline Method", "Pull Members Up")
+
+STEP 2 — Invoke the action by ID via steroid_execute_code:
+
+     import com.intellij.openapi.actionSystem.ActionManager
+     import com.intellij.openapi.actionSystem.AnActionEvent
+     val action = ActionManager.getInstance().getAction("ExtractMethod")
+     // open file in editor first, then invoke
+     action.actionPerformed(AnActionEvent.createFromDataContext(...))
+
+Common use cases:
+• Apply a quick-fix without knowing the exact API in advance
+• Trigger "Extract Method" / "Introduce Variable" / "Pull Members Up"
+• Run or debug a specific test via gutter action ID
+• Invoke any action from Settings → Keymap by its ID
+
+───────────────────────────────────────────────
+📸 IDE SCREENSHOTS & GUI AUTOMATION
+───────────────────────────────────────────────
+
+intellij-mcpserver has no GUI visibility. mcp-steroid can see and drive the IDE UI.
+
+• Take a screenshot of the IDE window:
+
+steroid_take_screenshot(
+project_name = "eam-server",
+task_id      = "my-task",
+reason       = "check dialog that appeared after refactoring"
+)
+
+Returns: PNG image + component tree (screenshot-tree.md) + metadata (screenshot-meta.json)
+Saved under the execution folder for reference.
+Use steroid_list_windows first when multiple IDE windows are open to get window_id.
+
+• Send keyboard / mouse events to the IDE:
+
+steroid_input(
+project_name          = "eam-server",
+task_id               = "my-task",
+reason                = "dismiss trust project dialog",
+screenshot_execution_id = "<id from steroid_take_screenshot>",
+sequence              = "press:ENTER"
+)
+
+Sequence format (comma or newline separated):
+stick:ALT              ← hold key until end of sequence
+press:CTRL+SHIFT+F     ← press key combo
+type:hello world       ← type text
+click:Left@120,200     ← click at screenshot coords
+click:Right@screen:400,300  ← click at screen coords
+delay:400              ← wait 400 ms
+
+Typical GUI automation workflow:
+1. steroid_list_windows          → get window_id, check modalDialogShowing
+2. steroid_take_screenshot       → see what is on screen
+3. steroid_input (sequence)      → dismiss dialog / confirm action
+4. steroid_take_screenshot again → verify the result
+
+When to use GUI automation:
+• A modal dialog is blocking (modalDialogShowing=true in steroid_list_windows)
+• A refactoring opened a dialog that must be confirmed
+• An action cannot be invoked programmatically (no Action ID available)
+• Verifying IDE visual state during a complex multi-step operation
+
+───────────────────────────────────────────────
+🪟 MULTI-WINDOW & PROJECT MANAGEMENT
+───────────────────────────────────────────────
+
+• List all open projects:
+steroid_list_projects()   ← returns project names for use in other steroid tools
+
+• List open IDE windows with full readiness state:
+steroid_list_windows()
+Returns per window: modalDialogShowing, indexingInProgress, projectInitialized
+Always check this before executing code after opening a project.
+
+• Open a project and poll until ready:
+steroid_open_project(project_path="/abs/path/to/project", task_id="my-task")
+Then poll steroid_list_windows() until:
+indexingInProgress  = false
+projectInitialized  = true
+modalDialogShowing  = false
+
+───────────────────────────────────────────────
+🔄 COMPLEX REFACTORING VIA INTELLIJ API
+───────────────────────────────────────────────
+
+Use steroid_execute_code for refactoring operations beyond rename_refactoring:
+
+• Move class to another package
+• Extract interface from a class
+• Inline a method or field
+• Pull members up / push members down in hierarchy
+• Change method signature (add/remove/reorder parameters)
+
+General pattern — always wrap reads in readAction { } and writes in writeAction { }:
+
+     val psiClass = readAction {
+         JavaPsiFacade.getInstance(project)
+             .findClass("com.imprivata.OldClass", GlobalSearchScope.projectScope(project))
+     }
+     writeAction {
+         // perform PSI mutation here
+     }
+
+───────────────────────────────────────────────
+✏️ ATOMIC MULTI-FILE EDITS — steroid_apply_patch
+───────────────────────────────────────────────
+
+Use steroid_apply_patch for batch edits across multiple files in one atomic operation.
+All hunks land in a single WriteCommandAction (one undo step). Pre-flight rejects
+missing or non-unique old_string matches before touching any document.
+
+Prefer this over repeated replace_text_in_file calls when editing 2+ files at once.
+
+steroid_apply_patch(
+project_name = "eam-server",
+hunks = [
+{ file_path: "src/com/imprivata/Foo.java", old_string: "old text", new_string: "new text" },
+{ file_path: "src/com/imprivata/Bar.java", old_string: "old text", new_string: "new text" },
+]
+)
+
+Rules:
+• old_string must match exactly once in the file — ambiguous matches abort the entire patch
+• Hunks within each file are applied in descending offset order automatically
+• All touched documents are saved before the call returns
+• Fetch the DSL reference first: steroid_fetch_resource("mcp-steroid://ide/apply-patch")
+
+───────────────────────────────────────────────
+📋 mcp-steroid DECISION MATRIX
+───────────────────────────────────────────────
+
+Task                                  → Approach
+──────────────────────────────────────────────────────────────
+Find all subclasses of a class        → execute_code (ClassInheritorsSearch)
+Find all call sites of a method       → execute_code (ReferencesSearch)
+Inspect PSI / AST of a file          → execute_code (PsiManager + PsiFile)
+Batch file discovery (large project)  → execute_code (FilenameIndex)
+Discover quick-fixes at a caret       → steroid_action_discovery
+Invoke a quick-fix / refactoring      → action_discovery → execute_code
+See what dialog appeared in IDE       → steroid_take_screenshot
+Dismiss a blocking dialog             → take_screenshot → steroid_input
+Run a gutter Run/Debug action         → action_discovery → execute_code
+Open a new project and wait for index → steroid_open_project + steroid_list_windows
+Extract method / inline / move class  → execute_code (IntelliJ Refactoring API)
+Check if IDE is ready / indexing      → steroid_list_windows
+Atomic batch edit across N files      → steroid_apply_patch
+
+═══════════════════════════════════════════════
+🐛 DEBUGGING
+═══════════════════════════════════════════════
+
+Use xdebug_* tools from intellij-mcpserver for full debug sessions:
+
+Session lifecycle:
+xdebug_get_debugger_status    — check active sessions BEFORE starting a new one
+xdebug_start_debugger_session — start session by configurationName or filePath+line
+xdebug_control_session        — STEP_INTO / STEP_OVER / STEP_OUT / RESUME / PAUSE /
+STOP / WAIT_FOR_PAUSE / DRAIN_EVENTS
+
+Breakpoints:
+xdebug_set_breakpoint         — set line / conditional / tracepoint breakpoints;
+check lineText in response to confirm placement
+xdebug_list_breakpoints       — list all breakpoints (optionally filter by filePath)
+xdebug_remove_breakpoint      — remove by owner + optional breakpointId / filePath+line
+
+Inspection:
+xdebug_get_stack              — view call stack (paginated with offset/limit)
+xdebug_get_threads            — list all threads; active thread listed first
+xdebug_get_frame_values       — inspect locals & fields at a stack frame (depth=0..N)
+xdebug_get_value_by_path      — drill into nested objects: path=["obj","field","[0]"]
+xdebug_evaluate_expression    — evaluate expression in current frame
+xdebug_set_variable           — mutate a variable value during a paused session
+
+Navigation:
+xdebug_run_to_line            — resume to a target filePath+line without a breakpoint
+
+Recommended flow:
+1. xdebug_get_debugger_status        → confirm no stale session
+2. xdebug_set_breakpoint             → set at least one breakpoint
+3. xdebug_start_debugger_session     → start debug run
+4. xdebug_control_session(WAIT_FOR_PAUSE)
+5. xdebug_get_stack + xdebug_get_frame_values(depth=1)
+6. xdebug_get_value_by_path / xdebug_evaluate_expression
+7. xdebug_control_session(RESUME)    → repeat from step 4
+
+═══════════════════════════════════════════════
+📋 QUICK DECISION MATRIX
+═══════════════════════════════════════════════
+
+Task                              → Tool
+──────────────────────────────────────────────────
+Find file by name (keyword)       → find_files_by_name_keyword
+Find files by glob (filesystem)   → find_files_by_glob
+Find files by glob (IDE engine)   → search_file
+Read a file                       → get_file_text_by_path / read_file
+List directory contents           → list_directory_tree
+Get currently open editors        → get_all_open_file_paths
+Open file in IDE editor           → open_file_in_editor
+Search text in code               → search_text / search_in_files_by_text
+Search with regex                 → search_regex / search_in_files_by_regex
+Find class / method / field       → search_symbol
+Get symbol declaration/docs       → get_symbol_info
+Edit a file (targeted)            → replace_text_in_file
+Create a new file                 → create_new_file
+Rename symbol everywhere          → rename_refactoring
+Reformat a file                   → reformat_file
+List project modules              → get_project_modules
+List project dependencies         → get_project_dependencies
+List VCS roots                    → get_repositories
+Run shell command in terminal     → execute_terminal_command
+Write & run custom inspection     → generate_inspection_kts_api → run_inspection_kts
+Visualize PSI tree of code        → generate_psi_tree
+Get inspection.kts examples       → generate_inspection_kts_examples
+Compile / check errors            → build_project / get_file_problems
+Run test or run configuration     → execute_run_configuration
+Check active debug sessions       → xdebug_get_debugger_status
+Set / update a breakpoint         → xdebug_set_breakpoint
+List all breakpoints              → xdebug_list_breakpoints
+Remove a breakpoint               → xdebug_remove_breakpoint
+View call stack                   → xdebug_get_stack
+List threads during debug         → xdebug_get_threads
+Inspect frame variables           → xdebug_get_frame_values
+Drill into nested debug value     → xdebug_get_value_by_path
+Evaluate expression in debug      → xdebug_evaluate_expression
+Mutate variable during debug      → xdebug_set_variable
+Run to a specific line            → xdebug_run_to_line
+PSI / advanced IntelliJ API       → steroid_execute_code
+Find all subclasses of a class    → steroid_execute_code (ClassInheritorsSearch)
+Find all call sites of a method   → steroid_execute_code (ReferencesSearch)
+Discover quick-fixes at a caret   → steroid_action_discovery
+Invoke quick-fix / refactoring    → steroid_action_discovery → steroid_execute_code
+See current IDE screen            → steroid_take_screenshot
+Dismiss a blocking dialog         → steroid_take_screenshot → steroid_input
+Check IDE indexing / ready state  → steroid_list_windows
+Open a project and wait for index → steroid_open_project → steroid_list_windows (poll)
+List all open projects            → steroid_list_projects
+Atomic batch edit across N files  → steroid_apply_patch

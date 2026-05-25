@@ -1,7 +1,9 @@
 package io.github.deplague.jmcmcp;
 
+import io.github.deplague.jmcmcp.async.AsyncJobService;
 import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.security.RecordingAccessController;
 import io.github.deplague.jmcmcp.tools.*;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
@@ -28,8 +30,11 @@ public final class JmcMcpServer {
     public static void main(String[] args) {
         LOG.info("Starting JMC MCP Server...");
 
+        // Enterprise services
         JfrRecordingCache cache = new JfrRecordingCache();
-        JfrAnalysisService analysisService = new JfrAnalysisService(cache);
+        RecordingAccessController accessController = new RecordingAccessController();
+        AsyncJobService asyncJobService = new AsyncJobService();
+        JfrAnalysisService analysisService = new JfrAnalysisService(cache, accessController, asyncJobService);
 
         // Create stdio transport provider with Jackson 3 JSON mapper
         JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -98,7 +103,11 @@ public final class JmcMcpServer {
                         new RequestWaterfallTool(analysisService).spec(),
                         new CorrelateTool(analysisService).spec(),
                         new QuickAnalysisTool(analysisService).spec(),
-                        new DiffStackTracesTool(analysisService).spec());
+                        new DiffStackTracesTool(analysisService).spec(),
+                        // Enterprise infrastructure tools
+                        new HealthCheckTool(cache, asyncJobService).spec(),
+                        new GetJobStatusTool(asyncJobService).spec(),
+                        new GetJobResultTool(asyncJobService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

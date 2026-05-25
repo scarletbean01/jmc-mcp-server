@@ -157,6 +157,20 @@ public final class SchemaUtil {
         return defaultValue;
     }
 
+    public static boolean getBooleanOrDefault(Map<String, Object> args, String key, boolean defaultValue) {
+        Object val = args.get(key);
+        if (val instanceof Boolean b) {
+            return b;
+        }
+        if (val instanceof String s) {
+            return Boolean.parseBoolean(s);
+        }
+        if (val instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        return defaultValue;
+    }
+
     public static String formatBytes(long bytes) {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
