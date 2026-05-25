@@ -184,6 +184,8 @@ public final class CompareRecordingsTool {
         appendContentionDiff(sb, baseline, target, bDurationSec, tDurationSec);
         appendExceptionDiff(sb, baseline, target, bDurationSec, tDurationSec);
 
+        sb.append("\n<agent_hint>Significant changes detected between recordings. Consider `diff_stack_traces` for method-level comparison showing new, disappeared, and changed methods, or `correlate` for deeper analysis of the target recording.</agent_hint>\n");
+
         return sb.toString();
     }
 

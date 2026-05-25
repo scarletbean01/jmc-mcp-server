@@ -62,7 +62,7 @@ public final class ErrorAnalysisTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 

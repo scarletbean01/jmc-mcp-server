@@ -92,7 +92,13 @@ public final class JmcMcpServer {
                         new DeadlockDetectionTool(analysisService).spec(),
                         new JdkBugReferenceTool(analysisService).spec(),
                         new GcRecommendationsTool(analysisService).spec(),
-                        new ThreadPoolAnalysisTool(analysisService).spec());
+                        new ThreadPoolAnalysisTool(analysisService).spec(),
+                        // Phase 1 new tools
+                        new StackTraceSearchTool(analysisService).spec(),
+                        new RequestWaterfallTool(analysisService).spec(),
+                        new CorrelateTool(analysisService).spec(),
+                        new QuickAnalysisTool(analysisService).spec(),
+                        new DiffStackTracesTool(analysisService).spec());
 
         for (var tool : tools) {
             server.addTool(tool);

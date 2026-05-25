@@ -161,6 +161,8 @@ public final class NetworkAnalysisTool {
 
         appendLatencyPercentiles(sb, connectEvents, readEvents, writeEvents);
 
+        sb.append("\n<agent_hint>Slow connections detected. Consider `request_waterfall` with a specific thread name to trace the full request path, or `io_hotspots` for file I/O analysis.</agent_hint>\n");
+
         return sb.toString();
     }
 

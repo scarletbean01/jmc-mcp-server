@@ -70,7 +70,7 @@ public final class GcAnalysisTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, String statType) throws IOException {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, String statType) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
         StringBuilder sb = new StringBuilder();
@@ -122,7 +122,7 @@ public final class GcAnalysisTool {
         if (!gcPauses.hasItems() && !youngGC.hasItems() && !oldGC.hasItems()) {
             sb.append("No garbage collection events found in this recording range.\n");
         } else {
-            sb.append("\n<agent_hint>Garbage collection events detected. Consider using 'gc_cause' to understand what triggered these GCs (e.g. Allocation Failure, System.gc()), or 'gc_detail' for an in-depth breakdown of GC phases and reference processing.</agent_hint>\n");
+            sb.append("\n<agent_hint>GC analysis complete. Consider `gc_detail` for per-phase pause breakdowns, `gc_recommendations` for JVM tuning advice, or `heap_trends` for memory growth patterns.</agent_hint>\n");
         }
 
         return sb.toString();

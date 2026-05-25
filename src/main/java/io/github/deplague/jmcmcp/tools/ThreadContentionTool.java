@@ -67,7 +67,7 @@ public final class ThreadContentionTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -93,6 +93,14 @@ public final class ThreadContentionTool {
                     sb.append("`").append(entry.getKey().monitorClass).append("` | ");
                     sb.append("`").append(entry.getKey().stackTrace.replace("\n", "`<br>`")).append("` |\n");
                 });
+
+        String topLock = durationMap.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(entry -> entry.getKey().monitorClass)
+                .orElse("unknown");
+        long topDuration = durationMap.values().stream().max(Long::compare).orElse(0L);
+        String topDurationStr = JfrAnalysisService.display(org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND.quantity(topDuration));
+        sb.append("\n<agent_hint>Lock `").append(topLock).append("` has ").append(topDurationStr).append(" total contention. Consider `correlate` to see if I/O is performed under this lock, or `request_waterfall` with the contending thread name to trace the full request path.</agent_hint>\n");
 
         return sb.toString();
     }

@@ -206,6 +206,14 @@ public final class JfrItemUtils {
     }
 
     /**
+     * Format a stack trace object with all frames (no truncation).
+     * Used by stack_trace_search and request_waterfall tools.
+     */
+    public static String formatFullStackTrace(Object stackTraceObj) {
+        return formatStackTrace(stackTraceObj, Integer.MAX_VALUE);
+    }
+
+    /**
      * Formats a stack trace object into a truncated string.
      */
     public static String formatStackTrace(Object stackTraceObj, int maxFrames) {

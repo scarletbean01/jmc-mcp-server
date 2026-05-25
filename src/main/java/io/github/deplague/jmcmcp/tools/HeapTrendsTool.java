@@ -64,7 +64,7 @@ public final class HeapTrendsTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, String bucketSizeStr) throws IOException {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, String bucketSizeStr) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 

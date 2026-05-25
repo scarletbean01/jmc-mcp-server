@@ -112,6 +112,12 @@ public final class HotMethodsTool {
                     sb.append("`").append(entry.getKey().replace("\n", "`<br>`")).append("` |\n");
                 });
 
+        String topMethod = traceCounts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(entry -> entry.getKey().split("\n")[0].trim().replace("at ", ""))
+                .orElse("unknown");
+        sb.append("\n<agent_hint>Top hot method is `").append(topMethod).append("`. Consider `thread_cpu` to see which threads consume the most CPU, `stack_trace_search` with `class_pattern` to find all events involving this class, or `correlate` to see if this method is associated with lock contention or I/O.</agent_hint>\n");
+
         return sb.toString();
     }
 }

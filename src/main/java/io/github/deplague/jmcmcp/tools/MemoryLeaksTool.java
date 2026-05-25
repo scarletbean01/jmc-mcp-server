@@ -142,6 +142,8 @@ public final class MemoryLeaksTool {
                 .limit(topN)
                 .forEach(e -> sb.append(String.format("| %d | `%s` |\n", e.getValue().count, e.getKey().replace("\n", "`<br>`"))));
 
+        sb.append("\n<agent_hint>Leak suspects identified. Consider `predictive_leak_analysis` for mathematical leak confirmation and OOM time projection, or `heap_trends` for memory growth visualization.</agent_hint>\n");
+
         return sb.toString();
     }
 

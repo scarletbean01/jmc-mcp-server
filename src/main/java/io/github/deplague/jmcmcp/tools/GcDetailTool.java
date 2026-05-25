@@ -194,7 +194,42 @@ public final class GcDetailTool {
         phaseTimes.entrySet().stream()
                 .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
                 .forEach(e -> sb.append("| ").append(e.getKey()).append(" | N/A | ").append(JfrAnalysisService.display(e.getValue())).append(" |\n"));
-        
+
+        // Reference Processing Overhead
+        IItemCollection allGcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
+        IQuantity totalGcPause = JfrItemUtils.sumQuantity(allGcPauses, JfrAttributes.DURATION.getIdentifier());
+        IQuantity totalRefPause = null;
+        for (var entry : phaseTimes.entrySet()) {
+            // phaseTimes was already consumed above, recalculate
+        }
+        // Recalculate reference phase times for overhead
+        Map<String, IQuantity> refPhaseTimes = new HashMap<>();
+        for (IItemIterable iterable : refPhases) {
+            IMemberAccessor<String, IItem> nameAcc = JfrItemUtils.getAccessor(iterable.getType(), "name");
+            IMemberAccessor<IQuantity, IItem> durationAcc = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            if (nameAcc != null && durationAcc != null) {
+                for (IItem item : iterable) {
+                    String name = nameAcc.getMember(item);
+                    if (name != null && (name.contains("Reference") || name.contains("Ref "))) {
+                        IQuantity d = durationAcc.getMember(item);
+                        if (d != null) {
+                            refPhaseTimes.merge(name, d, IQuantity::add);
+                        }
+                    }
+                }
+            }
+        }
+        IQuantity totalRefPauseTime = null;
+        for (var qty : refPhaseTimes.values()) {
+            if (totalRefPauseTime == null) totalRefPauseTime = qty;
+            else totalRefPauseTime = totalRefPauseTime.add(qty);
+        }
+        double refOverheadPct = 0;
+        if (totalGcPause != null && totalRefPauseTime != null && totalGcPause.doubleValue() > 0) {
+            refOverheadPct = (totalRefPauseTime.doubleValue() / totalGcPause.doubleValue()) * 100;
+            sb.append(String.format("%n**Reference Processing Overhead:** %.1f%% of total GC pause time%n", refOverheadPct));
+        }
+
         sb.append("\n");
     }
 

@@ -57,7 +57,7 @@ public final class LockAnalysisTool {
                 }).build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws Exception {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws Exception {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -156,6 +156,8 @@ public final class LockAnalysisTool {
         } else {
             sb.append("No Biased Lock Revocation events found.\n");
         }
+
+        sb.append("\n<agent_hint>Lock contention detected. Consider `correlate` to see if I/O is performed under contended locks (a critical anti-pattern), or `deadlock_detection` to check for deadlock cycles.</agent_hint>\n");
 
         return sb.toString();
     }

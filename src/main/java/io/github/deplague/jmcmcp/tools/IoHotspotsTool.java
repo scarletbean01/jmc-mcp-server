@@ -70,7 +70,7 @@ public final class IoHotspotsTool {
                 .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, String ioType, int topN) throws IOException {
+    String analyze(String filePath, String startTimeStr, String endTimeStr, String ioType, int topN) throws IOException {
         IItemCollection allEvents = service.loadRecording(filePath);
         IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
 
@@ -89,6 +89,8 @@ public final class IoHotspotsTool {
         }
 
         appendPercentiles(sb, events);
+
+        sb.append("<agent_hint>Top I/O hotspot identified. Consider `correlate` to see which hot methods and locks are associated with this endpoint, or `network_analysis` for connection-level details.</agent_hint>\n");
 
         return sb.toString();
     }
