@@ -35,6 +35,7 @@ public final class JmcMcpServer {
         RecordingAccessController accessController = new RecordingAccessController();
         AsyncJobService asyncJobService = new AsyncJobService();
         JfrAnalysisService analysisService = new JfrAnalysisService(cache, accessController, asyncJobService);
+        io.github.deplague.jmcmcp.jfr.CallTreeCache callTreeCache = new io.github.deplague.jmcmcp.jfr.CallTreeCache();
 
         // Create stdio transport provider with Jackson 3 JSON mapper
         JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -104,6 +105,11 @@ public final class JmcMcpServer {
                         new CorrelateTool(analysisService).spec(),
                         new QuickAnalysisTool(analysisService).spec(),
                         new DiffStackTracesTool(analysisService).spec(),
+                        // Interactive call tree tools
+                        new CallTreeTool(analysisService, callTreeCache).spec(),
+                        new ExpandCallTreeTool(callTreeCache).spec(),
+                        new DiffCallTreeTool(analysisService, callTreeCache).spec(),
+                        new ExpandDiffCallTreeTool(callTreeCache).spec(),
                         // Enterprise infrastructure tools
                         new HealthCheckTool(cache, asyncJobService).spec(),
                         new GetJobStatusTool(asyncJobService).spec(),
@@ -115,6 +121,14 @@ public final class JmcMcpServer {
         }
 
         LOG.info("JMC MCP Server started with {} tools. Waiting for requests...", tools.size());
+
+        // Register shutdown hook for graceful cleanup of daemon-thread executors
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            LOG.info("Shutting down JMC MCP Server...");
+            cache.shutdown();
+            callTreeCache.shutdown();
+            asyncJobService.shutdown();
+        }));
 
         // The transport handles the main loop; this call blocks until stdin closes.
         // No explicit shutdown hook needed for stdio transport.
