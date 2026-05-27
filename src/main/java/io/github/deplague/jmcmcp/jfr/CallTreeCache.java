@@ -1,11 +1,5 @@
 package io.github.deplague.jmcmcp.jfr;
 
-import org.openjdk.jmc.common.IMCMethod;
-import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
-import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -13,6 +7,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.openjdk.jmc.common.IMCMethod;
+import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
+import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Cache for interactive call tree and diff tree models.
@@ -22,14 +21,17 @@ import java.util.concurrent.TimeUnit;
  */
 public final class CallTreeCache {
 
-    private static final Logger LOG = LoggerFactory.getLogger(CallTreeCache.class);
+    private static final Logger LOG = LoggerFactory.getLogger(
+        CallTreeCache.class
+    );
 
     private static final long DEFAULT_TTL_MINUTES = 60;
     private static final long CLEANUP_INTERVAL_MINUTES = 5;
     private static final int MAX_ENTRIES = 50;
 
     private final Map<String, CachedTree> trees = new ConcurrentHashMap<>();
-    private final Map<String, CachedDiffTree> diffTrees = new ConcurrentHashMap<>();
+    private final Map<String, CachedDiffTree> diffTrees =
+        new ConcurrentHashMap<>();
     private final long ttlMinutes;
     private final ScheduledExecutorService cleanupExecutor;
 
@@ -45,8 +47,10 @@ public final class CallTreeCache {
             return t;
         });
         this.cleanupExecutor.scheduleWithFixedDelay(
-                this::cleanupExpiredEntries,
-                CLEANUP_INTERVAL_MINUTES, CLEANUP_INTERVAL_MINUTES, TimeUnit.MINUTES
+            this::cleanupExpiredEntries,
+            CLEANUP_INTERVAL_MINUTES,
+            CLEANUP_INTERVAL_MINUTES,
+            TimeUnit.MINUTES
         );
         LOG.info("CallTreeCache initialized: TTL={}min", ttlMinutes);
     }
@@ -54,11 +58,26 @@ public final class CallTreeCache {
     /**
      * Cache a single-recording tree and return its unique ID.
      */
-    public String cacheTree(StacktraceTreeModel tree, String filePath, String subsystem, String packageFilter) {
+    public String cacheTree(
+        StacktraceTreeModel tree,
+        String filePath,
+        String subsystem,
+        String packageFilter
+    ) {
         evictIfOverLimit(trees);
         String treeId = UUID.randomUUID().toString();
         double totalSamples = computeTotalSamples(tree.getRoot());
-        trees.put(treeId, new CachedTree(tree, filePath, subsystem, packageFilter, totalSamples, Instant.now()));
+        trees.put(
+            treeId,
+            new CachedTree(
+                tree,
+                filePath,
+                subsystem,
+                packageFilter,
+                totalSamples,
+                Instant.now()
+            )
+        );
         LOG.debug("Cached tree: {} (totalSamples={})", treeId, totalSamples);
         return treeId;
     }
@@ -78,14 +97,36 @@ public final class CallTreeCache {
     /**
      * Cache a diff tree and return its unique ID.
      */
-    public String cacheDiffTree(DiffTreeNode root, String baselinePath, String targetPath,
-                                String subsystem, String packageFilter,
-                                double baselineTotalSamples, double targetTotalSamples) {
+    public String cacheDiffTree(
+        DiffTreeNode root,
+        String baselinePath,
+        String targetPath,
+        String subsystem,
+        String packageFilter,
+        double baselineTotalSamples,
+        double targetTotalSamples
+    ) {
         evictIfOverLimit(diffTrees);
         String treeId = UUID.randomUUID().toString();
-        diffTrees.put(treeId, new CachedDiffTree(root, baselinePath, targetPath, subsystem, packageFilter,
-                baselineTotalSamples, targetTotalSamples, Instant.now()));
-        LOG.debug("Cached diff tree: {} (baseline={}, target={})", treeId, baselineTotalSamples, targetTotalSamples);
+        diffTrees.put(
+            treeId,
+            new CachedDiffTree(
+                root,
+                baselinePath,
+                targetPath,
+                subsystem,
+                packageFilter,
+                baselineTotalSamples,
+                targetTotalSamples,
+                Instant.now()
+            )
+        );
+        LOG.debug(
+            "Cached diff tree: {} (baseline={}, target={})",
+            treeId,
+            baselineTotalSamples,
+            targetTotalSamples
+        );
         return treeId;
     }
 
@@ -166,11 +207,18 @@ public final class CallTreeCache {
      * Format a frame's method name for display.
      */
     public static String formatMethodName(Node node) {
-        if (node == null || node.getFrame() == null || node.getFrame().getMethod() == null) {
+        if (
+            node == null ||
+            node.getFrame() == null ||
+            node.getFrame().getMethod() == null
+        ) {
             return "Unknown";
         }
         IMCMethod method = node.getFrame().getMethod();
-        String type = method.getType() != null ? method.getType().getFullName() : "Unknown";
+        String type =
+            method.getType() != null
+                ? method.getType().getFullName()
+                : "Unknown";
         return type + "." + method.getMethodName() + "()";
     }
 
@@ -184,15 +232,23 @@ public final class CallTreeCache {
     /**
      * Check whether a node's frame matches the given package prefix.
      */
-    public static boolean matchesPackageFilter(Node node, String packageFilter) {
+    public static boolean matchesPackageFilter(
+        Node node,
+        String packageFilter
+    ) {
         if (packageFilter == null || packageFilter.isBlank()) {
             return true;
         }
-        if (node == null || node.getFrame() == null || node.getFrame().getMethod() == null) {
+        if (
+            node == null ||
+            node.getFrame() == null ||
+            node.getFrame().getMethod() == null
+        ) {
             return false;
         }
         IMCMethod method = node.getFrame().getMethod();
-        String typeName = method.getType() != null ? method.getType().getFullName() : "";
+        String typeName =
+            method.getType() != null ? method.getType().getFullName() : "";
         return typeName.startsWith(packageFilter);
     }
 
@@ -200,7 +256,10 @@ public final class CallTreeCache {
      * Get the visible children of a node, applying package-filter tree folding.
      * Non-matching nodes are bypassed and their matching descendants are surfaced.
      */
-    public static List<Node> getVisibleChildren(Node node, String packageFilter) {
+    public static List<Node> getVisibleChildren(
+        Node node,
+        String packageFilter
+    ) {
         if (packageFilter == null || packageFilter.isBlank()) {
             return node.getChildren();
         }
@@ -218,7 +277,10 @@ public final class CallTreeCache {
     /**
      * Get the visible children of a diff node, applying package-filter tree folding.
      */
-    public static List<DiffTreeNode> getVisibleDiffChildren(DiffTreeNode node, String packageFilter) {
+    public static List<DiffTreeNode> getVisibleDiffChildren(
+        DiffTreeNode node,
+        String packageFilter
+    ) {
         if (packageFilter == null || packageFilter.isBlank()) {
             return node.children();
         }
@@ -233,7 +295,10 @@ public final class CallTreeCache {
         return result;
     }
 
-    private static boolean matchesPackageFilter(DiffTreeNode node, String packageFilter) {
+    private static boolean matchesPackageFilter(
+        DiffTreeNode node,
+        String packageFilter
+    ) {
         if (packageFilter == null || packageFilter.isBlank()) {
             return true;
         }
@@ -241,7 +306,10 @@ public final class CallTreeCache {
             return false;
         }
         int dotIdx = node.methodName().lastIndexOf('.');
-        String typeName = dotIdx > 0 ? node.methodName().substring(0, dotIdx) : node.methodName();
+        String typeName =
+            dotIdx > 0
+                ? node.methodName().substring(0, dotIdx)
+                : node.methodName();
         return typeName.startsWith(packageFilter);
     }
 
@@ -262,13 +330,23 @@ public final class CallTreeCache {
             }
         }
         if (removedTrees > 0 || removedDiffs > 0) {
-            LOG.debug("Cleaned up {} expired trees and {} expired diff trees", removedTrees, removedDiffs);
+            LOG.debug(
+                "Cleaned up {} expired trees and {} expired diff trees",
+                removedTrees,
+                removedDiffs
+            );
         }
     }
 
-    private <T> void evictIfOverLimit(Map<String, T> map) {
+    private <T extends HasCreatedAt> void evictIfOverLimit(Map<String, T> map) {
         while (map.size() >= MAX_ENTRIES) {
-            String oldest = map.keySet().iterator().next();
+            String oldest = map
+                .entrySet()
+                .stream()
+                .min(Comparator.comparing(e -> e.getValue().createdAt()))
+                .map(Map.Entry::getKey)
+                .orElse(null);
+            if (oldest == null) break;
             map.remove(oldest);
             LOG.debug("Evicted oldest tree entry to stay under limit");
         }
@@ -307,31 +385,39 @@ public final class CallTreeCache {
     // Cached tree wrappers
     // ------------------------------------------------------------------
 
+    private interface HasCreatedAt {
+        Instant createdAt();
+    }
+
     public record CachedTree(
-            StacktraceTreeModel tree,
-            String filePath,
-            String subsystem,
-            String packageFilter,
-            double totalSamples,
-            Instant createdAt
-    ) {
+        StacktraceTreeModel tree,
+        String filePath,
+        String subsystem,
+        String packageFilter,
+        double totalSamples,
+        Instant createdAt
+    ) implements HasCreatedAt {
         boolean isExpired() {
-            return Instant.now().isAfter(createdAt.plus(Duration.ofMinutes(DEFAULT_TTL_MINUTES)));
+            return Instant.now().isAfter(
+                createdAt.plus(Duration.ofMinutes(DEFAULT_TTL_MINUTES))
+            );
         }
     }
 
     public record CachedDiffTree(
-            DiffTreeNode root,
-            String baselinePath,
-            String targetPath,
-            String subsystem,
-            String packageFilter,
-            double baselineTotalSamples,
-            double targetTotalSamples,
-            Instant createdAt
-    ) {
+        DiffTreeNode root,
+        String baselinePath,
+        String targetPath,
+        String subsystem,
+        String packageFilter,
+        double baselineTotalSamples,
+        double targetTotalSamples,
+        Instant createdAt
+    ) implements HasCreatedAt {
         boolean isExpired() {
-            return Instant.now().isAfter(createdAt.plus(Duration.ofMinutes(DEFAULT_TTL_MINUTES)));
+            return Instant.now().isAfter(
+                createdAt.plus(Duration.ofMinutes(DEFAULT_TTL_MINUTES))
+            );
         }
     }
 
@@ -344,16 +430,19 @@ public final class CallTreeCache {
      * for a matched frame across two recordings.
      */
     public record DiffTreeNode(
-            String methodName,
-            double baselineWeight,
-            double targetWeight,
-            double baselineCumulative,
-            double targetCumulative,
-            String changeType,
-            List<DiffTreeNode> children
+        String methodName,
+        double baselineWeight,
+        double targetWeight,
+        double baselineCumulative,
+        double targetCumulative,
+        String changeType,
+        List<DiffTreeNode> children
     ) {
         public DiffTreeNode {
-            children = children != null ? Collections.unmodifiableList(new ArrayList<>(children)) : Collections.emptyList();
+            children =
+                children != null
+                    ? Collections.unmodifiableList(new ArrayList<>(children))
+                    : Collections.emptyList();
         }
 
         public double totalBaseline() {
@@ -374,7 +463,10 @@ public final class CallTreeCache {
 
         public double percentageChange() {
             if (baselineCumulative > 0) {
-                return ((targetCumulative - baselineCumulative) / baselineCumulative) * 100.0;
+                return (
+                    ((targetCumulative - baselineCumulative) /
+                        baselineCumulative) * 100.0
+                );
             }
             return targetCumulative > 0 ? Double.POSITIVE_INFINITY : 0.0;
         }

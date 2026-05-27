@@ -174,8 +174,17 @@ public final class JfrAnalysisService {
     }
 
     private String buildCacheKey(String filePath, String toolName, Map<String, Object> args) {
-        // Use a stable hash of args to keep key size reasonable
-        return filePath + ":" + toolName + ":" + (args != null ? args.hashCode() : 0);
+        // Use a deterministic, collision-resistant key based on sorted entries.
+        // Hash codes can collide for different maps; this serializes the actual content.
+        if (args == null || args.isEmpty()) {
+            return filePath + ":" + toolName + ":" + 0;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(filePath).append(":").append(toolName).append(":");
+        args.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(e -> sb.append(e.getKey()).append("=").append(e.getValue()).append(";"));
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------
@@ -218,6 +227,7 @@ public final class JfrAnalysisService {
             return CallToolResult.builder().addTextContent(cached).isError(false).build();
         }
 
+        resultMissCount.incrementAndGet();
         try {
             String result = analyzer.call();
             cacheResult(filePath, toolName, args, result);

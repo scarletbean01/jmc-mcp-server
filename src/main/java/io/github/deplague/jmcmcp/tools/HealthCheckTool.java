@@ -5,7 +5,6 @@ import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
@@ -26,7 +25,10 @@ public final class HealthCheckTool {
     private final AsyncJobService asyncJobService;
     private final Instant startedAt;
 
-    public HealthCheckTool(JfrRecordingCache recordingCache, AsyncJobService asyncJobService) {
+    public HealthCheckTool(
+        JfrRecordingCache recordingCache,
+        AsyncJobService asyncJobService
+    ) {
         this.recordingCache = recordingCache;
         this.asyncJobService = asyncJobService;
         this.startedAt = Instant.now();
@@ -34,26 +36,30 @@ public final class HealthCheckTool {
 
     public SyncToolSpecification spec() {
         return SyncToolSpecification.builder()
-                .tool(McpSchema.Tool.builder()
-                        .name(NAME)
-                        .description("Return the server's health status, cache statistics, JVM metrics, and async job queue state.")
-                        .inputSchema(SchemaUtil.objectSchema(Map.of()))
-                        .build())
-                .callHandler((exchange, request) -> {
-                    try {
-                        String report = buildReport();
-                        return CallToolResult.builder()
-                                .addTextContent(report)
-                                .isError(false)
-                                .build();
-                    } catch (Exception e) {
-                        return CallToolResult.builder()
-                                .addTextContent("Error: " + e.getMessage())
-                                .isError(true)
-                                .build();
-                    }
-                })
-                .build();
+            .tool(
+                McpSchema.Tool.builder()
+                    .name(NAME)
+                    .description(
+                        "Return the server's health status, cache statistics, JVM metrics, and async job queue state."
+                    )
+                    .inputSchema(SchemaUtil.objectSchema(Map.of()))
+                    .build()
+            )
+            .callHandler((exchange, request) -> {
+                try {
+                    String report = buildReport();
+                    return CallToolResult.builder()
+                        .addTextContent(report)
+                        .isError(false)
+                        .build();
+                } catch (Exception e) {
+                    return CallToolResult.builder()
+                        .addTextContent("Error: " + e.getMessage())
+                        .isError(true)
+                        .build();
+                }
+            })
+            .build();
     }
 
     private String buildReport() {
@@ -66,8 +72,9 @@ public final class HealthCheckTool {
         long uptimeMs = runtimeMXBean.getUptime();
         Duration uptime = Duration.ofMillis(uptimeMs);
 
-        double heapUsedPct = heapUsage.getMax() > 0
-                ? (heapUsage.getUsed() * 100.0 / heapUsage.getMax())
+        double heapUsedPct =
+            heapUsage.getMax() > 0
+                ? ((heapUsage.getUsed() * 100.0) / heapUsage.getMax())
                 : 0.0;
 
         StringBuilder sb = new StringBuilder();
@@ -79,54 +86,109 @@ public final class HealthCheckTool {
         sb.append("- **Overall:** `").append(status).append("`\n");
         sb.append("- **Uptime:** ").append(formatDuration(uptime)).append("\n");
         sb.append("- **Server Start:** ").append(startedAt).append("\n");
-        sb.append("- **JVM:** ").append(System.getProperty("java.vm.name"))
-          .append(" ").append(System.getProperty("java.version")).append("\n");
+        sb.append("- **JVM:** ")
+            .append(System.getProperty("java.vm.name"))
+            .append(" ")
+            .append(System.getProperty("java.version"))
+            .append("\n");
         sb.append("\n");
 
         // JVM Memory
         sb.append("## JVM Memory\n\n");
         sb.append("| Region | Used | Committed | Max | Utilization |\n");
         sb.append("|--------|------|-----------|-----|-------------|\n");
-        sb.append(String.format("| Heap | %s | %s | %s | %.1f%% |\n",
+        sb.append(
+            String.format(
+                "| Heap | %s | %s | %s | %.1f%% |\n",
                 formatBytes(heapUsage.getUsed()),
                 formatBytes(heapUsage.getCommitted()),
-                heapUsage.getMax() > 0 ? formatBytes(heapUsage.getMax()) : "unlimited",
-                heapUsedPct));
-        sb.append(String.format("| Non-Heap | %s | %s | %s | — |\n",
+                heapUsage.getMax() > 0
+                    ? formatBytes(heapUsage.getMax())
+                    : "unlimited",
+                heapUsedPct
+            )
+        );
+        sb.append(
+            String.format(
+                "| Non-Heap | %s | %s | %s | — |\n",
                 formatBytes(nonHeapUsage.getUsed()),
                 formatBytes(nonHeapUsage.getCommitted()),
-                nonHeapUsage.getMax() > 0 ? formatBytes(nonHeapUsage.getMax()) : "unlimited"));
-        sb.append(String.format("| Total Available | — | — | %s | — |\n",
-                formatBytes(runtime.maxMemory())));
-        sb.append(String.format("| Free (within committed) | %s | — | — | — |\n",
-                formatBytes(runtime.freeMemory())));
+                nonHeapUsage.getMax() > 0
+                    ? formatBytes(nonHeapUsage.getMax())
+                    : "unlimited"
+            )
+        );
+        sb.append(
+            String.format(
+                "| Total Available | — | — | %s | — |\n",
+                formatBytes(runtime.maxMemory())
+            )
+        );
+        sb.append(
+            String.format(
+                "| Free (within committed) | %s | — | — | — |\n",
+                formatBytes(runtime.freeMemory())
+            )
+        );
         sb.append("\n");
 
         // Threads
         sb.append("## JVM Threads\n\n");
-        sb.append("- **Active threads:** ").append(ManagementFactory.getThreadMXBean().getThreadCount()).append("\n");
-        sb.append("- **Peak threads:** ").append(ManagementFactory.getThreadMXBean().getPeakThreadCount()).append("\n");
-        sb.append("- **Daemon threads:** ").append(ManagementFactory.getThreadMXBean().getDaemonThreadCount()).append("\n");
+        sb.append("- **Active threads:** ")
+            .append(ManagementFactory.getThreadMXBean().getThreadCount())
+            .append("\n");
+        sb.append("- **Peak threads:** ")
+            .append(ManagementFactory.getThreadMXBean().getPeakThreadCount())
+            .append("\n");
+        sb.append("- **Daemon threads:** ")
+            .append(ManagementFactory.getThreadMXBean().getDaemonThreadCount())
+            .append("\n");
         sb.append("\n");
 
         // Recording Cache
         sb.append("## Recording Cache\n\n");
-        sb.append("- **Cached recordings:** ").append(recordingCache.size()).append("\n");
-        sb.append("- **Cache hits:** ").append(recordingCache.getHitCount()).append("\n");
-        sb.append("- **Cache misses:** ").append(recordingCache.getMissCount()).append("\n");
-        sb.append("- **Evictions:** ").append(recordingCache.getEvictionCount()).append("\n");
-        sb.append("- **Total cached bytes:** ").append(formatBytes(recordingCache.getTotalCachedBytes())).append("\n");
+        sb.append("- **Cached recordings:** ")
+            .append(recordingCache.size())
+            .append("\n");
+        sb.append("- **Cache hits:** ")
+            .append(recordingCache.getHitCount())
+            .append("\n");
+        sb.append("- **Cache misses:** ")
+            .append(recordingCache.getMissCount())
+            .append("\n");
+        sb.append("- **Evictions:** ")
+            .append(recordingCache.getEvictionCount())
+            .append("\n");
+        sb.append("- **Total cached bytes:** ")
+            .append(formatBytes(recordingCache.getTotalCachedBytes()))
+            .append("\n");
         sb.append("\n");
 
         // Async Jobs
         sb.append("## Async Job Queue\n\n");
-        sb.append("- **Active jobs:** ").append(asyncJobService.activeJobs()).append("\n");
-        sb.append("- **Completed jobs:** ").append(asyncJobService.completedJobs()).append("\n");
-        sb.append("- **Failed jobs:** ").append(asyncJobService.failedJobs()).append("\n");
-        sb.append("- **Total tracked jobs:** ").append(asyncJobService.totalJobs()).append("\n");
+        sb.append("- **Active jobs:** ")
+            .append(asyncJobService.activeJobs())
+            .append("\n");
+        sb.append("- **Pending jobs:** ")
+            .append(asyncJobService.pendingJobs())
+            .append("\n");
+        sb.append("- **Completed jobs:** ")
+            .append(asyncJobService.completedJobs())
+            .append("\n");
+        sb.append("- **Failed jobs:** ")
+            .append(asyncJobService.failedJobs())
+            .append("\n");
+        sb.append("- **Total tracked jobs:** ")
+            .append(asyncJobService.totalJobs())
+            .append("\n");
+        sb.append("- **Recommended poll interval:** ")
+            .append(asyncJobService.recommendedPollSeconds())
+            .append("s\n");
         sb.append("\n");
 
-        sb.append("<agent_hint>Server health check complete. Use `jfr_overview` to analyze a recording, or `quick_analysis` for a full diagnostic dashboard.</agent_hint>\n");
+        sb.append(
+            "<agent_hint>Server health check complete. Use `jfr_overview` to analyze a recording, or `quick_analysis` for a full diagnostic dashboard.</agent_hint>\n"
+        );
 
         return sb.toString();
     }
@@ -147,7 +209,13 @@ public final class HealthCheckTool {
         long minutes = d.toMinutesPart();
         long seconds = d.toSecondsPart();
         if (days > 0) {
-            return String.format("%dd %02dh %02dm %02ds", days, hours, minutes, seconds);
+            return String.format(
+                "%dd %02dh %02dm %02ds",
+                days,
+                hours,
+                minutes,
+                seconds
+            );
         }
         if (hours > 0) {
             return String.format("%dh %02dm %02ds", hours, minutes, seconds);

@@ -19,11 +19,51 @@ public final class JobRecord {
     private final Instant startedAt;
     private final Instant completedAt;
     private final transient Future<?> future;
+    private final int progressPercent;
+    private final String progressMessage;
 
-    public JobRecord(String jobId, String toolName, Map<String, Object> arguments,
-                     JobStatus status, String result, String errorMessage,
-                     Instant createdAt, Instant startedAt, Instant completedAt,
-                     Future<?> future) {
+    public JobRecord(
+        String jobId,
+        String toolName,
+        Map<String, Object> arguments,
+        JobStatus status,
+        String result,
+        String errorMessage,
+        Instant createdAt,
+        Instant startedAt,
+        Instant completedAt,
+        Future<?> future
+    ) {
+        this(
+            jobId,
+            toolName,
+            arguments,
+            status,
+            result,
+            errorMessage,
+            createdAt,
+            startedAt,
+            completedAt,
+            future,
+            0,
+            ""
+        );
+    }
+
+    public JobRecord(
+        String jobId,
+        String toolName,
+        Map<String, Object> arguments,
+        JobStatus status,
+        String result,
+        String errorMessage,
+        Instant createdAt,
+        Instant startedAt,
+        Instant completedAt,
+        Future<?> future,
+        int progressPercent,
+        String progressMessage
+    ) {
         this.jobId = jobId;
         this.toolName = toolName;
         this.arguments = arguments != null ? Map.copyOf(arguments) : Map.of();
@@ -34,6 +74,8 @@ public final class JobRecord {
         this.startedAt = startedAt;
         this.completedAt = completedAt;
         this.future = future;
+        this.progressPercent = Math.clamp(progressPercent, 0, 100);
+        this.progressMessage = progressMessage != null ? progressMessage : "";
     }
 
     public String jobId() {
@@ -76,6 +118,14 @@ public final class JobRecord {
         return future;
     }
 
+    public int progressPercent() {
+        return progressPercent;
+    }
+
+    public String progressMessage() {
+        return progressMessage;
+    }
+
     public long durationMillis() {
         if (startedAt == null) return 0;
         Instant end = completedAt != null ? completedAt : Instant.now();
@@ -83,22 +133,79 @@ public final class JobRecord {
     }
 
     public JobRecord withStatus(JobStatus newStatus) {
-        return new JobRecord(jobId, toolName, arguments, newStatus, result, errorMessage,
-                createdAt, startedAt, completedAt, future);
+        return new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            newStatus,
+            result,
+            errorMessage,
+            createdAt,
+            startedAt,
+            completedAt,
+            future
+        );
     }
 
     public JobRecord withStarted() {
-        return new JobRecord(jobId, toolName, arguments, JobStatus.RUNNING, result, errorMessage,
-                createdAt, Instant.now(), completedAt, future);
+        return new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            JobStatus.RUNNING,
+            result,
+            errorMessage,
+            createdAt,
+            Instant.now(),
+            completedAt,
+            future
+        );
     }
 
     public JobRecord withResult(String newResult) {
-        return new JobRecord(jobId, toolName, arguments, JobStatus.COMPLETED, newResult, errorMessage,
-                createdAt, startedAt, Instant.now(), future);
+        return new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            JobStatus.COMPLETED,
+            newResult,
+            errorMessage,
+            createdAt,
+            startedAt,
+            Instant.now(),
+            future
+        );
     }
 
     public JobRecord withError(String message) {
-        return new JobRecord(jobId, toolName, arguments, JobStatus.FAILED, result, message,
-                createdAt, startedAt, Instant.now(), future);
+        return new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            JobStatus.FAILED,
+            result,
+            message,
+            createdAt,
+            startedAt,
+            Instant.now(),
+            future
+        );
+    }
+
+    public JobRecord withProgress(int percent, String message) {
+        return new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            status,
+            result,
+            errorMessage,
+            createdAt,
+            startedAt,
+            completedAt,
+            future,
+            percent,
+            message
+        );
     }
 }

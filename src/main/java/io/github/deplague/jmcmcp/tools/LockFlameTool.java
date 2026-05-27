@@ -4,13 +4,12 @@ import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.util.HashMap;
+import java.util.Map;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public final class LockFlameTool {
 
@@ -23,50 +22,104 @@ public final class LockFlameTool {
 
     public SyncToolSpecification spec() {
         return SyncToolSpecification.builder()
-                .tool(McpSchema.Tool.builder()
-                        .name(NAME)
-                        .description("Provide lock contention flame graph data by aggregating monitor enter/wait by full stack trace.")
-                        .inputSchema(SchemaUtil.objectSchema(
-                                SchemaUtil.props(
-                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
-                                        "start_time", SchemaUtil.startTimeProp(),
-                                        "end_time", SchemaUtil.endTimeProp(),
-                                        "top_n", SchemaUtil.intProp("Number of top call paths (default 20)", 20),
-                                        "async", SchemaUtil.boolProp("Run analysis asynchronously and return a job ID", false)
+            .tool(
+                McpSchema.Tool.builder()
+                    .name(NAME)
+                    .description(
+                        "Provide lock contention flame graph data by aggregating monitor enter/wait by full stack trace."
+                    )
+                    .inputSchema(
+                        SchemaUtil.objectSchema(
+                            SchemaUtil.props(
+                                "jfr_file_path",
+                                SchemaUtil.jfrFileProp(),
+                                "start_time",
+                                SchemaUtil.startTimeProp(),
+                                "end_time",
+                                SchemaUtil.endTimeProp(),
+                                "top_n",
+                                SchemaUtil.intProp(
+                                    "Number of top call paths (default 20)",
+                                    20
                                 ),
-                                SchemaUtil.required("jfr_file_path")
-                        ))
-                        .build())
-                .callHandler((exchange, request) -> service.execute(NAME, request.arguments(), () -> {
-                    String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
-                    String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
-                    String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
-                    int topN = SchemaUtil.getIntOrDefault(request.arguments(), "top_n", 20);
+                                "async",
+                                SchemaUtil.boolProp(
+                                    "Run analysis asynchronously and return a job ID",
+                                    false
+                                )
+                            ),
+                            SchemaUtil.required("jfr_file_path")
+                        )
+                    )
+                    .build()
+            )
+            .callHandler((exchange, request) ->
+                service.execute(NAME, request.arguments(), () -> {
+                    String filePath = SchemaUtil.getString(
+                        request.arguments(),
+                        "jfr_file_path"
+                    );
+                    String startTimeStr = SchemaUtil.getStringOrDefault(
+                        request.arguments(),
+                        "start_time",
+                        null
+                    );
+                    String endTimeStr = SchemaUtil.getStringOrDefault(
+                        request.arguments(),
+                        "end_time",
+                        null
+                    );
+                    int topN = SchemaUtil.getIntOrDefault(
+                        request.arguments(),
+                        "top_n",
+                        20
+                    );
                     return analyze(filePath, startTimeStr, endTimeStr, topN);
-                })).build();
+                })
+            )
+            .build();
     }
 
-    private String analyze(String filePath, String startTimeStr, String endTimeStr, int topN) throws Exception {
+    private String analyze(
+        String filePath,
+        String startTimeStr,
+        String endTimeStr,
+        int topN
+    ) throws Exception {
         IItemCollection allEvents = service.loadRecording(filePath);
-        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
+        IItemCollection events = service.filterByTimeRange(
+            allEvents,
+            startTimeStr,
+            endTimeStr
+        );
 
         Map<String, Long> pathDist = new HashMap<>();
+        JfrItemUtils.StackTraceFormatCache stCache =
+            JfrItemUtils.newStackTraceFormatCache();
         long totalNanos = 0;
 
-        for (String typeId : new String[]{"jdk.JavaMonitorEnter", "jdk.JavaMonitorWait", "jdk.ThreadPark"}) {
+        for (String typeId : new String[] {
+            "jdk.JavaMonitorEnter",
+            "jdk.JavaMonitorWait",
+            "jdk.ThreadPark",
+        }) {
             IItemCollection locks = events.apply(ItemFilters.type(typeId));
             for (IItemIterable iterable : locks) {
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
-                IMemberAccessor<IQuantity, IItem> durAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-                
+                IMemberAccessor<Object, IItem> stackAccessor =
+                    JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IMemberAccessor<IQuantity, IItem> durAccessor =
+                    JfrAttributes.DURATION.getAccessor(iterable.getType());
+
                 if (stackAccessor != null && durAccessor != null) {
                     for (IItem item : iterable) {
                         Object stackObj = stackAccessor.getMember(item);
                         IQuantity dur = durAccessor.getMember(item);
                         if (stackObj != null && dur != null) {
-                            long nanos = dur.clampedLongValueIn(UnitLookup.NANOSECOND);
+                            long nanos = dur.clampedLongValueIn(
+                                UnitLookup.NANOSECOND
+                            );
                             totalNanos += nanos;
-                            String path = JfrItemUtils.formatStackTrace(stackObj, 10);
+                            String path = stCache.format(stackObj, 10);
                             pathDist.merge(path, nanos, Long::sum);
                         }
                     }
@@ -80,15 +133,30 @@ public final class LockFlameTool {
 
         StringBuilder sb = new StringBuilder();
         sb.append("# Lock Flame Graph Data\n\n");
-        sb.append("- **Total Lock Duration:** ").append(SchemaUtil.formatDuration(totalNanos / 1_000_000L)).append("\n\n");
+        sb.append("- **Total Lock Duration:** ")
+            .append(SchemaUtil.formatDuration(totalNanos / 1_000_000L))
+            .append("\n\n");
 
         sb.append("## Top Lock Call Paths (Max 10 frames)\n");
-        sb.append("| Lock Duration | Percentage | Call Path |\n|---|---|---|\n");
+        sb.append(
+            "| Lock Duration | Percentage | Call Path |\n|---|---|---|\n"
+        );
         long finalTotal = totalNanos;
-        pathDist.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(topN)
-                .forEach(e -> sb.append(String.format("| %s | %.1f%% | `%s` |\n", SchemaUtil.formatDuration(e.getValue() / 1_000_000L), (e.getValue() * 100.0) / finalTotal, e.getKey().replace("\n", "`<br>`"))));
+        pathDist
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .limit(topN)
+            .forEach(e ->
+                sb.append(
+                    String.format(
+                        "| %s | %.1f%% | `%s` |\n",
+                        SchemaUtil.formatDuration(e.getValue() / 1_000_000L),
+                        (e.getValue() * 100.0) / finalTotal,
+                        e.getKey().replace("\n", "`<br>`")
+                    )
+                )
+            );
 
         return sb.toString();
     }
