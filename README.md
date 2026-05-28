@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Features
 
-- **61 MCP tools** for comprehensive JFR analysis — from raw metrics to expert-level diagnosis
+- **69 MCP tools** for comprehensive JFR analysis — from raw metrics to expert-level diagnosis
 - **Enterprise-grade security** — path traversal protection, configurable access controls
 - **Async execution** — offload long-running analysis to background jobs with polling
 - **Smart caching** — TTL-based recording cache with file-change detection and memory-pressure eviction
@@ -45,6 +45,8 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `code_cache` — Analyze Code Cache usage and JIT compiler statistics
 - `safepoint_analysis` — Analyze safepoint events and stop-the-world pauses outside of GC
 - `vm_operations` — Analyze "Stop-the-World" events and non-GC VM operations
+- `call_tree` — Initialize an interactive call tree with subsystem and package filtering
+- `expand_call_tree` — Drill down into a specific node of an interactive call tree
 
 **Threading & Locks**
 - `thread_activity` — Analyze thread lifecycle, creation/destruction rates, and sleep patterns
@@ -55,6 +57,8 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `deadlock_detection` — Detect thread deadlocks by analyzing monitor ownership and wait-for relationships
 - `blocking_summary` — Aggregate all blocking events (monitors, parking, sleeping, I/O) per thread
 - `thread_pool_analysis` — Analyze thread pool utilization and detect thread pool starvation
+- `smart_lock_resolver` — Resolve complex deadlocks and monitor contention chains
+- `smart_thread_starvation_detector` — Detect threads suffering from resource starvation or excessive STW pauses
 
 **I/O & Network**
 - `io_hotspots` — Identify slow and frequent I/O operations by path/host with call-site breakdowns
@@ -70,6 +74,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `class_histogram` — Provide a class instance allocation histogram and top allocating classes
 - `class_loading` — Analyze class loading events and statistics
 - `allocation_flame` — Provide allocation flame graph data
+- `thread_allocation` — Per-thread allocation statistics and trends
 
 **System & Trends**
 - `system_health` — CPU load, physical memory usage, and OS metrics
@@ -85,6 +90,9 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - `smart_correlate` — Cross-dimensional correlation engine linking locks↔I/O↔hot methods with bottleneck chains
 - `smart_quick_analysis` — One-click macro dashboard with severity classification and auto-detected dominant bottleneck
 - `smart_diff_stack_traces` — Method-level diff between two recordings (new, disappeared, changed prominence)
+- `diff_call_tree` — Compare two call trees from different recordings
+- `expand_diff_call_tree` — Drill down into diff call tree comparisons
+- `smart_jdbc_n_plus_one_analyzer` — Detect N+1 query patterns and JDBC hotspots
 
 **Virtual Threads & Advanced**
 - `virtual_threads` — Analyze virtual thread pinning sites and execution failures (Java 21+)
@@ -412,23 +420,39 @@ Use `health_check` to monitor server state:
 
 ## Architecture
 
+The project is transitioning to a **Hexagonal Architecture** (Ports and Adapters) to improve maintainability and testability.
+
 ```
 jmc-mcp/
-  JmcMcpServer.java              # Entry point, MCP server bootstrap
-  security/
-    RecordingAccessController.java # Path validation & traversal protection
+  JmcMcpServer.java              # Entry point, MCP server bootstrap (QuarkusMain)
+  adapters/
+    mcp/                         # MCP driving adapters (implements McpTool)
+    infrastructure/              # Concrete implementations of application ports (e.g., JFR loading)
+  application/
+    service/                     # Use case orchestration (caching, port usage)
+    port/                        # Interfaces for infrastructure
+  domain/
+    service/                     # Pure JFR analysis logic (reflection-free)
+    model/                       # Domain entities and analysis result records
   async/
     AsyncJobService.java           # Background job execution & polling
-    JobRecord.java                 # Immutable job state snapshot
-    JobStatus.java                 # Job lifecycle enum
   jfr/
     JfrRecordingCache.java         # Smart cache: TTL, file-change detection, SoftReference
-    JfrAnalysisService.java        # Core analysis service with async support
     JfrItemUtils.java              # Reflection-free attribute extraction & stack traces
+  security/
+    RecordingAccessController.java # Path validation & traversal protection
   tools/
     SchemaUtil.java                # MCP JSON schema helpers
-    *Tool.java                     # One per MCP tool (~61 files)
+    *Tool.java                     # Legacy MCP tool implementations
 ```
+
+## Development & Agent Documentation
+
+This project provides extensive documentation for both human contributors and AI coding agents:
+
+- **[`AGENTS.md`](AGENTS.md)** — Main guide for AI agents, including build commands, technology stack, and tool priority rules.
+- **Localized Guides** — Each major package contains its own `AGENTS.md` with specific architectural constraints (e.g., domain purity rules).
+- **[`PLAN.md`](PLAN.md)** / **[`PLAN-REFACTORING.md`](PLAN-REFACTORING.md)** — Strategic roadmaps for feature development and architecture migration.
 
 ## Logging
 

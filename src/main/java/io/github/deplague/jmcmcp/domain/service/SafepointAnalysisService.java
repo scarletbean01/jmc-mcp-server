@@ -5,7 +5,7 @@ import io.github.deplague.jmcmcp.domain.model.SafepointCauseEntry;
 import io.github.deplague.jmcmcp.domain.model.TopSafepointEntry;
 import io.github.deplague.jmcmcp.domain.model.TtspSummary;
 import io.github.deplague.jmcmcp.domain.model.VmOperationSummary;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

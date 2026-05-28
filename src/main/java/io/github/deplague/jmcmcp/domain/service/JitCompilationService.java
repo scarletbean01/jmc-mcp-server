@@ -4,7 +4,7 @@ import io.github.deplague.jmcmcp.domain.model.CompilationEntry;
 import io.github.deplague.jmcmcp.domain.model.CompilerFailureEntry;
 import io.github.deplague.jmcmcp.domain.model.DeoptimizationEntry;
 import io.github.deplague.jmcmcp.domain.model.JitCompilationResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

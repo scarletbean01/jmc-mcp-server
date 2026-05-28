@@ -1,8 +1,8 @@
 package io.github.deplague.jmcmcp.adapters.infrastructure;
 
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
-import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
-import io.github.deplague.jmcmcp.security.RecordingAccessController;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.adapters.infrastructure.security.RecordingAccessController;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.io.IOException;

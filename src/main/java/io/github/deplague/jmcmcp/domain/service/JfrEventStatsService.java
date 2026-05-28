@@ -3,7 +3,7 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.EventCategoricalField;
 import io.github.deplague.jmcmcp.domain.model.EventFieldStats;
 import io.github.deplague.jmcmcp.domain.model.JfrEventStatsResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

@@ -9,7 +9,6 @@ import io.github.deplague.jmcmcp.domain.model.GcPhaseEntry;
 import io.github.deplague.jmcmcp.domain.model.GenerationalSummary;
 import io.github.deplague.jmcmcp.domain.model.HeapTrendSummary;
 import io.github.deplague.jmcmcp.domain.model.ReferenceStatEntry;
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
 import io.github.deplague.jmcmcp.tools.SchemaUtil;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;

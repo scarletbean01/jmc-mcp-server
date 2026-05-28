@@ -4,7 +4,7 @@ import io.github.deplague.jmcmcp.domain.model.ContainerConfig;
 import io.github.deplague.jmcmcp.domain.model.ContainerCpuUsage;
 import io.github.deplague.jmcmcp.domain.model.ContainerMemoryUsage;
 import io.github.deplague.jmcmcp.domain.model.ContainerMetricsResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItem;

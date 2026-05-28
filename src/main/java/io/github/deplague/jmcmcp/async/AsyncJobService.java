@@ -114,7 +114,25 @@ public final class AsyncJobService {
     ) {
         String jobId = UUID.randomUUID().toString();
 
-        // Create the future first so we can atomically store it with the initial record
+        JobRecord initial = new JobRecord(
+            jobId,
+            toolName,
+            arguments,
+            JobStatus.PENDING,
+            null,
+            null,
+            Instant.now(),
+            null,
+            null,
+            null
+        );
+        jobs.put(jobId, initial);
+        progressReporters.put(jobId, (pct, msg) -> {
+            jobs.computeIfPresent(jobId, (id, rec) ->
+                rec.withProgress(pct, msg)
+            );
+        });
+
         Future<?> future = executor.submit(() -> {
             long start = System.currentTimeMillis();
             // Atomically transition PENDING → RUNNING
@@ -162,24 +180,23 @@ public final class AsyncJobService {
             }
         });
 
-        JobRecord initial = new JobRecord(
-            jobId,
-            toolName,
-            arguments,
-            JobStatus.PENDING,
-            null,
-            null,
-            Instant.now(),
-            null,
-            null,
-            future
+        // Update with the future reference so it can be cancelled
+        jobs.computeIfPresent(jobId, (id, rec) ->
+            new JobRecord(
+                rec.jobId(),
+                rec.toolName(),
+                rec.arguments(),
+                rec.status(),
+                rec.result(),
+                rec.errorMessage(),
+                rec.createdAt(),
+                rec.startedAt(),
+                rec.completedAt(),
+                future,
+                rec.progressPercent(),
+                rec.progressMessage()
+            )
         );
-        jobs.put(jobId, initial);
-        progressReporters.put(jobId, (pct, msg) -> {
-            jobs.computeIfPresent(jobId, (id, rec) ->
-                rec.withProgress(pct, msg)
-            );
-        });
 
         return jobId;
     }

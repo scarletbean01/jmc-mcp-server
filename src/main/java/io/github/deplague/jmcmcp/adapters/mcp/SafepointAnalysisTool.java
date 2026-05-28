@@ -6,7 +6,7 @@ import io.github.deplague.jmcmcp.domain.model.SafepointCauseEntry;
 import io.github.deplague.jmcmcp.domain.model.TopSafepointEntry;
 import io.github.deplague.jmcmcp.domain.model.TtspSummary;
 import io.github.deplague.jmcmcp.domain.model.VmOperationSummary;
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import io.github.deplague.jmcmcp.tools.SchemaUtil;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -139,6 +139,6 @@ public final class SafepointAnalysisTool implements McpTool {
         if (nanos == 0) {
             return "0";
         }
-        return JfrAnalysisService.display(UnitLookup.NANOSECOND.quantity(nanos));
+        return JfrItemUtils.display(UnitLookup.NANOSECOND.quantity(nanos));
     }
 }

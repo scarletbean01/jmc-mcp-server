@@ -2,7 +2,7 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.AllocationFlameEntry;
 import io.github.deplague.jmcmcp.domain.model.AllocationFlameResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

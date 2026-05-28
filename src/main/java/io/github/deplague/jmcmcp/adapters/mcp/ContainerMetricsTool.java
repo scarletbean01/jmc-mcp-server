@@ -95,12 +95,12 @@ public final class ContainerMetricsTool implements McpTool {
 
         result.config().ifPresent(cfg -> {
             sb.append("## Container Configuration\n");
-            cfg.cpuShares().ifPresent(v -> sb.append("- **CPU Shares:** ").append(v).append("\n"));
-            cfg.cpuPeriod().ifPresent(v -> sb.append("- **CPU Period:** ").append(v).append("\n"));
-            cfg.cpuQuota().ifPresent(v -> sb.append("- **CPU Quota:** ").append(v).append("\n"));
-            cfg.memoryLimit().ifPresent(v -> sb.append("- **Memory Limit:** ").append(v).append("\n"));
-            cfg.swapLimit().ifPresent(v -> sb.append("- **Swap Limit:** ").append(v).append("\n"));
-            cfg.memorySoftLimit().ifPresent(v -> sb.append("- **Memory Soft Limit:** ").append(v).append("\n"));
+            if (cfg.cpuShares() != null) sb.append("- **CPU Shares:** ").append(cfg.cpuShares()).append("\n");
+            if (cfg.cpuPeriod() != null) sb.append("- **CPU Period:** ").append(cfg.cpuPeriod()).append("\n");
+            if (cfg.cpuQuota() != null) sb.append("- **CPU Quota:** ").append(cfg.cpuQuota()).append("\n");
+            if (cfg.memoryLimit() != null) sb.append("- **Memory Limit:** ").append(cfg.memoryLimit()).append("\n");
+            if (cfg.swapLimit() != null) sb.append("- **Swap Limit:** ").append(cfg.swapLimit()).append("\n");
+            if (cfg.memorySoftLimit() != null) sb.append("- **Memory Soft Limit:** ").append(cfg.memorySoftLimit()).append("\n");
             sb.append("\n");
         });
 

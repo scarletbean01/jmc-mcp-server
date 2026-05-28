@@ -8,7 +8,7 @@ import io.github.deplague.jmcmcp.domain.model.GcPhaseEntry;
 import io.github.deplague.jmcmcp.domain.model.GenerationalSummary;
 import io.github.deplague.jmcmcp.domain.model.HeapTrendSummary;
 import io.github.deplague.jmcmcp.domain.model.ReferenceStatEntry;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

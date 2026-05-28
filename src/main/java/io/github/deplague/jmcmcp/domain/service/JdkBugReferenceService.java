@@ -3,7 +3,7 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.BugMatch;
 import io.github.deplague.jmcmcp.domain.model.BugSignature;
 import io.github.deplague.jmcmcp.domain.model.JdkBugReferenceResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;

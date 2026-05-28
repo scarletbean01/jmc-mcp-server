@@ -5,7 +5,7 @@ import io.github.deplague.jmcmcp.domain.model.GcRecommendationsResult;
 import io.github.deplague.jmcmcp.domain.model.HeapUtilization;
 import io.github.deplague.jmcmcp.domain.model.MetaspaceUtilization;
 import io.github.deplague.jmcmcp.domain.model.PauseDistribution;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

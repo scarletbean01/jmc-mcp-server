@@ -4,7 +4,7 @@ import io.github.deplague.jmcmcp.domain.model.CallPathEntry;
 import io.github.deplague.jmcmcp.domain.model.CpuFlameMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.CpuFlameResult;
 import io.github.deplague.jmcmcp.domain.model.StateDistributionEntry;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

@@ -4,7 +4,7 @@ import io.github.deplague.jmcmcp.domain.model.BlockingReasonEntry;
 import io.github.deplague.jmcmcp.domain.model.BlockingSummaryResult;
 import io.github.deplague.jmcmcp.domain.model.CategoryDistributionEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadBlockingEntry;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

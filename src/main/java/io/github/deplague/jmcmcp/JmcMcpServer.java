@@ -2,12 +2,10 @@ package io.github.deplague.jmcmcp;
 
 import io.github.deplague.jmcmcp.adapters.mcp.McpTool;
 import io.github.deplague.jmcmcp.async.AsyncJobService;
-import io.github.deplague.jmcmcp.jfr.CallTreeCache;
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
-import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.resources.JdkBugDatabaseResource;
-import io.github.deplague.jmcmcp.security.RecordingAccessController;
-import io.github.deplague.jmcmcp.tools.*;
+import io.github.deplague.jmcmcp.adapters.infrastructure.security.RecordingAccessController;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -32,9 +30,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Communicates via stdio (stdin/stdout) using the Model Context Protocol.
  * Never writes to stdout — all logging goes to stderr via logback.</p>
  *
- * <p>Phase 1 refactoring: migrated to {@link QuarkusApplication} with CDI
- * discovery for refactored tool adapters. Legacy tools remain manually
- * wired until Phase 2.</p>
+ * <p>Hexagonal architecture: all tools are CDI-discovered {@link McpTool}
+ * adapters delegating to domain/application services.</p>
  */
 @QuarkusMain
 public final class JmcMcpServer implements QuarkusApplication {
@@ -65,13 +62,6 @@ public final class JmcMcpServer implements QuarkusApplication {
     @Override
     public int run(String... args) throws Exception {
         LOG.info("Starting JMC MCP Server...");
-
-        // Legacy analysis service for tools not yet refactored
-        JfrAnalysisService analysisService = new JfrAnalysisService(
-                cache,
-                accessController,
-                asyncJobService
-        );
 
         // Create stdio transport provider with Jackson 3 JSON mapper
         JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -105,42 +95,7 @@ public final class JmcMcpServer implements QuarkusApplication {
             );
         }
 
-        // Register legacy tools (not yet refactored to adapters)
-        tools.addAll(List.of(
-                new IoHotspotsTool(analysisService).spec(),
-                new ThreadActivityTool(analysisService).spec(),
-                new GcAnalysisTool(analysisService).spec(),
-                new ThreadContentionTool(analysisService).spec(),
-                new LiveRecordingTool().spec(),
-                new SystemHealthTool(analysisService).spec(),
-                new TimeSeriesTool(analysisService).spec(),
-                new CompareRecordingsTool(analysisService).spec(),
-                new ErrorAnalysisTool(analysisService).spec(),
-                new NetworkAnalysisTool(analysisService).spec(),
-                new LockAnalysisTool(analysisService).spec(),
-                new ThreadCpuTool(analysisService).spec(),
-                new HighCpuDiagnosticTool(analysisService).spec(),
-                new ThreadPoolAnalysisTool(analysisService).spec(),
-                // Phase 1 new tools
-                new StackTraceSearchTool(analysisService).spec(),
-                new RequestWaterfallTool(analysisService).spec(),
-                new CorrelateTool(analysisService).spec(),
-                new QuickAnalysisTool(analysisService).spec(),
-                new DiffStackTracesTool(analysisService).spec(),
-                // Interactive call tree tools
-                new CallTreeTool(analysisService, callTreeCache).spec(),
-                new ExpandCallTreeTool(callTreeCache).spec(),
-                new DiffCallTreeTool(analysisService, callTreeCache).spec(),
-                new ExpandDiffCallTreeTool(callTreeCache).spec(),
-                // Smart heuristic tools
-                new SmartLockResolverTool(analysisService).spec(),
-                new SmartThreadStarvationDetectorTool(analysisService).spec(),
-                new SmartJdbcNPlusOneAnalyzerTool(analysisService).spec(),
-                // Enterprise infrastructure tools
-                new HealthCheckTool(cache, asyncJobService).spec(),
-                new GetJobStatusTool(asyncJobService).spec(),
-                new GetJobResultTool(asyncJobService).spec()
-        ));
+        // All tools are now CDI-discovered via Instance<McpTool>
 
         for (var tool : tools) {
             server.addTool(tool);

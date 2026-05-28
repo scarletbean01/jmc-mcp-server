@@ -2,7 +2,7 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.IoAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.IoSummary;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.Aggregators;

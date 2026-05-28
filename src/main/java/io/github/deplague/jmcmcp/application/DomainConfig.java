@@ -9,38 +9,67 @@ import io.github.deplague.jmcmcp.domain.service.CpuFlameService;
 import io.github.deplague.jmcmcp.domain.service.ClassLoadingService;
 import io.github.deplague.jmcmcp.domain.service.CodeCacheService;
 import io.github.deplague.jmcmcp.domain.service.ContainerMetricsService;
+import io.github.deplague.jmcmcp.domain.service.CorrelateService;
 import io.github.deplague.jmcmcp.domain.service.DeadlockDetectionService;
+import io.github.deplague.jmcmcp.domain.service.DiffCallTreeService;
+import io.github.deplague.jmcmcp.domain.service.ExpandCallTreeService;
+import io.github.deplague.jmcmcp.domain.service.ExpandDiffCallTreeService;
+import io.github.deplague.jmcmcp.domain.service.DiffStackTracesService;
 import io.github.deplague.jmcmcp.domain.service.DirectBuffersService;
 import io.github.deplague.jmcmcp.domain.service.EventSchemaService;
+import io.github.deplague.jmcmcp.domain.service.ErrorAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.ExceptionAnalysisService;
+import io.github.deplague.jmcmcp.domain.service.GcAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.GcCauseService;
+import io.github.deplague.jmcmcp.domain.service.GetJobStatusService;
 import io.github.deplague.jmcmcp.domain.service.GcDetailService;
 import io.github.deplague.jmcmcp.domain.service.GcRecommendationsService;
 import io.github.deplague.jmcmcp.domain.service.HotMethodsService;
 import io.github.deplague.jmcmcp.domain.service.IncidentTimelineService;
 import io.github.deplague.jmcmcp.domain.service.IoAnalysisService;
+import io.github.deplague.jmcmcp.domain.service.IoHotspotsService;
 import io.github.deplague.jmcmcp.domain.service.JdkBugReferenceService;
 import io.github.deplague.jmcmcp.domain.service.JfrEventStatsService;
 import io.github.deplague.jmcmcp.domain.service.JfrOverviewService;
 import io.github.deplague.jmcmcp.domain.service.JfrRulesService;
+import io.github.deplague.jmcmcp.domain.service.LiveRecordingService;
 import io.github.deplague.jmcmcp.domain.service.JitCompilationService;
+import io.github.deplague.jmcmcp.domain.service.LockAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.LockFlameService;
+import io.github.deplague.jmcmcp.domain.service.NetworkAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
 import io.github.deplague.jmcmcp.domain.service.MemoryLeaksService;
 import io.github.deplague.jmcmcp.domain.service.NativeMemoryService;
 import io.github.deplague.jmcmcp.domain.service.PredictiveLeakAnalysisService;
+import io.github.deplague.jmcmcp.domain.service.QuickAnalysisService;
+import io.github.deplague.jmcmcp.domain.service.RequestWaterfallService;
 import io.github.deplague.jmcmcp.domain.service.ObjectStatisticsService;
 import io.github.deplague.jmcmcp.domain.service.SafepointAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.ProcessInfoService;
 import io.github.deplague.jmcmcp.domain.service.SearchEventsService;
+import io.github.deplague.jmcmcp.domain.service.SystemHealthService;
 import io.github.deplague.jmcmcp.domain.service.SystemPropertiesService;
 import io.github.deplague.jmcmcp.domain.service.ThreadAllocationService;
+import io.github.deplague.jmcmcp.domain.service.ThreadActivityService;
+import io.github.deplague.jmcmcp.domain.service.ThreadContentionService;
+import io.github.deplague.jmcmcp.domain.service.ThreadCpuService;
 import io.github.deplague.jmcmcp.domain.service.ThreadDumpService;
+import io.github.deplague.jmcmcp.domain.service.ThreadPoolAnalysisService;
+import io.github.deplague.jmcmcp.domain.service.HealthCheckService;
+import io.github.deplague.jmcmcp.domain.service.SmartThreadStarvationDetectorService;
+import io.github.deplague.jmcmcp.domain.service.StackTraceSearchService;
+import io.github.deplague.jmcmcp.domain.service.CallTreeService;
+import io.github.deplague.jmcmcp.domain.service.CompareRecordingsService;
+import io.github.deplague.jmcmcp.domain.service.GetJobResultService;
+import io.github.deplague.jmcmcp.domain.service.HighCpuDiagnosticService;
+import io.github.deplague.jmcmcp.domain.service.SmartJdbcNPlusOneAnalyzerService;
+import io.github.deplague.jmcmcp.domain.service.SmartLockResolverService;
+import io.github.deplague.jmcmcp.domain.service.TimeSeriesService;
 import io.github.deplague.jmcmcp.domain.service.VirtualThreadsService;
 import io.github.deplague.jmcmcp.domain.service.VmOperationsService;
-import io.github.deplague.jmcmcp.jfr.CallTreeCache;
-import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
-import io.github.deplague.jmcmcp.security.RecordingAccessController;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.adapters.infrastructure.security.RecordingAccessController;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 
@@ -110,6 +139,12 @@ public class DomainConfig {
     @ApplicationScoped
     public ContainerMetricsService containerMetricsService() {
         return new ContainerMetricsService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public CorrelateService correlateService() {
+        return new CorrelateService();
     }
 
     @Produces
@@ -222,6 +257,12 @@ public class DomainConfig {
 
     @Produces
     @ApplicationScoped
+    public RequestWaterfallService requestWaterfallService() {
+        return new RequestWaterfallService();
+    }
+
+    @Produces
+    @ApplicationScoped
     public HeapTrendsService heapTrendsService() {
         return new HeapTrendsService();
     }
@@ -294,7 +335,169 @@ public class DomainConfig {
 
     @Produces
     @ApplicationScoped
+    public CallTreeService callTreeService() {
+        return new CallTreeService();
+    }
+
+    @Produces
+    @ApplicationScoped
     public AsyncJobService asyncJobService() {
         return new AsyncJobService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public DiffCallTreeService diffCallTreeService() {
+        return new DiffCallTreeService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ExpandCallTreeService expandCallTreeService() {
+        return new ExpandCallTreeService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ExpandDiffCallTreeService expandDiffCallTreeService() {
+        return new ExpandDiffCallTreeService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public DiffStackTracesService diffStackTracesService() {
+        return new DiffStackTracesService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public SystemHealthService systemHealthService() {
+        return new SystemHealthService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ThreadCpuService threadCpuService() {
+        return new ThreadCpuService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ThreadActivityService threadActivityService() {
+        return new ThreadActivityService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ThreadPoolAnalysisService threadPoolAnalysisService() {
+        return new ThreadPoolAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public GetJobStatusService getJobStatusService() {
+        return new GetJobStatusService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public GcAnalysisService gcAnalysisService() {
+        return new GcAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ThreadContentionService threadContentionService() {
+        return new ThreadContentionService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public IoHotspotsService ioHotspotsService() {
+        return new IoHotspotsService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public LockAnalysisService lockAnalysisService() {
+        return new LockAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ErrorAnalysisService errorAnalysisService() {
+        return new ErrorAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public NetworkAnalysisService networkAnalysisService() {
+        return new NetworkAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public TimeSeriesService timeSeriesService() {
+        return new TimeSeriesService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public SmartThreadStarvationDetectorService smartThreadStarvationDetectorService() {
+        return new SmartThreadStarvationDetectorService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public StackTraceSearchService stackTraceSearchService() {
+        return new StackTraceSearchService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public HealthCheckService healthCheckService() {
+        return new HealthCheckService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public GetJobResultService getJobResultService() {
+        return new GetJobResultService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public HighCpuDiagnosticService highCpuDiagnosticService() {
+        return new HighCpuDiagnosticService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public SmartJdbcNPlusOneAnalyzerService smartJdbcNPlusOneAnalyzerService() {
+        return new SmartJdbcNPlusOneAnalyzerService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public SmartLockResolverService smartLockResolverService() {
+        return new SmartLockResolverService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public CompareRecordingsService compareRecordingsService() {
+        return new CompareRecordingsService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public LiveRecordingService liveRecordingService() {
+        return new LiveRecordingService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public QuickAnalysisService quickAnalysisService() {
+        return new QuickAnalysisService();
     }
 }

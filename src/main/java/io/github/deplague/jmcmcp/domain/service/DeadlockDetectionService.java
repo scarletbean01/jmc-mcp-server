@@ -2,7 +2,7 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.DeadlockCycle;
 import io.github.deplague.jmcmcp.domain.model.DeadlockDetectionResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;

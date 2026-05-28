@@ -5,7 +5,7 @@ import io.github.deplague.jmcmcp.domain.model.HeapTrendsResult;
 import io.github.deplague.jmcmcp.domain.model.MetaspaceBucketEntry;
 import io.github.deplague.jmcmcp.domain.model.MetricSummary;
 import io.github.deplague.jmcmcp.domain.model.ThreadBucketEntry;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

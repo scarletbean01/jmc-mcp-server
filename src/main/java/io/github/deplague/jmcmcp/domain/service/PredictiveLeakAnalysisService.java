@@ -3,7 +3,7 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.LeakSuspectEntry;
 import io.github.deplague.jmcmcp.domain.model.OomProjection;
 import io.github.deplague.jmcmcp.domain.model.PredictiveLeakResult;
-import io.github.deplague.jmcmcp.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
