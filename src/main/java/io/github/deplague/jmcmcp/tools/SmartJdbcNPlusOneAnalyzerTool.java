@@ -72,7 +72,7 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
         collectSocketEvents(events, "jdk.SocketWrite", socketEvents);
 
         if (socketEvents.isEmpty()) {
-            return "# Smart JDBC N+1 Analyzer\n\nNo socket I/O events found in the recording.\n";
+            return "# Smart JDBC N+1 Analyzer\n\nNo socket I/O events found in the recording.\n\n<agent_hint>No socket I/O events were recorded. Ensure the JFR recording includes `jdk.SocketRead` and `jdk.SocketWrite` events. Consider using `event_schema` to verify available event types, or `io_hotspots` for a broader I/O analysis.</agent_hint>\n";
         }
 
         // Sort by thread then by time
@@ -83,7 +83,7 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
         List<NPlusOnePattern> patterns = detectBursts(socketEvents);
 
         if (patterns.isEmpty()) {
-            return "# Smart JDBC N+1 Analyzer\n\nNo N+1 query patterns detected. No thread showed a sustained burst of short sequential DB socket reads.\n";
+            return "# Smart JDBC N+1 Analyzer\n\nNo N+1 query patterns detected. No thread showed a sustained burst of short sequential DB socket reads.\n\n<agent_hint>No N+1 patterns detected. If you suspect database latency issues, try `io_hotspots` for general I/O analysis, `stack_trace_search` with `class_pattern` set to your DAO/repository package, or `request_waterfall` to trace individual request paths.</agent_hint>\n";
         }
 
         // Sort by confidence then by total reads

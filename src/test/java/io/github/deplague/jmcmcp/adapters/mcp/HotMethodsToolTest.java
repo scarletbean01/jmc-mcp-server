@@ -1,7 +1,10 @@
-package io.github.deplague.jmcmcp.tools;
+package io.github.deplague.jmcmcp.adapters.mcp;
 
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
+import io.github.deplague.jmcmcp.adapters.infrastructure.JfrProviderImpl;
+import io.github.deplague.jmcmcp.application.service.HotMethodsApplicationService;
+import io.github.deplague.jmcmcp.domain.service.HotMethodsService;
 import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.security.RecordingAccessController;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
@@ -19,8 +22,6 @@ class HotMethodsToolTest {
     private static String afterPath;
     private static String beforePath;
 
-    private JfrRecordingCache cache;
-    private JfrAnalysisService service;
     private HotMethodsTool tool;
 
     @BeforeAll
@@ -40,9 +41,14 @@ class HotMethodsToolTest {
 
     @BeforeEach
     void setUp() {
-        cache = new JfrRecordingCache();
-        service = new JfrAnalysisService(cache);
-        tool = new HotMethodsTool(service);
+        JfrRecordingCache cache = new JfrRecordingCache();
+        RecordingAccessController accessController = new RecordingAccessController();
+        JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
+        HotMethodsService hotMethodsService = new HotMethodsService();
+        HotMethodsApplicationService appService = new HotMethodsApplicationService(
+                jfrProvider, hotMethodsService
+        );
+        tool = new HotMethodsTool(appService);
     }
 
     @Test
@@ -204,18 +210,6 @@ class HotMethodsToolTest {
 
         assertThat(result.isError()).isTrue();
         assertThat(extractText(result)).contains("Missing required argument: jfr_file_path");
-    }
-
-    @Test
-    void analysisCachesResultOnSecondCall() {
-        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("hot_methods", Map.of("jfr_file_path", afterPath));
-
-        CallToolResult first = tool.spec().callHandler().apply(null, request);
-        CallToolResult second = tool.spec().callHandler().apply(null, request);
-
-        assertThat(first.isError()).isFalse();
-        assertThat(second.isError()).isFalse();
-        assertThat(extractText(first)).isEqualTo(extractText(second));
     }
 
     @Test

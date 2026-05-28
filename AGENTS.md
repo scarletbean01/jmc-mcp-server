@@ -12,12 +12,14 @@ The server communicates over **stdio** (stdin/stdout) using MCP's JSON-RPC proto
 
 ### Key Facts
 
-- **Language:** Java 21
+- **Language:** Java 25
 - **Build Tool:** Maven 3.9+
-- **Main Class:** `io.github.deplague.jmcmcp.JmcMcpServer`
-- **Artifact:** `target/jmc-mcp-1.0.0-SNAPSHOT.jar` (fat JAR via maven-shade-plugin)
+- **Main Class:** `io.github.deplague.jmcmcp.JmcMcpServer` (`@QuarkusMain`)
+- **Artifact:** `target/jmc-mcp-1.0.0-SNAPSHOT.jar` (fat JAR via maven-shade-plugin) and `target/quarkus-run.jar`
 - **Transport:** StdioServerTransportProvider with Jackson 3 JSON mapper
 - **MCP SDK Version:** 1.1.2 (`io.modelcontextprotocol.sdk:mcp`)
+- **Runtime Framework:** Quarkus 3.36.0 with CDI (`quarkus-arc`)
+- **Lombok:** 1.18.46 (use `@Slf4j`, `@Getter`, `@RequiredArgsConstructor`, `@Value`, `@Builder` everywhere)
 - **License:** MIT
 
 ---
@@ -36,9 +38,10 @@ mvn test
 ```
 
 The Maven build uses:
-- `maven-compiler-plugin` 3.14.0 (release 21)
-- `maven-surefire-plugin` 3.5.3
+- `maven-compiler-plugin` 3.15.0 (release 25)
+- `maven-surefire-plugin` 3.5.4
 - `maven-shade-plugin` 3.6.0 (packages all dependencies into the executable JAR)
+- `quarkus-maven-plugin` 3.36.0 (CDI build and Quarkus runner generation)
 
 ---
 
@@ -46,11 +49,15 @@ The Maven build uses:
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
+| Component | Version | Purpose |
+|-----------|---------|---------|
 | MCP SDK | 1.1.2 | MCP server framework, JSON-RPC, stdio transport |
 | JMC (common, flightrecorder, rules, rules.jdk) | 9.1.1 | JFR parsing, rules engine, aggregations |
 | Jackson | 2.18.3 | JSON serialization for MCP messages |
 | SLF4J | 2.0.17 | Logging facade |
 | Logback | 1.5.18 | Logging implementation (stderr only) |
+| Quarkus | 3.36.0 | CDI container, lifecycle, REST (future) |
+| Lombok | 1.18.46 | Boilerplate reduction (`@Slf4j`, `@Getter`, `@RequiredArgsConstructor`) |
 | JUnit Jupiter | 5.12.1 | Unit testing |
 | AssertJ | 3.27.3 | Fluent assertions |
 
@@ -86,32 +93,46 @@ after.jfr
 
 ### Package Structure
 
-- **`io.github.deplague.jmcmcp`** — Server bootstrap only.
+- **`io.github.deplague.jmcmcp`** — Server bootstrap (`@QuarkusMain`).
+- **`io.github.deplague.jmcmcp.domain`** — Pure domain layer. No framework annotations. Contains exceptions, records, and domain services.
+- **`io.github.deplague.jmcmcp.application`** — Application layer. Orchestrates domain services, defines ports, handles caching of Records. CDI-friendly.
+- **`io.github.deplague.jmcmcp.adapters.mcp`** — MCP driving adapters. Each adapter implements `McpTool`, defines schema, and formats domain results into Markdown.
+- **`io.github.deplague.jmcmcp.adapters.infrastructure`** — Driven adapters (e.g., `JfrProviderImpl`). Concrete implementations of application ports.
+- **`io.github.deplague.jmcmcp.adapters.http`** — Reserved for future REST endpoints.
 - **`io.github.deplague.jmcmcp.jfr`** — JFR loading, caching, filtering, and low-level item utilities. No MCP-specific code here.
-- **`io.github.deplague.jmcmcp.tools`** — MCP tool implementations. Each tool defines its schema, call handler, and analysis logic.
+- **`io.github.deplague.jmcmcp.tools`** — Legacy MCP tools not yet refactored (Phase 2 will migrate them to `adapters.mcp`).
 
 ---
 
-## How to Add a New Tool
+## How to Add a New Tool (Post-Refactor Pattern)
 
-1. Create a new class in `src/main/java/io/github/deplague/jmcmcp/tools/<Name>Tool.java`.
-2. Follow the existing pattern:
-   - `private static final String NAME = "snake_case_tool_name";`
-   - Constructor takes `JfrAnalysisService` (or no args for special tools like `LiveRecordingTool`).
-   - `public SyncToolSpecification spec()` defines the MCP schema and call handler.
-   - The call handler parses arguments with `SchemaUtil`, checks the cache, calls `analyze(...)`, caches the result, and returns `CallToolResult`.
-   - `analyze(...)` returns a Markdown string.
-3. Register the tool in `JmcMcpServer.java` inside the `tools` list.
-4. Add a unit test in `src/test/java/io/github/deplague/jmcmcp/tools/<Name>ToolTest.java`.
-5. Update `ToolSchemaTest` if tool-name uniqueness is being asserted there.
+**For Phase 1+ tools, follow the Hexagonal Adapter pattern:**
+
+1. **Create the Domain Service** in `domain/service/<Name>Service.java`.
+   - Pure Java, no framework annotations, no Markdown.
+   - Accepts `IItemCollection` and returns a domain Record.
+2. **Create Domain Records** in `domain/model/<Name>Result.java` (and sub-records).
+3. **Create an Application Service** in `application/service/<Name>ApplicationService.java`.
+   - Orchestrates `JfrProvider` + domain service.
+   - Add it to `DomainConfig.java` as a `@Produces` method if needed.
+4. **Create the MCP Adapter** in `adapters/mcp/<Name>Tool.java`.
+   - Implement `McpTool`.
+   - Use `@ApplicationScoped` + `@Inject` for constructor injection.
+   - `spec()` defines schema and call handler.
+   - Call handler delegates to the application service and formats Markdown.
+5. **Add a unit test** in `src/test/java/io/github/deplague/jmcmcp/adapters/mcp/<Name>ToolTest.java`.
+   - Manually wire `JfrProviderImpl` + domain service + application service.
+6. **No manual registration** in `JmcMcpServer.java` — CDI discovers `McpTool` beans automatically.
+
+**Legacy tools** (pre-refactor) remain in `tools/` and are wired manually in `JmcMcpServer.java` until Phase 2 migration.
 
 ### Tool Conventions
 
 - **Schema:** Use `SchemaUtil.objectSchema(SchemaUtil.props(...), SchemaUtil.required(...))`.
 - **Common properties:** Most JFR analysis tools accept `jfr_file_path`, `start_time`, and `end_time` (ISO-8601). Reuse `SchemaUtil.commonJfrProps()`.
 - **Optional args:** Use `SchemaUtil.getStringOrDefault`, `getIntOrDefault`, etc. The MCP client may send integers as strings.
-- **Caching:** Wrap analysis with `service.getCachedResult(filePath, NAME, request.arguments())` and `service.cacheResult(...)`.
-- **Time filtering:** Call `service.filterByTimeRange(events, startTimeStr, endTimeStr)` before analysis.
+- **Caching:** Application services may cache domain Records (not Markdown strings). Legacy tools still use `JfrAnalysisService` string caching.
+- **Time filtering:** Application services call `jfrProvider.filterByTimeRange(events, startTimeStr, endTimeStr)` before analysis.
 - **Error handling:** Catch exceptions in the call handler and return `CallToolResult.builder().addTextContent("Error: " + e.getMessage()).isError(true).build()`.
 - **Output format:** Return Markdown. Start with `# Title`. Use tables where appropriate. End with an `<agent_hint>` block suggesting related tools.
 - **Stack traces:** Use `JfrItemUtils.formatStackTrace(obj, maxFrames)` for truncated traces or `JfrItemUtils.formatFullStackTrace(obj)` for complete traces.
@@ -185,7 +206,13 @@ The codebase follows a consistent but lightweight style:
 - **Imports:** `java.*` first, then third-party, then project-local. No wildcard imports.
 - **Class design:** Tool classes are `public final`. Utility classes (`SchemaUtil`, `JfrItemUtils`) have private constructors.
 - **Records:** Freely use Java records for internal DTOs (e.g., `WaterfallEvent`, `RecordingOverview`).
-- **Logging:** Use SLF4J `LoggerFactory.getLogger(ClassName.class)`. Log at `INFO` for lifecycle events, `DEBUG` for cache hits, `WARN` for parse failures.
+- **Lombok (MANDATORY):** Use Lombok annotations everywhere to reduce boilerplate:
+  - `@Slf4j` on every class that logs (replaces `LoggerFactory.getLogger(...)`).
+  - `@RequiredArgsConstructor` on CDI beans and domain services with final fields.
+  - `@Getter` / `@Value` on domain records if additional accessors are needed.
+  - `@Builder` for complex configuration objects.
+  - **Domain layer rule:** Domain classes (`domain.*`) must remain free of Quarkus/Jakarta annotations, but Lombok annotations are **allowed** because they are compile-only and do not couple to the runtime framework.
+- **Logging:** Use `@Slf4j` + `log.info(...)`, `log.debug(...)`, `log.warn(...)`. Never use `System.out`.
 - **String building:** Use `StringBuilder` for large Markdown outputs.
 - **No external JSON libraries** for schema building — use `SchemaUtil` and `Map<String, Object>`.
 - **Null safety:** Prefer `Optional` for accessor lookups in `JfrItemUtils`; tools should handle missing events gracefully.
@@ -194,20 +221,25 @@ The codebase follows a consistent but lightweight style:
 
 ## Runtime Architecture
 
-1. `JmcMcpServer.main` starts the server.
-2. A single `JfrRecordingCache` and `JfrAnalysisService` are instantiated.
-3. All tool instances are created and registered with the `McpSyncServer`.
-4. `StdioServerTransportProvider` blocks on stdin, dispatching JSON-RPC `tools/call` requests to the appropriate tool handler.
-5. The handler loads the JFR recording (cached), optionally filters by time range, runs analysis, and returns Markdown text content.
+1. `JmcMcpServer` is a `@QuarkusMain` implementing `QuarkusApplication`.
+2. Quarkus CDI bootstraps the container and injects all `@ApplicationScoped` beans.
+3. `JmcMcpServer.run()` discovers refactored tools via `Instance<McpTool>` and manually wires legacy tools.
+4. All tools are registered with the `McpSyncServer`.
+5. `StdioServerTransportProvider` blocks on stdin, dispatching JSON-RPC `tools/call` requests to the appropriate tool handler.
+6. Refactored tool handlers delegate to application services, which orchestrate domain services and infrastructure adapters.
+7. The handler returns Markdown text content.
 
 ### Caching Layers
 
 1. **Recording cache (`JfrRecordingCache`):** Maps absolute file paths to parsed `IItemCollection` objects. Thread-safe via `ConcurrentHashMap`.
-2. **Result cache (`JfrAnalysisService`):** Maps `(filePath, toolName, args)` to the resulting Markdown string. LRU eviction (max 50 entries) via synchronized `LinkedHashMap`.
+2. **Legacy result cache (`JfrAnalysisService`):** Maps `(filePath, toolName, args)` to the resulting Markdown string. LRU eviction via synchronized `LinkedHashMap`.
+3. **Future:** Application services will cache domain Records before formatting.
 
-### Important Runtime Constraint
+### Important Runtime Constraints
 
-**Never write to stdout.** stdout is owned by the MCP transport. All diagnostic output must go through SLF4J → logback → stderr. The `logback.xml` explicitly targets `System.err`.
+- **Never write to stdout.** stdout is owned by the MCP transport. All diagnostic output must go through SLF4J → logback → stderr.
+- **Quarkus logging** (`application.properties`) is configured to write to `stderr` only.
+- **Domain purity:** No class under `domain.*` may import `io.modelcontextprotocol.*`, `jakarta.*`, `io.quarkus.*`, or HTTP/web framework classes. Lombok is the only allowed compile-time dependency in the domain layer.
 
 ---
 
