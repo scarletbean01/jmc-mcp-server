@@ -1,7 +1,12 @@
 package io.github.deplague.jmcmcp.tools;
 
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
+import io.github.deplague.jmcmcp.adapters.infrastructure.JfrProviderImpl;
+import io.github.deplague.jmcmcp.adapters.mcp.VirtualThreadsTool;
+import io.github.deplague.jmcmcp.application.port.JfrProvider;
+import io.github.deplague.jmcmcp.application.service.VirtualThreadsApplicationService;
+import io.github.deplague.jmcmcp.domain.service.VirtualThreadsService;
 import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.security.RecordingAccessController;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
@@ -20,7 +25,6 @@ class VirtualThreadsToolTest {
     private static String beforePath;
 
     private JfrRecordingCache cache;
-    private JfrAnalysisService service;
     private VirtualThreadsTool tool;
 
     @BeforeAll
@@ -41,8 +45,11 @@ class VirtualThreadsToolTest {
     @BeforeEach
     void setUp() {
         cache = new JfrRecordingCache();
-        service = new JfrAnalysisService(cache);
-        tool = new VirtualThreadsTool(service);
+        RecordingAccessController accessController = new RecordingAccessController();
+        JfrProvider jfrProvider = new JfrProviderImpl(cache, accessController);
+        VirtualThreadsService domainService = new VirtualThreadsService();
+        VirtualThreadsApplicationService appService = new VirtualThreadsApplicationService(jfrProvider, domainService);
+        tool = new VirtualThreadsTool(appService);
     }
 
     @Test
