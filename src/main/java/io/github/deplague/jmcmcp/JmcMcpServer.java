@@ -107,7 +107,6 @@ public final class JmcMcpServer implements QuarkusApplication {
 
         // Register legacy tools (not yet refactored to adapters)
         tools.addAll(List.of(
-                new GcDetailTool(analysisService).spec(),
                 new IoHotspotsTool(analysisService).spec(),
                 new ThreadActivityTool(analysisService).spec(),
                 new GcAnalysisTool(analysisService).spec(),
@@ -117,13 +116,10 @@ public final class JmcMcpServer implements QuarkusApplication {
                 new TimeSeriesTool(analysisService).spec(),
                 new CompareRecordingsTool(analysisService).spec(),
                 new ErrorAnalysisTool(analysisService).spec(),
-                new HeapTrendsTool(analysisService).spec(),
                 new NetworkAnalysisTool(analysisService).spec(),
                 new LockAnalysisTool(analysisService).spec(),
                 new ThreadCpuTool(analysisService).spec(),
                 new HighCpuDiagnosticTool(analysisService).spec(),
-                new PredictiveLeakAnalysisTool(analysisService).spec(),
-                new GcRecommendationsTool(analysisService).spec(),
                 new ThreadPoolAnalysisTool(analysisService).spec(),
                 // Phase 1 new tools
                 new StackTraceSearchTool(analysisService).spec(),

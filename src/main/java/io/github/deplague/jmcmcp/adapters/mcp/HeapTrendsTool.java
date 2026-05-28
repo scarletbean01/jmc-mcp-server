@@ -1,56 +1,76 @@
-package io.github.deplague.jmcmcp.tools;
+package io.github.deplague.jmcmcp.adapters.mcp;
 
+import io.github.deplague.jmcmcp.application.service.HeapTrendsApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HeapBucketEntry;
 import io.github.deplague.jmcmcp.domain.model.HeapTrendsResult;
 import io.github.deplague.jmcmcp.domain.model.MetaspaceBucketEntry;
 import io.github.deplague.jmcmcp.domain.model.MetricSummary;
 import io.github.deplague.jmcmcp.domain.model.ThreadBucketEntry;
-import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.JfrProviderImpl;
-import io.github.deplague.jmcmcp.application.service.HeapTrendsApplicationService;
-import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
-import io.github.deplague.jmcmcp.jfr.JfrAnalysisService;
-import io.github.deplague.jmcmcp.jfr.JfrRecordingCache;
-import io.github.deplague.jmcmcp.security.RecordingAccessController;
+import io.github.deplague.jmcmcp.tools.SchemaUtil;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
-
-import java.io.IOException;
-import org.openjdk.jmc.common.item.IItemCollection;
+import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 /**
- * LEGACY WRAPPER for {@link io.github.deplague.jmcmcp.adapters.mcp.HeapTrendsTool}.
- * <p>
- * This class is retained because {@link QuickAnalysisTool} instantiates it directly
- * via {@code new HeapTrendsTool(service).analyze(...)}. Do not remove without updating
- * the macro tool.
+ * MCP tool adapter for heap, metaspace and thread trend analysis.
  */
-public final class HeapTrendsTool {
+@RequiredArgsConstructor(onConstructor_ = @Inject)
+@ApplicationScoped
+public final class HeapTrendsTool implements McpTool {
 
-    private final JfrAnalysisService service;
-    private final io.github.deplague.jmcmcp.adapters.mcp.HeapTrendsTool adapter;
+    private static final String NAME = "heap_trends";
 
-    public HeapTrendsTool(JfrAnalysisService service) {
-        this.service = service;
-        JfrRecordingCache cache = service.getRecordingCache();
-        RecordingAccessController accessController = new RecordingAccessController();
-        JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        HeapTrendsService domainService = new HeapTrendsService();
-        HeapTrendsApplicationService appService = new HeapTrendsApplicationService(
-                jfrProvider, domainService
-        );
-        this.adapter = new io.github.deplague.jmcmcp.adapters.mcp.HeapTrendsTool(appService);
-    }
+    private final HeapTrendsApplicationService appService;
 
+    @Override
     public SyncToolSpecification spec() {
-        return adapter.spec();
-    }
+        return SyncToolSpecification.builder()
+                .tool(
+                        McpSchema.Tool.builder()
+                                .name(NAME)
+                                .description(
+                                        "Analyze heap, metaspace, and thread count trends over time in a JFR recording. "
+                                                + "Buckets memory usage by time intervals to detect memory leaks and growth patterns."
+                                )
+                                .inputSchema(
+                                        SchemaUtil.objectSchema(
+                                                SchemaUtil.props(
+                                                        "jfr_file_path", SchemaUtil.jfrFileProp(),
+                                                        "start_time", SchemaUtil.startTimeProp(),
+                                                        "end_time", SchemaUtil.endTimeProp(),
+                                                        "bucket_size", SchemaUtil.stringProp(
+                                                                "Interval bucket size (e.g., '10s', '1m', '5m'). Default is '1m'."
+                                                        )
+                                                ),
+                                                SchemaUtil.required("jfr_file_path")
+                                        )
+                                )
+                                .build()
+                )
+                .callHandler((exchange, request) -> {
+                    try {
+                        String filePath = SchemaUtil.getString(request.arguments(), "jfr_file_path");
+                        String startTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "start_time", null);
+                        String endTimeStr = SchemaUtil.getStringOrDefault(request.arguments(), "end_time", null);
+                        String bucketSizeStr = SchemaUtil.getStringOrDefault(request.arguments(), "bucket_size", "1m");
 
-    public String analyze(String filePath, String startTimeStr, String endTimeStr, String bucketSizeStr) throws IOException {
-        IItemCollection allEvents = service.loadRecording(filePath);
-        IItemCollection events = service.filterByTimeRange(allEvents, startTimeStr, endTimeStr);
-
-        HeapTrendsResult result = new HeapTrendsService().analyze(events, bucketSizeStr);
-        return formatMarkdown(result);
+                        HeapTrendsResult result = appService.analyze(filePath, startTimeStr, endTimeStr, bucketSizeStr);
+                        String markdown = formatMarkdown(result);
+                        return CallToolResult.builder()
+                                .addTextContent(markdown)
+                                .isError(false)
+                                .build();
+                    } catch (Exception e) {
+                        return CallToolResult.builder()
+                                .addTextContent("Error: " + e.getMessage())
+                                .isError(true)
+                                .build();
+                    }
+                })
+                .build();
     }
 
     private String formatMarkdown(HeapTrendsResult result) {

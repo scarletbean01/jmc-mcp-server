@@ -14,6 +14,8 @@ import io.github.deplague.jmcmcp.domain.service.DirectBuffersService;
 import io.github.deplague.jmcmcp.domain.service.EventSchemaService;
 import io.github.deplague.jmcmcp.domain.service.ExceptionAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.GcCauseService;
+import io.github.deplague.jmcmcp.domain.service.GcDetailService;
+import io.github.deplague.jmcmcp.domain.service.GcRecommendationsService;
 import io.github.deplague.jmcmcp.domain.service.HotMethodsService;
 import io.github.deplague.jmcmcp.domain.service.IncidentTimelineService;
 import io.github.deplague.jmcmcp.domain.service.IoAnalysisService;
@@ -23,8 +25,10 @@ import io.github.deplague.jmcmcp.domain.service.JfrOverviewService;
 import io.github.deplague.jmcmcp.domain.service.JfrRulesService;
 import io.github.deplague.jmcmcp.domain.service.JitCompilationService;
 import io.github.deplague.jmcmcp.domain.service.LockFlameService;
+import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
 import io.github.deplague.jmcmcp.domain.service.MemoryLeaksService;
 import io.github.deplague.jmcmcp.domain.service.NativeMemoryService;
+import io.github.deplague.jmcmcp.domain.service.PredictiveLeakAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.ObjectStatisticsService;
 import io.github.deplague.jmcmcp.domain.service.SafepointAnalysisService;
 import io.github.deplague.jmcmcp.domain.service.ProcessInfoService;
@@ -196,6 +200,30 @@ public class DomainConfig {
     @ApplicationScoped
     public BlockingSummaryService blockingSummaryService() {
         return new BlockingSummaryService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public GcDetailService gcDetailService() {
+        return new GcDetailService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public GcRecommendationsService gcRecommendationsService() {
+        return new GcRecommendationsService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public PredictiveLeakAnalysisService predictiveLeakAnalysisService() {
+        return new PredictiveLeakAnalysisService();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public HeapTrendsService heapTrendsService() {
+        return new HeapTrendsService();
     }
 
     @Produces
