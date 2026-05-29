@@ -111,7 +111,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 
 ## Requirements
 
-- Java 21 or later
+- Java 25 or later
 - Maven 3.9+ (for building)
 
 ## Build
@@ -420,31 +420,36 @@ Use `health_check` to monitor server state:
 
 ## Architecture
 
-The project is transitioning to a **Hexagonal Architecture** (Ports and Adapters) to improve maintainability and testability.
+The project follows a strict **Hexagonal Architecture** (Ports & Adapters) to ensure that the core JFR analysis logic remains decoupled from the delivery mechanisms (MCP, CLI) and external frameworks (Quarkus, JMC).
+
+### Dependency Rule
+**Dependencies point inward.** The Domain layer has zero knowledge of the Application layer, which in turn has zero knowledge of the Adapters.
+
+### Project Structure
 
 ```
-jmc-mcp/
-  JmcMcpServer.java              # Entry point, MCP server bootstrap (QuarkusMain)
-  adapters/
-    mcp/                         # MCP driving adapters (implements McpTool)
-    infrastructure/              # Concrete implementations of application ports (e.g., JFR loading)
-  application/
-    service/                     # Use case orchestration (caching, port usage)
-    port/                        # Interfaces for infrastructure
-  domain/
-    service/                     # Pure JFR analysis logic (reflection-free)
-    model/                       # Domain entities and analysis result records
-  async/
-    AsyncJobService.java           # Background job execution & polling
-  jfr/
-    JfrRecordingCache.java         # Smart cache: TTL, file-change detection, SoftReference
-    JfrItemUtils.java              # Reflection-free attribute extraction & stack traces
-  security/
-    RecordingAccessController.java # Path validation & traversal protection
-  tools/
-    SchemaUtil.java                # MCP JSON schema helpers
-    *Tool.java                     # Legacy MCP tool implementations
+src/main/java/io/github/deplague/jmcmcp/
+  ├── infrastructure/         # TECHNICAL: The implementation layer
+  │   ├── mcp/                # DRIVING: Declarative adapters (@Tool, @Resource)
+  │   │   └── resources/      # MCP Resource definitions
+  │   ├── jfr/                # OUTBOUND: Port implementations (JFR Loading, Caching)
+  │   │   └── util/           # Low-level JMC access (AccessorRepo, Aggregators)
+  │   └── security/           # Technical Guards (Access Control)
+  ├── application/
+  │   ├── port/               # Interface definitions for Outbound adapters
+  │   └── service/            # Use case orchestrators (return Domain Records)
+  ├── domain/
+  │   ├── model/              # Pure Java Records (Result types)
+  │   ├── service/            # Core analysis logic (Pure Java + JMC Core)
+  │   └── util/               # Math and logic utilities
+  └── JmcMcpServer.java       # Infrastructure: Quarkus bootstrap & lifecycle
 ```
+
+### Engineering Standards
+- **Declarative Tool Pattern:** Tools use Quarkus MCP `@Tool`, `@ToolArg`, and `@RunOnVirtualThread`.
+- **JFR Infrastructure:** Low-level JMC interactions are modularized via the `JfrItemUtils` facade.
+- **Modern Java:** Uses Java 25 features (Records, Pattern Matching) and Lombok.
+- **Logging:** All diagnostic output goes to stderr via SLF4J.
 
 ## Development & Agent Documentation
 

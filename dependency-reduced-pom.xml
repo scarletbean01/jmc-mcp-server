@@ -26,6 +26,13 @@
         <version>${compiler-plugin.version}</version>
         <configuration>
           <parameters>true</parameters>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
+            </path>
+          </annotationProcessorPaths>
         </configuration>
       </plugin>
       <plugin>
@@ -180,6 +187,12 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>1.18.46</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <version>5.12.1</version>
@@ -228,6 +241,13 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <dependency>
+        <groupId>io.quarkiverse.mcp</groupId>
+        <artifactId>quarkus-mcp-server-bom</artifactId>
+        <version>${quarkus-mcp-server-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <properties>
@@ -236,8 +256,10 @@
     <maven.compiler.source>25</maven.compiler.source>
     <jackson.version>2.18.3</jackson.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+    <quarkus-mcp-server-bom.version>1.12.0</quarkus-mcp-server-bom.version>
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <lombok.version>1.18.46</lombok.version>
     <mcp.sdk.version>1.1.2</mcp.sdk.version>
     <surefire-plugin.version>3.5.4</surefire-plugin.version>
     <maven.compiler.target>25</maven.compiler.target>
