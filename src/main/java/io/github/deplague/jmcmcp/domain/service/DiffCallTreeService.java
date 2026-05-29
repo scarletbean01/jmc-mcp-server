@@ -1,21 +1,28 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeData;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.flightrecorder.stacktrace.FrameSeparator;
+import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
+import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.flightrecorder.stacktrace.FrameSeparator;
-import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
-import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache.*;
+import static java.lang.Math.abs;
+import static org.openjdk.jmc.common.item.ItemFilters.or;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.stacktrace.FrameSeparator.FrameCategorization.METHOD;
 
 /**
  * Pure domain service for building a diff call tree between two JFR recordings.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class DiffCallTreeService {
 
     public DiffCallTreeData analyze(IItemCollection baselineEvents, IItemCollection targetEvents, String subsystem) {
@@ -27,40 +34,40 @@ public final class DiffCallTreeService {
         }
 
         StacktraceTreeModel baselineTree = baselineFiltered.hasItems()
-                ? new StacktraceTreeModel(baselineFiltered, new FrameSeparator(FrameSeparator.FrameCategorization.METHOD, false), false)
+                ? new StacktraceTreeModel(baselineFiltered, new FrameSeparator(METHOD, false), false)
                 : null;
         StacktraceTreeModel targetTree = targetFiltered.hasItems()
-                ? new StacktraceTreeModel(targetFiltered, new FrameSeparator(FrameSeparator.FrameCategorization.METHOD, false), false)
+                ? new StacktraceTreeModel(targetFiltered, new FrameSeparator(METHOD, false), false)
                 : null;
 
         Node baselineRoot = baselineTree != null ? baselineTree.getRoot() : null;
         Node targetRoot = targetTree != null ? targetTree.getRoot() : null;
 
-        double baselineTotal = baselineRoot != null ? CallTreeCache.computeTotalSamples(baselineRoot) : 0;
-        double targetTotal = targetRoot != null ? CallTreeCache.computeTotalSamples(targetRoot) : 0;
+        double baselineTotal = baselineRoot != null ? computeTotalSamples(baselineRoot) : 0;
+        double targetTotal = targetRoot != null ? computeTotalSamples(targetRoot) : 0;
 
-        CallTreeCache.DiffTreeNode diffRoot = buildDiffTree(baselineRoot, targetRoot, "root");
+        DiffTreeNode diffRoot = buildDiffTree(baselineRoot, targetRoot, "root");
 
         return new DiffCallTreeData(diffRoot, baselineTotal, targetTotal, true);
     }
 
     public static IItemCollection filterBySubsystem(IItemCollection events, String subsystem) {
         return switch (subsystem.toLowerCase()) {
-            case "cpu" -> events.apply(ItemFilters.type("jdk.ExecutionSample"));
-            case "socket" -> events.apply(ItemFilters.or(
-                    ItemFilters.type("jdk.SocketRead"),
-                    ItemFilters.type("jdk.SocketWrite")
+            case "cpu" -> events.apply(type("jdk.ExecutionSample"));
+            case "socket" -> events.apply(or(
+                    type("jdk.SocketRead"),
+                    type("jdk.SocketWrite")
             ));
-            case "file" -> events.apply(ItemFilters.or(
-                    ItemFilters.type("jdk.FileRead"),
-                    ItemFilters.type("jdk.FileWrite")
+            case "file" -> events.apply(or(
+                    type("jdk.FileRead"),
+                    type("jdk.FileWrite")
             ));
-            case "lock" -> events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
+            case "lock" -> events.apply(type("jdk.JavaMonitorEnter"));
             default -> events;
         };
     }
 
-    public static CallTreeCache.DiffTreeNode buildDiffTree(Node baselineNode, Node targetNode, String methodNameFallback) {
+    public static DiffTreeNode buildDiffTree(Node baselineNode, Node targetNode, String methodNameFallback) {
         String methodName = resolveMethodName(baselineNode, targetNode, methodNameFallback);
         double baselineWeight = baselineNode != null ? baselineNode.getWeight() : 0;
         double targetWeight = targetNode != null ? targetNode.getWeight() : 0;
@@ -74,7 +81,7 @@ public final class DiffCallTreeService {
             changeType = "removed";
         } else if (baselineCumulative > 0) {
             double pctChange = ((targetCumulative - baselineCumulative) / baselineCumulative) * 100.0;
-            changeType = Math.abs(pctChange) > 20.0 ? "changed" : "unchanged";
+            changeType = abs(pctChange) > 20.0 ? "changed" : "unchanged";
         } else {
             changeType = "unchanged";
         }
@@ -90,23 +97,23 @@ public final class DiffCallTreeService {
             }
         }
 
-        List<CallTreeCache.DiffTreeNode> children = new ArrayList<>();
+        List<DiffTreeNode> children = new ArrayList<>();
         for (String sig : allSignatures) {
             Node bChild = baselineChildren.get(sig);
             Node tChild = targetChildren.get(sig);
             children.add(buildDiffTree(bChild, tChild, sig));
         }
 
-        return new CallTreeCache.DiffTreeNode(methodName, baselineWeight, targetWeight,
+        return new DiffTreeNode(methodName, baselineWeight, targetWeight,
                 baselineCumulative, targetCumulative, changeType, children);
     }
 
     private static String resolveMethodName(Node baselineNode, Node targetNode, String fallback) {
         if (baselineNode != null && baselineNode.getFrame() != null && baselineNode.getFrame().getMethod() != null) {
-            return CallTreeCache.formatMethodName(baselineNode);
+            return formatMethodName(baselineNode);
         }
         if (targetNode != null && targetNode.getFrame() != null && targetNode.getFrame().getMethod() != null) {
-            return CallTreeCache.formatMethodName(targetNode);
+            return formatMethodName(targetNode);
         }
         return fallback;
     }

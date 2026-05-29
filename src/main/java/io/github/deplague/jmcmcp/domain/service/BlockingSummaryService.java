@@ -4,30 +4,35 @@ import io.github.deplague.jmcmcp.domain.model.BlockingReasonEntry;
 import io.github.deplague.jmcmcp.domain.model.BlockingSummaryResult;
 import io.github.deplague.jmcmcp.domain.model.CategoryDistributionEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadBlockingEntry;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static java.lang.Long.compare;
+import static java.util.Map.Entry;
+import static java.util.Map.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for blocking event aggregation.
  */
 @Slf4j
+@ApplicationScoped
 public final class BlockingSummaryService {
 
     public BlockingSummaryResult analyze(IItemCollection events, int topN) {
-        Map<String, String> eventToCategory = Map.of(
+        Map<String, String> eventToCategory = of(
                 "jdk.JavaMonitorEnter", "MONITOR_ENTER",
                 "jdk.JavaMonitorWait", "MONITOR_WAIT",
                 "jdk.ThreadPark", "PARK",
@@ -45,25 +50,30 @@ public final class BlockingSummaryService {
         long totalBlockedEvents = 0;
         long totalBlockedNanos = 0;
 
-        for (Map.Entry<String, String> entry : eventToCategory.entrySet()) {
+        for (Entry<String, String> entry : eventToCategory.entrySet()) {
             String eventType = entry.getKey();
             String category = entry.getValue();
 
-            IItemCollection filteredEvents = events.apply(ItemFilters.type(eventType));
+            IItemCollection filteredEvents = events.apply(type(eventType));
             for (IItemIterable iterable : filteredEvents) {
-                IMemberAccessor<Object, IItem> threadAccessor = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
-                IMemberAccessor<Object, IItem> monitorClassAccessor = JfrItemUtils.getAccessor(iterable.getType(), "monitorClass");
-                IMemberAccessor<String, IItem> filePathAccessor = JfrItemUtils.getAccessor(iterable.getType(), "path");
-                IMemberAccessor<String, IItem> hostAccessor = JfrItemUtils.getAccessor(iterable.getType(), "host");
+                IType<?> type4 = iterable.getType();
+                IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type4, "eventThread");
+                IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+                IType<?> type3 = iterable.getType();
+                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type3, "stackTrace");
+                IType<?> type2 = iterable.getType();
+                IMemberAccessor<Object, IItem> monitorClassAccessor = getAccessor(type2, "monitorClass");
+                IType<?> type1 = iterable.getType();
+                IMemberAccessor<String, IItem> filePathAccessor = getAccessor(type1, "path");
+                IType<?> type = iterable.getType();
+                IMemberAccessor<String, IItem> hostAccessor = getAccessor(type, "host");
 
                 if (durationAccessor != null) {
                     for (IItem item : iterable) {
                         IQuantity duration = durationAccessor.getMember(item);
                         if (duration == null) continue;
 
-                        long nanos = duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                        long nanos = duration.clampedLongValueIn(NANOSECOND);
                         totalBlockedNanos += nanos;
                         totalBlockedEvents++;
 
@@ -86,7 +96,7 @@ public final class BlockingSummaryService {
                             detail = hostAccessor.getMember(item);
                         } else if (stackAccessor != null) {
                             Object st = stackAccessor.getMember(item);
-                            if (st != null) detail = JfrItemUtils.formatStackTrace(st, 1).trim();
+                            if (st != null) detail = formatStackTrace(st, 1).trim();
                         }
 
                         BlockSite site = new BlockSite(category, detail);
@@ -102,17 +112,17 @@ public final class BlockingSummaryService {
         }
 
         List<ThreadBlockingEntry> perThread = threadStatsMap.values().stream()
-                .sorted((a, b) -> Long.compare(b.totalNanos, a.totalNanos))
+                .sorted((a, b) -> compare(b.totalNanos, a.totalNanos))
                 .limit(topN)
                 .map(ts -> {
                     String topCategory = ts.categoryNanos.entrySet().stream()
-                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                            .map(Map.Entry::getKey)
+                            .sorted(Entry.<String, Long>comparingByValue().reversed())
+                            .map(Entry::getKey)
                             .findFirst().orElse("N/A");
                     return new ThreadBlockingEntry(
                             ts.name,
-                            UnitLookup.NANOSECOND.quantity(ts.totalNanos)
-                                    .displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO),
+                            NANOSECOND.quantity(ts.totalNanos)
+                                    .displayUsing(AUTO),
                             ts.count,
                             topCategory,
                             ts.categoryNanos
@@ -121,38 +131,38 @@ public final class BlockingSummaryService {
                 .toList();
 
         List<BlockingReasonEntry> topReasons = siteStatsMap.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalNanos, a.getValue().totalNanos))
+                .sorted((a, b) -> compare(b.getValue().totalNanos, a.getValue().totalNanos))
                 .limit(topN)
                 .map(e -> new BlockingReasonEntry(
                         e.getKey().category,
                         e.getKey().detail,
-                        UnitLookup.NANOSECOND.quantity(e.getValue().totalNanos)
-                                .displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO),
+                        NANOSECOND.quantity(e.getValue().totalNanos)
+                                .displayUsing(AUTO),
                         e.getValue().count
                 ))
                 .toList();
 
-        java.util.concurrent.atomic.AtomicBoolean monitorContentionDetected = new java.util.concurrent.atomic.AtomicBoolean(false);
+        AtomicBoolean monitorContentionDetected = new AtomicBoolean(false);
         List<CategoryDistributionEntry> distribution = categoryStatsMap.values().stream()
-                .sorted((a, b) -> Long.compare(b.totalNanos, a.totalNanos))
+                .sorted((a, b) -> compare(b.totalNanos, a.totalNanos))
                 .map(cs -> {
                     if (cs.category.equals("MONITOR_ENTER") || cs.category.equals("MONITOR_WAIT")) {
                         monitorContentionDetected.set(true);
                     }
                     return new CategoryDistributionEntry(
                             cs.category,
-                            UnitLookup.NANOSECOND.quantity(cs.totalNanos)
-                                    .displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO),
+                            NANOSECOND.quantity(cs.totalNanos)
+                                    .displayUsing(AUTO),
                             cs.count,
-                            UnitLookup.NANOSECOND.quantity(cs.totalNanos / cs.count)
-                                    .displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO)
+                            NANOSECOND.quantity(cs.totalNanos / cs.count)
+                                    .displayUsing(AUTO)
                     );
                 })
                 .toList();
 
         return new BlockingSummaryResult(
-                UnitLookup.NANOSECOND.quantity(totalBlockedNanos)
-                        .displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO),
+                NANOSECOND.quantity(totalBlockedNanos)
+                        .displayUsing(AUTO),
                 totalBlockedEvents,
                 perThread,
                 topReasons,

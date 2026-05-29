@@ -1,7 +1,8 @@
 package io.github.deplague.jmcmcp.application.port;
 
-import java.io.IOException;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Port for loading and filtering JFR recordings.

@@ -3,48 +3,53 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadFailure;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadPinningSite;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadsResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for virtual thread analysis.
  */
 @Slf4j
+@ApplicationScoped
 public final class VirtualThreadsService {
 
     public VirtualThreadsResult analyze(IItemCollection events, int topN) {
-        IItemCollection pinned = events.apply(ItemFilters.type("jdk.VirtualThreadPinned"));
-        IItemCollection submitFailed = events.apply(ItemFilters.type("jdk.VirtualThreadSubmitFailed"));
-        IItemCollection sleepFailed = events.apply(ItemFilters.type("jdk.VirtualThreadSleepFailed"));
+        IItemCollection pinned = events.apply(type("jdk.VirtualThreadPinned"));
+        IItemCollection submitFailed = events.apply(type("jdk.VirtualThreadSubmitFailed"));
+        IItemCollection sleepFailed = events.apply(type("jdk.VirtualThreadSleepFailed"));
 
-        long pinnedCount = JfrItemUtils.count(pinned);
-        long submitFailedCount = JfrItemUtils.count(submitFailed);
-        long sleepFailedCount = JfrItemUtils.count(sleepFailed);
+        long pinnedCount = count(pinned);
+        long submitFailedCount = count(submitFailed);
+        long sleepFailedCount = count(sleepFailed);
 
         if (pinnedCount == 0 && submitFailedCount == 0 && sleepFailedCount == 0) {
-            return new VirtualThreadsResult(0, 0, 0, List.of(), List.of(), List.of(), false);
+            return new VirtualThreadsResult(0, 0, 0, of(), of(), of(), false);
         }
 
         List<VirtualThreadPinningSite> pinningSites = new ArrayList<>();
         if (pinnedCount > 0) {
             Map<String, Long> pinningMap = new HashMap<>();
             for (IItemIterable iterable : pinned) {
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IType<?> type = iterable.getType();
+                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
                 if (stackAccessor != null) {
                     for (IItem item : iterable) {
                         Object stack = stackAccessor.getMember(item);
                         if (stack != null) {
-                            String trace = JfrItemUtils.formatStackTrace(stack, 5);
+                            String trace = formatStackTrace(stack, 5);
                             pinningMap.merge(trace, 1L, Long::sum);
                         }
                     }
@@ -52,7 +57,7 @@ public final class VirtualThreadsService {
             }
 
             pinningSites = pinningMap.entrySet().stream()
-                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .sorted(Entry.<String, Long>comparingByValue().reversed())
                     .limit(topN)
                     .map(e -> new VirtualThreadPinningSite(
                             e.getKey(),
@@ -79,7 +84,8 @@ public final class VirtualThreadsService {
     private List<VirtualThreadFailure> extractFailures(IItemCollection events) {
         Map<String, Long> exceptions = new HashMap<>();
         for (IItemIterable iterable : events) {
-            IMemberAccessor<String, IItem> msgAccessor = JfrItemUtils.getAccessor(iterable.getType(), "exception");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> msgAccessor = getAccessor(type, "exception");
             if (msgAccessor != null) {
                 for (IItem item : iterable) {
                     String msg = msgAccessor.getMember(item);
@@ -88,7 +94,7 @@ public final class VirtualThreadsService {
             }
         }
         return exceptions.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<String, Long>comparingByValue().reversed())
                 .map(e -> new VirtualThreadFailure(e.getKey(), e.getValue()))
                 .toList();
     }

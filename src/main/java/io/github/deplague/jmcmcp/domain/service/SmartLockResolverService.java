@@ -4,49 +4,56 @@ import io.github.deplague.jmcmcp.domain.model.BlockedTraceEntry;
 import io.github.deplague.jmcmcp.domain.model.HolderActivity;
 import io.github.deplague.jmcmcp.domain.model.LockHolderIssue;
 import io.github.deplague.jmcmcp.domain.model.SmartLockResolverResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
-import org.openjdk.jmc.common.IDisplayable;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCStackTrace;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+import java.util.regex.Pattern;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static java.lang.Long.compare;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.regex.Pattern.compile;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for smart lock resolver analysis.
  */
+@ApplicationScoped
 public final class SmartLockResolverService {
 
-    private static final Pattern IO_PATTERN = Pattern.compile(
+    private static final Pattern IO_PATTERN = compile(
             "java\\.net\\.Socket|java\\.io\\.File|java\\.nio\\.channels|sun\\.nio\\.ch");
-    private static final Pattern SQL_PATTERN = Pattern.compile(
+    private static final Pattern SQL_PATTERN = compile(
             "java\\.sql\\.|oracle\\.jdbc|org\\.postgresql|com\\.mysql|org\\.h2|com\\.microsoft\\.sqlserver");
 
     public SmartLockResolverResult analyze(IItemCollection events, int topN) {
-        IItemCollection monitorEnters = events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
+        IItemCollection monitorEnters = events.apply(type("jdk.JavaMonitorEnter"));
         if (!monitorEnters.hasItems()) {
-            return new SmartLockResolverResult(false, 0, List.of());
+            return new SmartLockResolverResult(false, 0, of());
         }
 
         Map<LockHolderKey, LockHolderStats> holderStats = new HashMap<>();
         Map<IMCStackTrace, String> traceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : monitorEnters) {
-            IMemberAccessor<Object, IItem> monitorClassAcc = JfrItemUtils.getAccessor(iterable.getType(), "monitorClass");
-            IMemberAccessor<Object, IItem> prevOwnerAcc = JfrItemUtils.getAccessor(iterable.getType(), "previousOwner");
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type4 = iterable.getType();
+            IMemberAccessor<Object, IItem> monitorClassAcc = getAccessor(type4, "monitorClass");
+            IType<?> type3 = iterable.getType();
+            IMemberAccessor<Object, IItem> prevOwnerAcc = getAccessor(type3, "previousOwner");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type2, DURATION.getIdentifier());
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
 
             if (monitorClassAcc == null || prevOwnerAcc == null || durationAcc == null) {
                 continue;
@@ -66,13 +73,13 @@ public final class SmartLockResolverService {
                 String monitorClass = monitorClassObj.toString();
                 String holderName = extractThreadName(prevOwnerObj);
                 String blockedThread = threadObj != null ? extractThreadName(threadObj) : "unknown";
-                long nanos = duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                long nanos = duration.clampedLongValueIn(NANOSECOND);
 
                 String blockedTrace;
                 if (stackObj instanceof IMCStackTrace st) {
-                    blockedTrace = traceCache.computeIfAbsent(st, k -> JfrItemUtils.formatStackTrace(k, 5));
+                    blockedTrace = traceCache.computeIfAbsent(st, k -> formatStackTrace(k, 5));
                 } else {
-                    blockedTrace = JfrItemUtils.formatStackTrace(stackObj, 5);
+                    blockedTrace = formatStackTrace(stackObj, 5);
                 }
 
                 LockHolderKey key = new LockHolderKey(monitorClass, holderName);
@@ -87,15 +94,15 @@ public final class SmartLockResolverService {
         }
 
         if (holderStats.isEmpty()) {
-            return new SmartLockResolverResult(true, 0, List.of());
+            return new SmartLockResolverResult(true, 0, of());
         }
 
-        List<Map.Entry<LockHolderKey, LockHolderStats>> sorted = holderStats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalBlockedNanos, a.getValue().totalBlockedNanos))
+        List<Entry<LockHolderKey, LockHolderStats>> sorted = holderStats.entrySet().stream()
+                .sorted((a, b) -> compare(b.getValue().totalBlockedNanos, a.getValue().totalBlockedNanos))
                 .limit(topN)
                 .toList();
 
-        IItemCollection execSamples = events.apply(ItemFilters.type("jdk.ExecutionSample"));
+        IItemCollection execSamples = events.apply(type("jdk.ExecutionSample"));
         Map<String, ActivityAccumulator> holderActivities = analyzeHolderActivities(execSamples, sorted);
 
         List<LockHolderIssue> topIssues = sorted.stream()
@@ -105,7 +112,7 @@ public final class SmartLockResolverService {
                     ActivityAccumulator acc = holderActivities.get(key.holderName());
 
                     List<BlockedTraceEntry> topTraces = stats.blockedTraces.entrySet().stream()
-                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                            .sorted(Entry.<String, Long>comparingByValue().reversed())
                             .limit(3)
                             .map(e -> new BlockedTraceEntry(e.getKey(), e.getValue()))
                             .toList();
@@ -136,7 +143,7 @@ public final class SmartLockResolverService {
     }
 
     private Map<String, ActivityAccumulator> analyzeHolderActivities(IItemCollection execSamples,
-                                                                     List<Map.Entry<LockHolderKey, LockHolderStats>> holders) {
+                                                                     List<Entry<LockHolderKey, LockHolderStats>> holders) {
         Map<String, ActivityAccumulator> result = new HashMap<>();
         Set<String> holderNames = new HashSet<>();
         for (var entry : holders) {
@@ -145,8 +152,10 @@ public final class SmartLockResolverService {
 
         Map<IMCStackTrace, String> fullTraceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : execSamples) {
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
             if (threadAcc == null || stackAcc == null) {
                 continue;
             }
@@ -164,9 +173,9 @@ public final class SmartLockResolverService {
                 Object stackObj = stackAcc.getMember(item);
                 String fullTrace;
                 if (stackObj instanceof IMCStackTrace st) {
-                    fullTrace = fullTraceCache.computeIfAbsent(st, JfrItemUtils::formatFullStackTrace);
+                    fullTrace = fullTraceCache.computeIfAbsent(st, stackTraceObj -> formatFullStackTrace(stackTraceObj));
                 } else {
-                    fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
+                    fullTrace = formatFullStackTrace(stackObj);
                 }
                 if (fullTrace == null || fullTrace.isEmpty()) {
                     continue;
@@ -222,7 +231,7 @@ public final class SmartLockResolverService {
     }
 
     private static String displayNanos(long nanos) {
-        return UnitLookup.NANOSECOND.quantity(nanos).displayUsing(IDisplayable.AUTO);
+        return NANOSECOND.quantity(nanos).displayUsing(AUTO);
     }
 
     private record LockHolderKey(String monitorClass, String holderName) {

@@ -1,26 +1,25 @@
 package io.github.deplague.jmcmcp.application.service;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.CallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.CallTreeService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
-import java.util.List;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
+import java.util.List;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @ApplicationScoped
 public class CallTreeApplicationService {
     private final JfrProvider jfrProvider;
     private final CallTreeService callTreeService;
+    @Getter
     private final CallTreeCache callTreeCache;
-
-    public CallTreeCache getCallTreeCache() {
-        return callTreeCache;
-    }
 
     public CallTreeResult analyze(
             String filePath,

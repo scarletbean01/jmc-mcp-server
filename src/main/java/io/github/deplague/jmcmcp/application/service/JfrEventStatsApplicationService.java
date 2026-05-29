@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.JfrEventStatsResult;
 import io.github.deplague.jmcmcp.domain.service.JfrEventStatsService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates JFR event statistics analysis use case.

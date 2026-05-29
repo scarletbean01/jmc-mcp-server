@@ -4,79 +4,89 @@ import io.github.deplague.jmcmcp.domain.model.CompilationEntry;
 import io.github.deplague.jmcmcp.domain.model.CompilerFailureEntry;
 import io.github.deplague.jmcmcp.domain.model.DeoptimizationEntry;
 import io.github.deplague.jmcmcp.domain.model.JitCompilationResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.Aggregators;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.IType;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
+import static java.lang.String.valueOf;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.Optional.empty;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.Aggregators.count;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for JIT compilation and deoptimization analysis.
  */
 @Slf4j
+@ApplicationScoped
 public final class JitCompilationService {
 
     public JitCompilationResult analyze(IItemCollection events, int topN) {
-        var compilations = events.apply(ItemFilters.type("jdk.Compilation"));
-        var deopts = events.apply(ItemFilters.type("jdk.Deoptimization"));
-        var failures = events.apply(ItemFilters.type("jdk.CompilerFailure"));
+        var compilations = events.apply(type("jdk.Compilation"));
+        var deopts = events.apply(type("jdk.Deoptimization"));
+        var failures = events.apply(type("jdk.CompilerFailure"));
 
         boolean hasCompilations = compilations.hasItems();
         boolean hasDeopts = deopts.hasItems();
         boolean hasFailures = failures.hasItems();
 
-        Optional<String> totalCount = Optional.empty();
-        Optional<String> avgDuration = Optional.empty();
-        Optional<String> maxDuration = Optional.empty();
-        List<CompilationEntry> longestComp = List.of();
+        Optional<String> totalCount = empty();
+        Optional<String> avgDuration = empty();
+        Optional<String> maxDuration = empty();
+        List<CompilationEntry> longestComp = of();
 
         if (hasCompilations) {
-            totalCount = displayOpt(compilations.getAggregate(Aggregators.count()));
-            avgDuration = displayOpt(compilations.getAggregate(Aggregators.avg(JfrAttributes.DURATION)));
-            maxDuration = displayOpt(JfrItemUtils.maxQuantity(compilations, JfrAttributes.DURATION.getIdentifier()));
+            totalCount = displayOpt(compilations.getAggregate(count()));
+            var compStats = batchStats(compilations, DURATION.getIdentifier());
+            avgDuration = displayOpt(compStats.get("avg"));
+            maxDuration = displayOpt(compStats.get("max"));
 
             List<IItem> sortedComp = new ArrayList<>();
             compilations.forEach(iterable -> iterable.forEach(sortedComp::add));
             longestComp = sortedComp.stream()
                     .sorted((a, b) -> {
-                        IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                        IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                        IQuantity da = JfrAccessorRepository.<IQuantity>getQuantity(a, DURATION.getIdentifier()).orElse(null);
+                        IQuantity db = JfrAccessorRepository.<IQuantity>getQuantity(b, DURATION.getIdentifier()).orElse(null);
                         if (da == null) return (db == null) ? 0 : 1;
                         if (db == null) return -1;
                         return db.compareTo(da);
                     })
                     .limit(topN)
                     .map(item -> {
-                        Object method = JfrItemUtils.getMember(item, "method").orElse(null);
-                        IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                        Object level = JfrItemUtils.getMember(item, "compilationId").orElse(null);
+                        Object method = getMember(item, "method").orElse(null);
+                        IQuantity duration = JfrAccessorRepository.<IQuantity>getQuantity(item, DURATION.getIdentifier()).orElse(null);
+                        Object level = getMember(item, "compilationId").orElse(null);
                         return new CompilationEntry(
                                 method != null ? method.toString() : "Unknown",
-                                duration != null ? duration.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO) : "N/A",
+                                duration != null ? duration.displayUsing(AUTO) : "N/A",
                                 level != null ? level.toString() : "N/A"
                         );
                     })
                     .toList();
         }
 
-        Optional<String> totalDeopts = Optional.empty();
-        List<DeoptimizationEntry> topDeopts = List.of();
+        Optional<String> totalDeopts = empty();
+        List<DeoptimizationEntry> topDeopts = of();
         if (hasDeopts) {
-            totalDeopts = displayOpt(deopts.getAggregate(Aggregators.count()));
+            totalDeopts = displayOpt(deopts.getAggregate(count()));
 
             Map<String, Integer> methodDeopts = new HashMap<>();
             for (var itemIterable : deopts) {
-                IMemberAccessor<Object, IItem> methodAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "method");
+                IType<?> type = itemIterable.getType();
+                IMemberAccessor<Object, IItem> methodAccessor = getAccessor(type, "method");
                 if (methodAccessor != null) {
                     for (IItem item : itemIterable) {
                         Object method = methodAccessor.getMember(item);
@@ -88,23 +98,25 @@ public final class JitCompilationService {
             }
 
             topDeopts = methodDeopts.entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .sorted(Entry.<String, Integer>comparingByValue().reversed())
                     .limit(topN)
                     .map(e -> new DeoptimizationEntry(e.getKey(), e.getValue()))
                     .toList();
         }
 
-        List<CompilerFailureEntry> failureEntries = List.of();
+        List<CompilerFailureEntry> failureEntries = of();
         if (hasFailures) {
             failureEntries = new ArrayList<>();
             for (var itemIterable : failures) {
-                IMemberAccessor<Object, IItem> methodAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "method");
-                IMemberAccessor<Object, IItem> msgAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "failureMessage");
+                IType<?> type1 = itemIterable.getType();
+                IMemberAccessor<Object, IItem> methodAccessor = getAccessor(type1, "method");
+                IType<?> type = itemIterable.getType();
+                IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type, "failureMessage");
                 if (methodAccessor != null && msgAccessor != null) {
                     for (IItem item : itemIterable) {
                         failureEntries.add(new CompilerFailureEntry(
-                                String.valueOf(methodAccessor.getMember(item)),
-                                String.valueOf(msgAccessor.getMember(item))
+                                valueOf(methodAccessor.getMember(item)),
+                                valueOf(msgAccessor.getMember(item))
                         ));
                     }
                 }
@@ -124,6 +136,6 @@ public final class JitCompilationService {
     }
 
     private static Optional<String> displayOpt(IQuantity q) {
-        return q != null ? Optional.of(q.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO)) : Optional.empty();
+        return q != null ? Optional.of(q.displayUsing(AUTO)) : empty();
     }
 }

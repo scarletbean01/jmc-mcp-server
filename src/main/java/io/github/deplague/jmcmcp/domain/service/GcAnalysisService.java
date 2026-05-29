@@ -4,49 +4,53 @@ import io.github.deplague.jmcmcp.domain.model.GcAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.GcFrequencies;
 import io.github.deplague.jmcmcp.domain.model.GcHeapSummary;
 import io.github.deplague.jmcmcp.domain.model.GcPauseTimes;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.Optional;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.Aggregators;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.Optional;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.sumQuantity;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.Aggregators.count;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for GC analysis.
  */
+@ApplicationScoped
 public final class GcAnalysisService {
 
     public GcAnalysisResult analyze(IItemCollection events, String detailLevel) {
-        var gcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
-        var youngGC = events.apply(ItemFilters.type("jdk.YoungGarbageCollection"));
-        var oldGC = events.apply(ItemFilters.type("jdk.OldGarbageCollection"));
-        var heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
+        var gcPauses = events.apply(type("jdk.GCPhasePause"));
+        var youngGC = events.apply(type("jdk.YoungGarbageCollection"));
+        var oldGC = events.apply(type("jdk.OldGarbageCollection"));
+        var heapSummary = events.apply(type("jdk.GCHeapSummary"));
 
         boolean hasData = gcPauses.hasItems() || youngGC.hasItems() || oldGC.hasItems() || heapSummary.hasItems();
 
-        Optional<GcPauseTimes> pauseTimes = Optional.empty();
+        Optional<GcPauseTimes> pauseTimes = empty();
         if (gcPauses.hasItems() && ("all".equals(detailLevel) || "pause_times".equals(detailLevel))) {
-            IQuantity avgPause = JfrItemUtils.avgQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
-            IQuantity maxPause = JfrItemUtils.maxQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
-            IQuantity totalPause = JfrItemUtils.sumQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
-            pauseTimes = Optional.of(new GcPauseTimes(display(avgPause), display(maxPause), display(totalPause)));
+            var stats = batchStats(gcPauses, DURATION.getIdentifier());
+            IQuantity totalPause = sumQuantity(gcPauses, DURATION.getIdentifier());
+            pauseTimes = of(new GcPauseTimes(display(stats.get("avg")), display(stats.get("max")), display(totalPause)));
         }
 
-        Optional<GcFrequencies> frequencies = Optional.empty();
+        Optional<GcFrequencies> frequencies = empty();
         if ((youngGC.hasItems() || oldGC.hasItems()) && ("all".equals(detailLevel) || "frequencies".equals(detailLevel))) {
-            long youngCount = youngGC.hasItems() ? youngGC.getAggregate(Aggregators.count()).longValue() : 0;
-            long oldCount = oldGC.hasItems() ? oldGC.getAggregate(Aggregators.count()).longValue() : 0;
-            frequencies = Optional.of(new GcFrequencies(youngCount, oldCount));
+            long youngCount = youngGC.hasItems() ? youngGC.getAggregate(count()).longValue() : 0;
+            long oldCount = oldGC.hasItems() ? oldGC.getAggregate(count()).longValue() : 0;
+            frequencies = of(new GcFrequencies(youngCount, oldCount));
         }
 
-        Optional<GcHeapSummary> heap = Optional.empty();
+        Optional<GcHeapSummary> heap = empty();
         if (("all".equals(detailLevel) || "heap_summary".equals(detailLevel)) && heapSummary.hasItems()) {
-            IQuantity maxHeap = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
-            IQuantity minHeap = JfrItemUtils.minQuantity(heapSummary, "heapUsed");
-            IQuantity avgHeap = JfrItemUtils.avgQuantity(heapSummary, "heapUsed");
-            heap = Optional.of(new GcHeapSummary(display(maxHeap), display(minHeap), display(avgHeap)));
+            var stats = batchStats(heapSummary, "heapUsed");
+            heap = of(new GcHeapSummary(display(stats.get("max")), display(stats.get("min")), display(stats.get("avg"))));
         }
 
         return new GcAnalysisResult(pauseTimes, frequencies, heap, hasData);
@@ -56,6 +60,6 @@ public final class GcAnalysisService {
         if (q == null) {
             return "N/A";
         }
-        return q.displayUsing(IDisplayable.AUTO);
+        return q.displayUsing(AUTO);
     }
 }

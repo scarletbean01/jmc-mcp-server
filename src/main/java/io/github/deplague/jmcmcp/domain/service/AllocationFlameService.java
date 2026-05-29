@@ -2,21 +2,21 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.AllocationFlameEntry;
 import io.github.deplague.jmcmcp.domain.model.AllocationFlameResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
 
 /**
  * Pure domain service for allocation flame graph analysis.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class AllocationFlameService {
 
     public AllocationFlameResult analyze(
@@ -25,22 +25,21 @@ public final class AllocationFlameService {
             int topN) {
 
         Map<String, Long> pathDist = new HashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
+        JfrStackTraceService.StackTraceFormatCache stCache = new JfrStackTraceService.StackTraceFormatCache();
         long totalBytes = 0;
 
-        for (String typeId : new String[] {
+        for (String typeId : new String[]{
                 "jdk.ObjectAllocationInNewTLAB",
                 "jdk.ObjectAllocationOutsideTLAB",
         }) {
             IItemCollection allocs = events.apply(ItemFilters.type(typeId));
             for (IItemIterable iterable : allocs) {
+                IType<?> type1 = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                        JfrAccessorRepository.getAccessor(type1, "stackTrace");
+                IType<?> type = iterable.getType();
                 IMemberAccessor<IQuantity, IItem> sizeAccessor =
-                        JfrItemUtils.getAccessor(
-                                iterable.getType(),
-                                typeId.contains("Outside") ? "allocationSize" : "tlabSize"
-                        );
+                        JfrAccessorRepository.getAccessor(type, typeId.contains("Outside") ? "allocationSize" : "tlabSize");
 
                 if (stackAccessor != null && sizeAccessor != null) {
                     for (IItem item : iterable) {

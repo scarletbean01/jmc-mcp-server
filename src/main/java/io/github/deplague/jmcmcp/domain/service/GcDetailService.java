@@ -1,34 +1,30 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.GcConfiguration;
-import io.github.deplague.jmcmcp.domain.model.GcCycleEntry;
-import io.github.deplague.jmcmcp.domain.model.GcCauseEntry;
-import io.github.deplague.jmcmcp.domain.model.GcDetailResult;
-import io.github.deplague.jmcmcp.domain.model.GcPhaseEntry;
-import io.github.deplague.jmcmcp.domain.model.GenerationalSummary;
-import io.github.deplague.jmcmcp.domain.model.HeapTrendSummary;
-import io.github.deplague.jmcmcp.domain.model.ReferenceStatEntry;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import io.github.deplague.jmcmcp.domain.model.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.*;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrValueConverter.toLong;
+import static java.lang.Math.ceil;
+import static java.lang.Math.max;
+import static java.util.Collections.sort;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.Optional.empty;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for detailed GC analysis.
  */
+@ApplicationScoped
 public final class GcDetailService {
 
     public GcDetailResult analyze(IItemCollection events, String detailLevel) {
@@ -36,12 +32,12 @@ public final class GcDetailService {
 
         GcConfiguration config = null;
         GenerationalSummary genSummary = null;
-        List<ReferenceStatEntry> refStats = List.of();
+        List<ReferenceStatEntry> refStats = of();
         Double refOverhead = null;
-        List<GcCauseEntry> causeDist = List.of();
-        List<GcPhaseEntry> phases = List.of();
+        List<GcCauseEntry> causeDist = of();
+        List<GcPhaseEntry> phases = of();
         HeapTrendSummary heapTrend = null;
-        List<GcCycleEntry> cycles = List.of();
+        List<GcCycleEntry> cycles = of();
 
         if (showAll || "summary".equals(detailLevel)) {
             config = extractConfiguration(events);
@@ -73,37 +69,37 @@ public final class GcDetailService {
     }
 
     private GcConfiguration extractConfiguration(IItemCollection events) {
-        IItemCollection config = events.apply(ItemFilters.type("jdk.GCConfiguration"));
-        IItemCollection heapConfig = events.apply(ItemFilters.type("jdk.GCHeapConfiguration"));
-        IItemCollection survivorConfig = events.apply(ItemFilters.type("jdk.GCSurvivorConfiguration"));
+        IItemCollection config = events.apply(type("jdk.GCConfiguration"));
+        IItemCollection heapConfig = events.apply(type("jdk.GCHeapConfiguration"));
+        IItemCollection survivorConfig = events.apply(type("jdk.GCSurvivorConfiguration"));
 
         Optional<IItem> configItem = firstItem(config);
         Optional<IItem> heapItem = firstItem(heapConfig);
         Optional<IItem> survivorItem = firstItem(survivorConfig);
 
         return new GcConfiguration(
-                configItem.flatMap(i -> JfrItemUtils.getMember(i, "youngCollector")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> JfrItemUtils.getMember(i, "oldCollector")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> JfrItemUtils.getMember(i, "parallelGCThreads")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> JfrItemUtils.getMember(i, "concurrentGCThreads")).map(Object::toString).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(JfrItemUtils.getQuantity(i, "minSize"))).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(JfrItemUtils.getQuantity(i, "maxSize"))).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(JfrItemUtils.getQuantity(i, "initialSize"))).orElse("N/A"),
-                survivorItem.flatMap(i -> JfrItemUtils.getMember(i, "maxTenuringThreshold")).map(Object::toString).orElse("N/A")
+                configItem.flatMap(i -> getMember(i, "youngCollector")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> getMember(i, "oldCollector")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> getMember(i, "parallelGCThreads")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> getMember(i, "concurrentGCThreads")).map(Object::toString).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(getQuantity(i, "minSize"))).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(getQuantity(i, "maxSize"))).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(getQuantity(i, "initialSize"))).orElse("N/A"),
+                survivorItem.flatMap(i -> getMember(i, "maxTenuringThreshold")).map(Object::toString).orElse("N/A")
         );
     }
 
     private GenerationalSummary extractGenerationalSummary(IItemCollection events) {
-        IItemCollection young = events.apply(ItemFilters.type("jdk.YoungGarbageCollection"));
-        IItemCollection old = events.apply(ItemFilters.type("jdk.OldGarbageCollection"));
+        IItemCollection young = events.apply(type("jdk.YoungGarbageCollection"));
+        IItemCollection old = events.apply(type("jdk.OldGarbageCollection"));
 
-        long youngCount = JfrItemUtils.count(young);
-        IQuantity youngTotal = JfrItemUtils.sumQuantity(young, JfrAttributes.DURATION.getIdentifier());
-        IQuantity youngAvg = JfrItemUtils.avgQuantity(young, JfrAttributes.DURATION.getIdentifier());
+        long youngCount = count(young);
+        IQuantity youngTotal = sumQuantity(young, DURATION.getIdentifier());
+        IQuantity youngAvg = avgQuantity(young, DURATION.getIdentifier());
 
-        long oldCount = JfrItemUtils.count(old);
-        IQuantity oldTotal = JfrItemUtils.sumQuantity(old, JfrAttributes.DURATION.getIdentifier());
-        IQuantity oldAvg = JfrItemUtils.avgQuantity(old, JfrAttributes.DURATION.getIdentifier());
+        long oldCount = count(old);
+        IQuantity oldTotal = sumQuantity(old, DURATION.getIdentifier());
+        IQuantity oldAvg = avgQuantity(old, DURATION.getIdentifier());
 
         return new GenerationalSummary(
                 youngCount,
@@ -116,19 +112,21 @@ public final class GcDetailService {
     }
 
     private List<ReferenceStatEntry> extractReferenceStatistics(IItemCollection events) {
-        IItemCollection refStats = events.apply(ItemFilters.type("jdk.GCReferenceStatistics"));
-        IItemCollection refPhases = events.apply(ItemFilters.type("jdk.GCPhasePause"));
+        IItemCollection refStats = events.apply(type("jdk.GCReferenceStatistics"));
+        IItemCollection refPhases = events.apply(type("jdk.GCPhasePause"));
 
         Map<String, Long> refCounts = new HashMap<>();
         for (IItemIterable iterable : refStats) {
-            IMemberAccessor<String, IItem> typeAcc = JfrItemUtils.getAccessor(iterable.getType(), "type");
-            IMemberAccessor<Object, IItem> countAcc = JfrItemUtils.getAccessor(iterable.getType(), "count");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<String, IItem> typeAcc = getAccessor(type2, "type");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> countAcc = getAccessor(type1, "count");
             if (typeAcc != null && countAcc != null) {
                 for (IItem item : iterable) {
                     String type = typeAcc.getMember(item);
                     Object c = countAcc.getMember(item);
                     if (type != null && c != null) {
-                        refCounts.merge(type, JfrItemUtils.toLong(c), Long::sum);
+                        refCounts.merge(type, toLong(c), Long::sum);
                     }
                 }
             }
@@ -136,8 +134,9 @@ public final class GcDetailService {
 
         Map<String, IQuantity> phaseTimes = new HashMap<>();
         for (IItemIterable iterable : refPhases) {
-            IMemberAccessor<String, IItem> nameAcc = JfrItemUtils.getAccessor(iterable.getType(), "name");
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> nameAcc = getAccessor(type, "name");
+            IMemberAccessor<IQuantity, IItem> durationAcc = DURATION.getAccessor(iterable.getType());
             if (nameAcc != null && durationAcc != null) {
                 for (IItem item : iterable) {
                     String name = nameAcc.getMember(item);
@@ -153,7 +152,7 @@ public final class GcDetailService {
 
         List<ReferenceStatEntry> entries = new ArrayList<>();
         refCounts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<String, Long>comparingByValue().reversed())
                 .forEach(e -> {
                     String type = e.getKey();
                     String match = phaseTimes.keySet().stream()
@@ -175,13 +174,14 @@ public final class GcDetailService {
     }
 
     private Double computeReferenceOverhead(IItemCollection events) {
-        IItemCollection allGcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
-        IQuantity totalGcPause = JfrItemUtils.sumQuantity(allGcPauses, JfrAttributes.DURATION.getIdentifier());
+        IItemCollection allGcPauses = events.apply(type("jdk.GCPhasePause"));
+        IQuantity totalGcPause = sumQuantity(allGcPauses, DURATION.getIdentifier());
 
         Map<String, IQuantity> refPhaseTimes = new HashMap<>();
         for (IItemIterable iterable : allGcPauses) {
-            IMemberAccessor<String, IItem> nameAcc = JfrItemUtils.getAccessor(iterable.getType(), "name");
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> nameAcc = getAccessor(type, "name");
+            IMemberAccessor<IQuantity, IItem> durationAcc = DURATION.getAccessor(iterable.getType());
             if (nameAcc != null && durationAcc != null) {
                 for (IItem item : iterable) {
                     String name = nameAcc.getMember(item);
@@ -212,9 +212,10 @@ public final class GcDetailService {
 
     private List<GcCauseEntry> extractCauseDistribution(IItemCollection events) {
         Map<String, Integer> causeCounts = new HashMap<>();
-        IItemCollection gcs = events.apply(ItemFilters.type("jdk.GarbageCollection"));
+        IItemCollection gcs = events.apply(type("jdk.GarbageCollection"));
         for (IItemIterable iterable : gcs) {
-            IMemberAccessor<String, IItem> causeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "cause");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> causeAccessor = getAccessor(type, "cause");
             if (causeAccessor != null) {
                 for (IItem item : iterable) {
                     String cause = causeAccessor.getMember(item);
@@ -226,24 +227,23 @@ public final class GcDetailService {
         }
 
         return causeCounts.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .sorted(Entry.<String, Integer>comparingByValue().reversed())
                 .map(e -> new GcCauseEntry(e.getKey(), e.getValue(), null, null))
                 .toList();
     }
 
     private List<GcPhaseEntry> extractPhaseBreakdown(IItemCollection events) {
-        IItemCollection phases = events.apply(ItemFilters.type("jdk.GCPhasePause"));
+        IItemCollection phases = events.apply(type("jdk.GCPhasePause"));
         if (!phases.hasItems()) {
-            return List.of();
+            return of();
         }
 
         Map<String, List<IQuantity>> phaseDurations = new HashMap<>();
         for (IItemIterable iterable : phases) {
-            IMemberAccessor<String, IItem> nameAccessor = JfrItemUtils.getAccessor(iterable.getType(), "name");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrItemUtils.getAccessor(
-                    iterable.getType(),
-                    JfrAttributes.DURATION.getIdentifier()
-            );
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<String, IItem> nameAccessor = getAccessor(type1, "name");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
             if (nameAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {
                     String name = nameAccessor.getMember(item);
@@ -259,23 +259,23 @@ public final class GcDetailService {
         for (var entry : phaseDurations.entrySet()) {
             double sumNs = 0;
             for (IQuantity q : entry.getValue()) {
-                sumNs += q.doubleValueIn(UnitLookup.NANOSECOND);
+                sumNs += q.doubleValueIn(NANOSECOND);
             }
-            phaseSums.put(entry.getKey(), UnitLookup.NANOSECOND.quantity(sumNs));
+            phaseSums.put(entry.getKey(), NANOSECOND.quantity(sumNs));
         }
 
         return phaseDurations.entrySet().stream()
                 .sorted((a, b) -> phaseSums.get(b.getKey()).compareTo(phaseSums.get(a.getKey())))
                 .map(entry -> {
                     List<IQuantity> durations = entry.getValue();
-                    Collections.sort(durations);
+                    sort(durations);
                     double sumNs = 0;
                     for (IQuantity q : durations) {
-                        sumNs += q.doubleValueIn(UnitLookup.NANOSECOND);
+                        sumNs += q.doubleValueIn(NANOSECOND);
                     }
-                    IQuantity avg = UnitLookup.NANOSECOND.quantity(sumNs / durations.size());
-                    IQuantity p95 = durations.get((int) Math.max(0, Math.ceil(0.95 * durations.size()) - 1));
-                    IQuantity p99 = durations.get((int) Math.max(0, Math.ceil(0.99 * durations.size()) - 1));
+                    IQuantity avg = NANOSECOND.quantity(sumNs / durations.size());
+                    IQuantity p95 = durations.get((int) max(0, ceil(0.95 * durations.size()) - 1));
+                    IQuantity p99 = durations.get((int) max(0, ceil(0.99 * durations.size()) - 1));
                     IQuantity max = durations.getLast();
                     return new GcPhaseEntry(
                             entry.getKey(),
@@ -290,36 +290,40 @@ public final class GcDetailService {
     }
 
     private HeapTrendSummary extractHeapTrendSummary(IItemCollection events) {
-        IItemCollection heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
+        IItemCollection heapSummary = events.apply(type("jdk.GCHeapSummary"));
         if (!heapSummary.hasItems()) {
             return null;
         }
         return new HeapTrendSummary(
-                display(JfrItemUtils.minQuantity(heapSummary, "heapUsed")),
-                display(JfrItemUtils.maxQuantity(heapSummary, "heapUsed")),
-                display(JfrItemUtils.avgQuantity(heapSummary, "heapUsed")),
-                display(JfrItemUtils.percentileQuantity(heapSummary, "heapUsed", 95))
+                display(minQuantity(heapSummary, "heapUsed")),
+                display(maxQuantity(heapSummary, "heapUsed")),
+                display(avgQuantity(heapSummary, "heapUsed")),
+                display(percentileQuantity(heapSummary, "heapUsed", 95))
         );
     }
 
     private List<GcCycleEntry> extractGcCycles(IItemCollection events) {
-        IItemCollection heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
+        IItemCollection heapSummary = events.apply(type("jdk.GCHeapSummary"));
         if (!heapSummary.hasItems()) {
-            return List.of();
+            return of();
         }
 
         Map<Long, Map<String, IQuantity>> cycleMap = new TreeMap<>();
         for (IItemIterable iterable : heapSummary) {
-            IMemberAccessor<Object, IItem> gcIdAccessor = JfrItemUtils.getAccessor(iterable.getType(), "gcId");
-            IMemberAccessor<IQuantity, IItem> usedAccessor = JfrItemUtils.getAccessor(iterable.getType(), "heapUsed");
-            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "heapSize");
-            IMemberAccessor<String, IItem> whenAccessor = JfrItemUtils.getAccessor(iterable.getType(), "when");
+            IType<?> type3 = iterable.getType();
+            IMemberAccessor<Object, IItem> gcIdAccessor = getAccessor(type3, "gcId");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type2, "heapUsed");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = getAccessor(type1, "heapSize");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> whenAccessor = getAccessor(type, "when");
 
             if (gcIdAccessor != null) {
                 for (IItem item : iterable) {
                     Object gcIdObj = gcIdAccessor.getMember(item);
                     if (gcIdObj != null) {
-                        long gcId = JfrItemUtils.toLong(gcIdObj);
+                        long gcId = toLong(gcIdObj);
                         String when = whenAccessor != null ? whenAccessor.getMember(item) : "After GC";
                         if ("After GC".equals(when) || !cycleMap.containsKey(gcId)) {
                             Map<String, IQuantity> data = new HashMap<>();
@@ -344,7 +348,7 @@ public final class GcDetailService {
 
     private Optional<IItem> firstItem(IItemCollection collection) {
         if (!collection.hasItems()) {
-            return Optional.empty();
+            return empty();
         }
         return Optional.of(collection.iterator().next().iterator().next());
     }
@@ -353,10 +357,10 @@ public final class GcDetailService {
         if (quantity == null) {
             return "N/A";
         }
-        return quantity.displayUsing(IDisplayable.AUTO);
+        return quantity.displayUsing(AUTO);
     }
 
     private static Optional<String> displayOpt(Optional<IQuantity> quantity) {
-        return quantity.map(q -> q.displayUsing(IDisplayable.AUTO));
+        return quantity.map(q -> q.displayUsing(AUTO));
     }
 }

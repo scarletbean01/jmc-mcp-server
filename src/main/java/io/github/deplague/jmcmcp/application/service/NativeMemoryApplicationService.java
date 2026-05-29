@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.NativeMemoryResult;
 import io.github.deplague.jmcmcp.domain.service.NativeMemoryService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates native memory analysis use case.

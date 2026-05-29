@@ -1,22 +1,27 @@
 package io.github.deplague.jmcmcp.domain.service;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import io.github.deplague.jmcmcp.domain.model.HotMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTraceFocusingOn;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.Map.Entry.comparingByValue;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for identifying hot methods from execution samples.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class HotMethodsService {
 
     public HotMethodsResult analyze(
@@ -26,22 +31,22 @@ public final class HotMethodsService {
             int topN) {
 
         IItemCollection samples = events.apply(
-                ItemFilters.type("jdk.ExecutionSample")
+                type("jdk.ExecutionSample")
         );
 
         if (!samples.hasItems()) {
-            return new HotMethodsResult(List.of(), null);
+            return new HotMethodsResult(of(), null);
         }
 
-        Map<String, Long> traceCounts = new HashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache =
-                JfrItemUtils.newStackTraceFormatCache();
+        Map<StackTraceKey, Long> traceCounts = new HashMap<>();
 
         for (IItemIterable iterable : samples) {
+            IType<?> type1 = iterable.getType();
             IMemberAccessor<Object, IItem> stackAccessor =
-                    JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                    getAccessor(type1, "stackTrace");
+            IType<?> type = iterable.getType();
             IMemberAccessor<Object, IItem> threadAccessor =
-                    JfrItemUtils.getAccessor(iterable.getType(), "sampledThread");
+                    getAccessor(type, "sampledThread");
 
             if (stackAccessor != null) {
                 for (IItem item : iterable) {
@@ -55,27 +60,23 @@ public final class HotMethodsService {
 
                     Object st = stackAccessor.getMember(item);
                     if (st != null) {
-                        String formatted = stCache.formatFocusingOn(
-                                st,
-                                5,
-                                packagePrefix
-                        );
-                        traceCounts.merge(formatted, 1L, Long::sum);
+                        StackTraceKey key = new StackTraceKey(st, 5, packagePrefix);
+                        traceCounts.merge(key, 1L, Long::sum);
                     }
                 }
             }
         }
 
         List<HotMethodEntry> entries = traceCounts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<StackTraceKey, Long>comparingByValue().reversed())
                 .limit(topN)
-                .map(e -> new HotMethodEntry(e.getKey(), e.getValue()))
+                .map(e -> new HotMethodEntry(formatStackTraceFocusingOn(e.getKey().getStackTraceObj(), 5, packagePrefix), e.getValue()))
                 .toList();
 
-        String topMethod = traceCounts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
+        String topMethod = entries.stream()
+                .findFirst()
                 .map(entry ->
-                        entry.getKey().split("\n")[0].trim().replace("at ", "")
+                        entry.stackTrace().split("\n")[0].trim().replace("at ", "")
                 )
                 .orElse(null);
 

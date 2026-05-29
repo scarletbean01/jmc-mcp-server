@@ -1,34 +1,39 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.SystemPropertyEntry;
 import io.github.deplague.jmcmcp.domain.model.SystemPropertiesResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import io.github.deplague.jmcmcp.domain.model.SystemPropertyEntry;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static java.util.Comparator.comparing;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for extracting system properties from JFR recordings.
  */
 @Slf4j
+@ApplicationScoped
 public final class SystemPropertiesService {
 
     public SystemPropertiesResult analyze(IItemCollection events, String filter) {
-        IItemCollection props = events.apply(ItemFilters.type("jdk.InitialSystemProperty"));
+        IItemCollection props = events.apply(type("jdk.InitialSystemProperty"));
         if (!props.hasItems()) {
-            return new SystemPropertiesResult(List.of());
+            return new SystemPropertiesResult(of());
         }
 
         List<SystemPropertyEntry> entries = new ArrayList<>();
         for (IItemIterable iterable : props) {
             for (IItem item : iterable) {
-                Object key = JfrItemUtils.getMember(item, "key").orElse(null);
-                Object val = JfrItemUtils.getMember(item, "value").orElse(null);
+                Object key = getMember(item, "key").orElse(null);
+                Object val = getMember(item, "value").orElse(null);
                 if (key != null) {
                     String keyStr = key.toString();
                     if (filter == null || keyStr.contains(filter)) {
@@ -38,7 +43,7 @@ public final class SystemPropertiesService {
             }
         }
 
-        entries.sort(Comparator.comparing(SystemPropertyEntry::key));
+        entries.sort(comparing(SystemPropertyEntry::key));
         return new SystemPropertiesResult(entries);
     }
 }

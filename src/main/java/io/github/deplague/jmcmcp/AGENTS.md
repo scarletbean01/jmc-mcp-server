@@ -3,11 +3,12 @@
 This is the root package of the JMC MCP Server, responsible for bootstrapping and lifecycle management.
 
 ## Responsibilities
-- **Bootstrap:** `JmcMcpServer.java` initializes the Quarkus container and the MCP Sync Server.
-- **Discovery:** Leverages CDI `Instance<McpTool>` to automatically register refactored tools.
-- **Graceful Shutdown:** Manages the cleanup of executors and caches via a shutdown hook.
+- **Bootstrap:** `JmcMcpServer.java` is a `@QuarkusMain` entry point.
+- **Discovery:** The server uses the Quarkus MCP server extension, which automatically discovers tools and resources via CDI annotations.
+- **Configuration:** Runtime configuration is managed through `application.properties`.
 
 ## Guidelines for Agents
-- **Hexagonal Context:** This package sits in the **Infrastructure** layer (it's the main entry point that wires everything together).
-- **Tool Registration:** For new tools, simply annotate with `@ApplicationScoped` and implement `McpTool`. No changes to `JmcMcpServer` are required.
-- **Phase 3 Alignment:** As part of the technical consolidation, ensure that `JmcMcpServer` only interacts with application services or high-level infrastructure ports.
+- **Infrastructure Layer:** This package is part of the Infrastructure layer in our hexagonal architecture.
+- **Declarative Approach:** We have migrated from the imperative `McpTool` interface to a declarative approach using `@Tool` and `@Resource` annotations.
+- **Registration:** New tools and resources no longer require manual registration. Simply annotate your classes with `@ApplicationScoped` and your methods with `@Tool` or `@Resource`.
+- **Virtual Threads:** Ensure all heavy-lifting methods in adapters are annotated with `@RunOnVirtualThread`.

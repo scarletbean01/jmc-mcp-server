@@ -1,31 +1,32 @@
 package io.github.deplague.jmcmcp.domain.service;
 
+import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.model.StackTraceMatchEntry;
 import io.github.deplague.jmcmcp.domain.model.StackTraceSearchResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
-import org.openjdk.jmc.common.IDisplayable;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCStackTrace;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+import java.util.regex.Pattern;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static java.util.List.of;
+import static java.util.regex.Pattern.compile;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for full-text stack-trace search across all JFR event types.
  */
+@ApplicationScoped
 public final class StackTraceSearchService {
 
-    private static final List<String> SEARCHABLE_EVENT_TYPES = List.of(
+    private static final List<String> SEARCHABLE_EVENT_TYPES = of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",
             "jdk.ThreadPark", "jdk.SocketRead", "jdk.SocketWrite",
             "jdk.FileRead", "jdk.FileWrite", "jdk.JavaExceptionThrow",
@@ -34,31 +35,31 @@ public final class StackTraceSearchService {
     );
 
     private static final Map<String, List<String>> EVENT_DETAIL_FIELDS = Map.of(
-            "jdk.JavaMonitorEnter", List.of("monitorClass"),
-            "jdk.JavaMonitorWait", List.of("monitorClass"),
-            "jdk.SocketRead", List.of("host", "port"),
-            "jdk.SocketWrite", List.of("host", "port"),
-            "jdk.FileRead", List.of("path"),
-            "jdk.FileWrite", List.of("path"),
-            "jdk.JavaExceptionThrow", List.of("thrownClass", "message"),
-            "jdk.JavaErrorThrow", List.of("thrownClass", "message"),
-            "jdk.ObjectAllocationInNewTLAB", List.of("objectClass", "tlabSize"),
-            "jdk.ObjectAllocationOutsideTLAB", List.of("objectClass", "allocationSize")
+            "jdk.JavaMonitorEnter", of("monitorClass"),
+            "jdk.JavaMonitorWait", of("monitorClass"),
+            "jdk.SocketRead", of("host", "port"),
+            "jdk.SocketWrite", of("host", "port"),
+            "jdk.FileRead", of("path"),
+            "jdk.FileWrite", of("path"),
+            "jdk.JavaExceptionThrow", of("thrownClass", "message"),
+            "jdk.JavaErrorThrow", of("thrownClass", "message"),
+            "jdk.ObjectAllocationInNewTLAB", of("objectClass", "tlabSize"),
+            "jdk.ObjectAllocationOutsideTLAB", of("objectClass", "allocationSize")
     );
 
     public StackTraceSearchResult analyze(IItemCollection events, String classPattern, String eventType, int limit) {
         Pattern pattern;
         try {
-            pattern = Pattern.compile(classPattern);
+            pattern = compile(classPattern);
         } catch (Exception e) {
-            throw new IllegalArgumentException(
+            throw new AnalysisFailedException(
                     "Invalid regex pattern: " + classPattern + "\nError: " + e.getMessage()
             );
         }
 
         List<String> typesToSearch = "all".equals(eventType)
                 ? SEARCHABLE_EVENT_TYPES
-                : List.of(eventType);
+                : of(eventType);
 
         List<StackTraceMatchEntry> matches = new ArrayList<>();
         Map<String, Long> distribution = new LinkedHashMap<>();
@@ -67,32 +68,36 @@ public final class StackTraceSearchService {
         Map<IMCStackTrace, String> formattedTraceCache = new IdentityHashMap<>();
 
         for (String typeId : typesToSearch) {
-            IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
+            IItemCollection typeEvents = events.apply(type(typeId));
             if (!typeEvents.hasItems()) {
                 continue;
             }
 
             long typeMatchCount = 0;
             for (IItemIterable iterable : typeEvents) {
+                IType<?> type2 = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                        getAccessor(type2, "stackTrace");
                 if (stackAccessor == null) {
                     continue;
                 }
 
+                IType<?> type1 = iterable.getType();
                 IMemberAccessor<Object, IItem> threadAccessor =
-                        JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
+                        getAccessor(type1, "eventThread");
                 if (threadAccessor == null) {
-                    threadAccessor = JfrItemUtils.getAccessor(iterable.getType(), "sampledThread");
+                    IType<?> type = iterable.getType();
+                    threadAccessor = getAccessor(type, "sampledThread");
                 }
                 IMemberAccessor<IQuantity, IItem> startTimeAccessor =
-                        JfrAttributes.START_TIME.getAccessor(iterable.getType());
+                        START_TIME.getAccessor(iterable.getType());
 
-                List<String> detailFields = EVENT_DETAIL_FIELDS.getOrDefault(typeId, List.of());
+                List<String> detailFields = EVENT_DETAIL_FIELDS.getOrDefault(typeId, of());
                 Map<String, IMemberAccessor<Object, IItem>> detailAccessors = new HashMap<>();
                 for (String field : detailFields) {
+                    IType<?> type = iterable.getType();
                     IMemberAccessor<Object, IItem> acc =
-                            JfrItemUtils.getAccessor(iterable.getType(), field);
+                            getAccessor(type, field);
                     if (acc != null) {
                         detailAccessors.put(field, acc);
                     }
@@ -106,13 +111,13 @@ public final class StackTraceSearchService {
 
                     Boolean cachedMatch = matchCache.get(stackTrace);
                     if (cachedMatch == null) {
-                        boolean isMatch = JfrItemUtils.stackTraceMatches(stackTrace, pattern);
+                        boolean isMatch = stackTraceMatches(stackTrace, pattern);
                         matchCache.put(stackTrace, isMatch);
                         cachedMatch = isMatch;
                         if (isMatch) {
                             formattedTraceCache.put(
                                     stackTrace,
-                                    JfrItemUtils.formatFullStackTrace(stackTrace)
+                                    formatFullStackTrace(stackTrace)
                             );
                         }
                     }
@@ -166,6 +171,6 @@ public final class StackTraceSearchService {
         if (quantity == null) {
             return "N/A";
         }
-        return quantity.displayUsing(IDisplayable.AUTO);
+        return quantity.displayUsing(AUTO);
     }
 }

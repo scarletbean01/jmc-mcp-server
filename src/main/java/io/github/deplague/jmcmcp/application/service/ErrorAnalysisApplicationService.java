@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.ErrorAnalysisResult;
 import io.github.deplague.jmcmcp.domain.service.ErrorAnalysisService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates error analysis use case.

@@ -1,23 +1,27 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.AsyncJobQueueInfo;
 import io.github.deplague.jmcmcp.domain.model.HealthCheckReport;
 import io.github.deplague.jmcmcp.domain.model.JvmMemoryInfo;
 import io.github.deplague.jmcmcp.domain.model.JvmThreadInfo;
 import io.github.deplague.jmcmcp.domain.model.RecordingCacheInfo;
+import jakarta.enterprise.context.ApplicationScoped;
+
 import java.time.Duration;
 import java.time.Instant;
+
+import static java.lang.String.format;
+import static java.time.Duration.ofMillis;
 
 /**
  * Pure domain service for building a server health check report.
  */
+@ApplicationScoped
 public final class HealthCheckService {
 
     public HealthCheckReport buildReport(
             JvmMemoryInfo jvmMemory,
             JvmThreadInfo jvmThreads,
             RecordingCacheInfo recordingCache,
-            AsyncJobQueueInfo asyncJobQueue,
             long uptimeMs,
             Instant serverStart,
             String jvmName,
@@ -28,7 +32,7 @@ public final class HealthCheckService {
                 : 0.0;
 
         String status = determineStatus(heapUsedPct);
-        String uptime = formatDuration(Duration.ofMillis(uptimeMs));
+        String uptime = formatDuration(ofMillis(uptimeMs));
 
         return new HealthCheckReport(
                 status,
@@ -39,8 +43,7 @@ public final class HealthCheckService {
                 heapUsedPct,
                 jvmMemory,
                 jvmThreads,
-                recordingCache,
-                asyncJobQueue
+                recordingCache
         );
     }
 
@@ -60,7 +63,7 @@ public final class HealthCheckService {
         long minutes = d.toMinutesPart();
         long seconds = d.toSecondsPart();
         if (days > 0) {
-            return String.format(
+            return format(
                     "%dd %02dh %02dm %02ds",
                     days,
                     hours,
@@ -69,11 +72,11 @@ public final class HealthCheckService {
             );
         }
         if (hours > 0) {
-            return String.format("%dh %02dm %02ds", hours, minutes, seconds);
+            return format("%dh %02dm %02ds", hours, minutes, seconds);
         }
         if (minutes > 0) {
-            return String.format("%dm %02ds", minutes, seconds);
+            return format("%dm %02ds", minutes, seconds);
         }
-        return String.format("%ds", seconds);
+        return format("%ds", seconds);
     }
 }

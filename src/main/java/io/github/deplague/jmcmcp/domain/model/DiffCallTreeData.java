@@ -1,6 +1,6 @@
 package io.github.deplague.jmcmcp.domain.model;
 
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 
 /**
  * Raw result of diff call tree domain analysis containing the root node

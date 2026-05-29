@@ -1,39 +1,40 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.CorrelateHotMethod;
-import io.github.deplague.jmcmcp.domain.model.CorrelateIoSite;
-import io.github.deplague.jmcmcp.domain.model.CorrelateLockSite;
-import io.github.deplague.jmcmcp.domain.model.CorrelateResult;
-import io.github.deplague.jmcmcp.domain.model.CpuGcMetrics;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.domain.model.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
+import static java.lang.Math.min;
+import static java.util.Comparator.comparingLong;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.MILLISECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for cross-dimensional correlation analysis.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class CorrelateService {
 
     public CorrelateResult analyze(IItemCollection events, String dimension, int topN) {
         boolean showLockIo = "all".equals(dimension) || "lock_io_db".equals(dimension);
         boolean showCpuGc = "all".equals(dimension) || "cpu_gc".equals(dimension);
 
-        List<CorrelateLockSite> lockSites = showLockIo ? extractLockSites(events, topN) : List.of();
-        List<CorrelateIoSite> ioSites = showLockIo ? extractIoSites(events, topN) : List.of();
-        List<CorrelateHotMethod> hotMethods = showLockIo ? extractHotMethods(events, topN) : List.of();
+        List<CorrelateLockSite> lockSites = showLockIo ? extractLockSites(events, topN) : of();
+        List<CorrelateIoSite> ioSites = showLockIo ? extractIoSites(events, topN) : of();
+        List<CorrelateHotMethod> hotMethods = showLockIo ? extractHotMethods(events, topN) : of();
         CpuGcMetrics cpuGcMetrics = showCpuGc ? computeCpuGcMetrics(events) : null;
 
         return new CorrelateResult(lockSites, ioSites, hotMethods, cpuGcMetrics, showLockIo, showCpuGc, topN);
@@ -41,13 +42,15 @@ public final class CorrelateService {
 
     private List<CorrelateLockSite> extractLockSites(IItemCollection events, int topN) {
         Map<String, CorrelateLockSite> sites = new LinkedHashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
-        for (String typeId : List.of("jdk.JavaMonitorEnter", "jdk.JavaMonitorWait")) {
-            IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
+        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        for (String typeId : of("jdk.JavaMonitorEnter", "jdk.JavaMonitorWait")) {
+            IItemCollection typeEvents = events.apply(type(typeId));
             for (IItemIterable iterable : typeEvents) {
-                IMemberAccessor<Object, IItem> monitorAccessor = JfrItemUtils.getAccessor(iterable.getType(), "monitorClass");
-                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IType<?> type1 = iterable.getType();
+                IMemberAccessor<Object, IItem> monitorAccessor = getAccessor(type1, "monitorClass");
+                IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+                IType<?> type = iterable.getType();
+                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
                 if (monitorAccessor == null || durationAccessor == null) {
                     continue;
                 }
@@ -70,7 +73,7 @@ public final class CorrelateService {
 
                     String key = monitorClass + "@" + topFrame;
                     CorrelateLockSite existing = sites.get(key);
-                    long newDuration = duration.clampedLongValueIn(UnitLookup.MILLISECOND);
+                    long newDuration = duration.clampedLongValueIn(MILLISECOND);
                     long newCount = 1;
                     if (existing != null) {
                         newDuration += existing.totalDurationMs();
@@ -82,18 +85,19 @@ public final class CorrelateService {
         }
 
         List<CorrelateLockSite> result = new ArrayList<>(sites.values());
-        result.sort(Comparator.comparingLong(CorrelateLockSite::totalDurationMs).reversed());
-        return result.subList(0, Math.min(topN, result.size()));
+        result.sort(comparingLong(CorrelateLockSite::totalDurationMs).reversed());
+        return result.subList(0, min(topN, result.size()));
     }
 
     private List<CorrelateIoSite> extractIoSites(IItemCollection events, int topN) {
         Map<String, CorrelateIoSite> sites = new LinkedHashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
-        for (String typeId : List.of("jdk.SocketRead", "jdk.SocketWrite", "jdk.FileRead", "jdk.FileWrite")) {
-            IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
+        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        for (String typeId : of("jdk.SocketRead", "jdk.SocketWrite", "jdk.FileRead", "jdk.FileWrite")) {
+            IItemCollection typeEvents = events.apply(type(typeId));
             for (IItemIterable iterable : typeEvents) {
-                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+                IType<?> type2 = iterable.getType();
+                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type2, "stackTrace");
                 if (durationAccessor == null) {
                     continue;
                 }
@@ -102,9 +106,17 @@ public final class CorrelateService {
                 String portAttr = typeId.contains("Socket") ? "port" : null;
                 String bytesAttr = typeId.contains("Read") ? "bytesRead" : "bytesWritten";
 
-                IMemberAccessor<Object, IItem> targetAccessor = JfrItemUtils.getAccessor(iterable.getType(), targetAttr);
-                IMemberAccessor<IQuantity, IItem> portAccessor = portAttr != null ? JfrItemUtils.getAccessor(iterable.getType(), portAttr) : null;
-                IMemberAccessor<IQuantity, IItem> bytesAccessor = JfrItemUtils.getAccessor(iterable.getType(), bytesAttr);
+                IType<?> type1 = iterable.getType();
+                IMemberAccessor<Object, IItem> targetAccessor = getAccessor(type1, targetAttr);
+                IMemberAccessor<IQuantity, IItem> portAccessor;
+                if (portAttr != null) {
+                    IType<?> type = iterable.getType();
+                    portAccessor = getAccessor(type, portAttr);
+                } else {
+                    portAccessor = null;
+                }
+                IType<?> type = iterable.getType();
+                IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type, bytesAttr);
 
                 for (IItem item : iterable) {
                     IQuantity duration = durationAccessor.getMember(item);
@@ -144,7 +156,7 @@ public final class CorrelateService {
 
                     String key = typeId + "@" + endpoint;
                     CorrelateIoSite existing = sites.get(key);
-                    long newDuration = duration.clampedLongValueIn(UnitLookup.MILLISECOND);
+                    long newDuration = duration.clampedLongValueIn(MILLISECOND);
                     long newCount = 1;
                     long newBytes = bytes;
                     if (existing != null) {
@@ -158,16 +170,17 @@ public final class CorrelateService {
         }
 
         List<CorrelateIoSite> result = new ArrayList<>(sites.values());
-        result.sort(Comparator.comparingLong(CorrelateIoSite::totalDurationMs).reversed());
-        return result.subList(0, Math.min(topN, result.size()));
+        result.sort(comparingLong(CorrelateIoSite::totalDurationMs).reversed());
+        return result.subList(0, min(topN, result.size()));
     }
 
     private List<CorrelateHotMethod> extractHotMethods(IItemCollection events, int topN) {
         Map<String, CorrelateHotMethod> methods = new LinkedHashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
-        IItemCollection samples = events.apply(ItemFilters.type("jdk.ExecutionSample"));
+        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        IItemCollection samples = events.apply(type("jdk.ExecutionSample"));
         for (IItemIterable iterable : samples) {
-            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
             if (stackAccessor == null) {
                 continue;
             }
@@ -188,19 +201,19 @@ public final class CorrelateService {
         }
 
         List<CorrelateHotMethod> result = new ArrayList<>(methods.values());
-        result.sort(Comparator.comparingLong(CorrelateHotMethod::sampleCount).reversed());
-        return result.subList(0, Math.min(topN, result.size()));
+        result.sort(comparingLong(CorrelateHotMethod::sampleCount).reversed());
+        return result.subList(0, min(topN, result.size()));
     }
 
     private CpuGcMetrics computeCpuGcMetrics(IItemCollection events) {
-        IItemCollection cpuLoad = events.apply(ItemFilters.type("jdk.CPULoad"));
-        IItemCollection gcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
+        IItemCollection cpuLoad = events.apply(type("jdk.CPULoad"));
+        IItemCollection gcPauses = events.apply(type("jdk.GCPhasePause"));
 
         Double avgCpu = null;
         Double maxCpu = null;
         if (cpuLoad.hasItems()) {
-            IQuantity avg = JfrItemUtils.avgQuantity(cpuLoad, "machineTotal");
-            IQuantity max = JfrItemUtils.maxQuantity(cpuLoad, "machineTotal");
+            IQuantity avg = avgQuantity(cpuLoad, "machineTotal");
+            IQuantity max = maxQuantity(cpuLoad, "machineTotal");
             if (avg != null) {
                 avgCpu = avg.doubleValue() * 100;
             }
@@ -209,9 +222,9 @@ public final class CorrelateService {
             }
         }
 
-        long gcCount = JfrItemUtils.count(gcPauses);
-        IQuantity totalGcPause = JfrItemUtils.sumQuantity(gcPauses, JfrAttributes.DURATION.getIdentifier());
-        String totalGcPauseStr = totalGcPause != null ? totalGcPause.displayUsing(IDisplayable.AUTO) : "N/A";
+        long gcCount = count(gcPauses);
+        IQuantity totalGcPause = sumQuantity(gcPauses, DURATION.getIdentifier());
+        String totalGcPauseStr = totalGcPause != null ? totalGcPause.displayUsing(AUTO) : "N/A";
 
         return new CpuGcMetrics(avgCpu, maxCpu, gcCount, totalGcPauseStr);
     }

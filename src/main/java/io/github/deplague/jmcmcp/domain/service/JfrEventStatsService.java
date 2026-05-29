@@ -3,38 +3,41 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.EventCategoricalField;
 import io.github.deplague.jmcmcp.domain.model.EventFieldStats;
 import io.github.deplague.jmcmcp.domain.model.JfrEventStatsResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IAccessorKey;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.IType;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
+
+import static io.github.deplague.jmcmcp.domain.model.EventCategoricalField.EventFieldValue;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for JFR event statistical summaries.
  */
 @Slf4j
+@ApplicationScoped
 public final class JfrEventStatsService {
 
     public JfrEventStatsResult analyze(IItemCollection events, String eventType) {
-        IItemCollection targetEvents = events.apply(ItemFilters.type(eventType));
-        long count = JfrItemUtils.count(targetEvents);
+        IItemCollection targetEvents = events.apply(type(eventType));
+        long count = count(targetEvents);
 
         if (count == 0) {
-            return new JfrEventStatsResult(eventType, 0, List.of(), List.of(), false);
+            return new JfrEventStatsResult(eventType, 0, of(), of(), false);
         }
 
         if (!targetEvents.iterator().hasNext()) {
-            return new JfrEventStatsResult(eventType, count, List.of(), List.of(), true);
+            return new JfrEventStatsResult(eventType, count, of(), of(), true);
         }
 
         IType<IItem> type = targetEvents.iterator().next().getType();
@@ -44,11 +47,11 @@ public final class JfrEventStatsService {
 
         for (IAccessorKey<?> key : type.getAccessorKeys().keySet()) {
             String identifier = key.getIdentifier();
-            IQuantity max = JfrItemUtils.maxQuantity(targetEvents, identifier);
+            IQuantity max = maxQuantity(targetEvents, identifier);
             if (max != null) {
-                IQuantity min = JfrItemUtils.minQuantity(targetEvents, identifier);
-                IQuantity avg = JfrItemUtils.avgQuantity(targetEvents, identifier);
-                IQuantity p95 = JfrItemUtils.percentileQuantity(targetEvents, identifier, 95);
+                IQuantity min = minQuantity(targetEvents, identifier);
+                IQuantity avg = avgQuantity(targetEvents, identifier);
+                IQuantity p95 = percentileQuantity(targetEvents, identifier, 95);
                 numericFields.add(new EventFieldStats(
                         identifier,
                         display(min),
@@ -69,7 +72,8 @@ public final class JfrEventStatsService {
             }
             Map<String, Long> dist = new HashMap<>();
             for (IItemIterable iterable : targetEvents) {
-                IMemberAccessor<Object, IItem> acc = JfrItemUtils.getAccessor(iterable.getType(), identifier);
+                IType<?> type1 = iterable.getType();
+                IMemberAccessor<Object, IItem> acc = getAccessor(type1, identifier);
                 if (acc != null) {
                     for (IItem item : iterable) {
                         Object val = acc.getMember(item);
@@ -80,10 +84,10 @@ public final class JfrEventStatsService {
                 }
             }
             if (!dist.isEmpty() && dist.size() < count) {
-                List<EventCategoricalField.EventFieldValue> values = dist.entrySet().stream()
-                        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                List<EventFieldValue> values = dist.entrySet().stream()
+                        .sorted(Entry.<String, Long>comparingByValue().reversed())
                         .limit(5)
-                        .map(e -> new EventCategoricalField.EventFieldValue(e.getKey(), e.getValue()))
+                        .map(e -> new EventFieldValue(e.getKey(), e.getValue()))
                         .toList();
                 categoricalFields.add(new EventCategoricalField(identifier, values));
             }
@@ -99,6 +103,6 @@ public final class JfrEventStatsService {
     }
 
     private static String display(IQuantity q) {
-        return q != null ? q.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO) : "N/A";
+        return q != null ? q.displayUsing(AUTO) : "N/A";
     }
 }

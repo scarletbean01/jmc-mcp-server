@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.JdkBugReferenceResult;
 import io.github.deplague.jmcmcp.domain.service.JdkBugReferenceService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates JDK bug cross-reference use case.

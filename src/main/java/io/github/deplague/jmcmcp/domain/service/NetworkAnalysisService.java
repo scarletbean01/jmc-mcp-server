@@ -1,58 +1,61 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.NetworkAnalysisResult;
-import io.github.deplague.jmcmcp.domain.model.NetworkConnectEntry;
-import io.github.deplague.jmcmcp.domain.model.NetworkLatencyPercentile;
-import io.github.deplague.jmcmcp.domain.model.NetworkReadEntry;
-import io.github.deplague.jmcmcp.domain.model.NetworkWriteEntry;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import io.github.deplague.jmcmcp.domain.model.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
+import static java.lang.Long.compare;
+import static java.lang.Math.*;
+import static java.lang.String.format;
+import static java.util.List.of;
+import static java.util.Optional.empty;
+import static java.util.Optional.ofNullable;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for analyzing socket network events.
  */
+@ApplicationScoped
 public final class NetworkAnalysisService {
 
     public NetworkAnalysisResult analyze(IItemCollection events, int topN) {
-        IItemCollection connectEvents = events.apply(ItemFilters.type("jdk.SocketConnect"));
-        IItemCollection readEvents = events.apply(ItemFilters.type("jdk.SocketRead"));
-        IItemCollection writeEvents = events.apply(ItemFilters.type("jdk.SocketWrite"));
+        IItemCollection connectEvents = events.apply(type("jdk.SocketConnect"));
+        IItemCollection readEvents = events.apply(type("jdk.SocketRead"));
+        IItemCollection writeEvents = events.apply(type("jdk.SocketWrite"));
 
-        long connectCount = JfrItemUtils.count(connectEvents);
-        long readCount = JfrItemUtils.count(readEvents);
-        long writeCount = JfrItemUtils.count(writeEvents);
+        long connectCount = count(connectEvents);
+        long readCount = count(readEvents);
+        long writeCount = count(writeEvents);
 
         if (connectCount == 0 && readCount == 0 && writeCount == 0) {
             return new NetworkAnalysisResult(
                     0, 0, 0,
-                    Optional.empty(), Optional.empty(), Optional.empty(),
-                    List.of(), List.of(), List.of(), List.of(), false
+                    empty(), empty(), empty(),
+                    of(), of(), of(), of(), false
             );
         }
 
-        Optional<String> avgConnectDuration = Optional.empty();
-        Optional<String> maxConnectDuration = Optional.empty();
-        Optional<String> p95ConnectDuration = Optional.empty();
+        Optional<String> avgConnectDuration = empty();
+        Optional<String> maxConnectDuration = empty();
+        Optional<String> p95ConnectDuration = empty();
 
         if (connectCount > 0) {
-            IQuantity avgConn = JfrItemUtils.avgQuantity(connectEvents, JfrAttributes.DURATION.getIdentifier());
-            IQuantity maxConn = JfrItemUtils.maxQuantity(connectEvents, JfrAttributes.DURATION.getIdentifier());
-            IQuantity p95Conn = JfrItemUtils.percentileQuantity(connectEvents, JfrAttributes.DURATION.getIdentifier(), 95);
-            avgConnectDuration = Optional.ofNullable(avgConn).map(q -> q.displayUsing(IDisplayable.AUTO));
-            maxConnectDuration = Optional.ofNullable(maxConn).map(q -> q.displayUsing(IDisplayable.AUTO));
-            p95ConnectDuration = Optional.ofNullable(p95Conn).map(q -> q.displayUsing(IDisplayable.AUTO));
+            var stats = batchStats(connectEvents, DURATION.getIdentifier(), 95);
+            avgConnectDuration = ofNullable(stats.get("avg")).map(q -> q.displayUsing(AUTO));
+            maxConnectDuration = ofNullable(stats.get("max")).map(q -> q.displayUsing(AUTO));
+            p95ConnectDuration = ofNullable(stats.get("p95")).map(q -> q.displayUsing(AUTO));
         }
 
         Map<HostPortKey, ConnectStats> connectStats = processConnects(connectEvents);
@@ -60,7 +63,7 @@ public final class NetworkAnalysisService {
         Map<HostPortKey, WriteStats> writeStats = processWrites(writeEvents);
 
         List<NetworkConnectEntry> topConnections = connectStats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().count, a.getValue().count))
+                .sorted((a, b) -> compare(b.getValue().count, a.getValue().count))
                 .limit(topN)
                 .map(entry -> {
                     ConnectStats s = entry.getValue();
@@ -74,7 +77,7 @@ public final class NetworkAnalysisService {
                 .toList();
 
         List<NetworkReadEntry> topReads = readStats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalBytes, a.getValue().totalBytes))
+                .sorted((a, b) -> compare(b.getValue().totalBytes, a.getValue().totalBytes))
                 .limit(topN)
                 .map(entry -> {
                     ReadStats s = entry.getValue();
@@ -88,7 +91,7 @@ public final class NetworkAnalysisService {
                 .toList();
 
         List<NetworkWriteEntry> topWrites = writeStats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalBytes, a.getValue().totalBytes))
+                .sorted((a, b) -> compare(b.getValue().totalBytes, a.getValue().totalBytes))
                 .limit(topN)
                 .map(entry -> {
                     WriteStats s = entry.getValue();
@@ -101,7 +104,7 @@ public final class NetworkAnalysisService {
                 })
                 .toList();
 
-        List<NetworkLatencyPercentile> percentiles = List.of(
+        List<NetworkLatencyPercentile> percentiles = of(
                 computePercentile("Socket Connect", connectEvents),
                 computePercentile("Socket Read", readEvents),
                 computePercentile("Socket Write", writeEvents)
@@ -125,9 +128,11 @@ public final class NetworkAnalysisService {
     private Map<HostPortKey, ConnectStats> processConnects(IItemCollection events) {
         Map<HostPortKey, ConnectStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
-            IMemberAccessor<Object, IItem> hostAccessor = JfrItemUtils.getAccessor(iterable.getType(), "host");
-            IMemberAccessor<IQuantity, IItem> portAccessor = JfrItemUtils.getAccessor(iterable.getType(), "port");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type1, "host");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type, "port");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
 
             if (hostAccessor != null) {
                 for (IItem item : iterable) {
@@ -150,9 +155,9 @@ public final class NetworkAnalysisService {
                     if (durationAccessor != null) {
                         IQuantity dur = durationAccessor.getMember(item);
                         if (dur != null) {
-                            long nanos = dur.clampedLongValueIn(UnitLookup.NANOSECOND);
+                            long nanos = dur.clampedLongValueIn(NANOSECOND);
                             s.totalDurationNanos += nanos;
-                            s.maxDurationNanos = Math.max(s.maxDurationNanos, nanos);
+                            s.maxDurationNanos = max(s.maxDurationNanos, nanos);
                         }
                     }
                 }
@@ -164,10 +169,13 @@ public final class NetworkAnalysisService {
     private Map<HostPortKey, ReadStats> processReads(IItemCollection events) {
         Map<HostPortKey, ReadStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
-            IMemberAccessor<Object, IItem> hostAccessor = JfrItemUtils.getAccessor(iterable.getType(), "host");
-            IMemberAccessor<IQuantity, IItem> portAccessor = JfrItemUtils.getAccessor(iterable.getType(), "port");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-            IMemberAccessor<IQuantity, IItem> bytesAccessor = JfrItemUtils.getAccessor(iterable.getType(), "bytesRead");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type2, "host");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type1, "port");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type, "bytesRead");
 
             if (hostAccessor != null) {
                 for (IItem item : iterable) {
@@ -190,7 +198,7 @@ public final class NetworkAnalysisService {
                     if (durationAccessor != null) {
                         IQuantity dur = durationAccessor.getMember(item);
                         if (dur != null) {
-                            s.totalDurationNanos += dur.clampedLongValueIn(UnitLookup.NANOSECOND);
+                            s.totalDurationNanos += dur.clampedLongValueIn(NANOSECOND);
                         }
                     }
                     if (bytesAccessor != null) {
@@ -208,10 +216,13 @@ public final class NetworkAnalysisService {
     private Map<HostPortKey, WriteStats> processWrites(IItemCollection events) {
         Map<HostPortKey, WriteStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
-            IMemberAccessor<Object, IItem> hostAccessor = JfrItemUtils.getAccessor(iterable.getType(), "host");
-            IMemberAccessor<IQuantity, IItem> portAccessor = JfrItemUtils.getAccessor(iterable.getType(), "port");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrAttributes.DURATION.getAccessor(iterable.getType());
-            IMemberAccessor<IQuantity, IItem> bytesAccessor = JfrItemUtils.getAccessor(iterable.getType(), "bytesWritten");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type2, "host");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type1, "port");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type, "bytesWritten");
 
             if (hostAccessor != null) {
                 for (IItem item : iterable) {
@@ -234,7 +245,7 @@ public final class NetworkAnalysisService {
                     if (durationAccessor != null) {
                         IQuantity dur = durationAccessor.getMember(item);
                         if (dur != null) {
-                            s.totalDurationNanos += dur.clampedLongValueIn(UnitLookup.NANOSECOND);
+                            s.totalDurationNanos += dur.clampedLongValueIn(NANOSECOND);
                         }
                     }
                     if (bytesAccessor != null) {
@@ -253,12 +264,9 @@ public final class NetworkAnalysisService {
         if (!events.hasItems()) {
             return new NetworkLatencyPercentile(name, "N/A", "N/A", "N/A", "N/A");
         }
-        IQuantity p50 = JfrItemUtils.percentileQuantity(events, JfrAttributes.DURATION.getIdentifier(), 50);
-        IQuantity p95 = JfrItemUtils.percentileQuantity(events, JfrAttributes.DURATION.getIdentifier(), 95);
-        IQuantity p99 = JfrItemUtils.percentileQuantity(events, JfrAttributes.DURATION.getIdentifier(), 99);
-        IQuantity max = JfrItemUtils.maxQuantity(events, JfrAttributes.DURATION.getIdentifier());
+        var stats = batchStats(events, DURATION.getIdentifier(), 50, 95, 99);
         return new NetworkLatencyPercentile(
-                name, display(p50), display(p95), display(p99), display(max)
+                name, display(stats.get("p50")), display(stats.get("p95")), display(stats.get("p99")), display(stats.get("max"))
         );
     }
 
@@ -266,20 +274,20 @@ public final class NetworkAnalysisService {
         if (q == null) {
             return "N/A";
         }
-        return q.displayUsing(IDisplayable.AUTO);
+        return q.displayUsing(AUTO);
     }
 
     private static String displayNanos(long nanos) {
-        return UnitLookup.NANOSECOND.quantity(nanos).displayUsing(IDisplayable.AUTO);
+        return NANOSECOND.quantity(nanos).displayUsing(AUTO);
     }
 
     private static String formatBytes(long bytes) {
         if (bytes < 1024) {
             return bytes + " B";
         }
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        int exp = (int) (log(bytes) / log(1024));
         String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
+        return format("%.2f %sB", bytes / pow(1024, exp), pre);
     }
 
     private record HostPortKey(String host, int port) {

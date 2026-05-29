@@ -1,18 +1,19 @@
 package io.github.deplague.jmcmcp.application.service;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeData;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.DiffCallTreeService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import org.openjdk.jmc.common.item.IItemCollection;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
-import org.openjdk.jmc.common.item.IItemCollection;
 
 /**
  * Application service that orchestrates JFR loading and diff call tree analysis.

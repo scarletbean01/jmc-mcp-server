@@ -3,17 +3,15 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.LeakSiteEntry;
 import io.github.deplague.jmcmcp.domain.model.LeakingClassEntry;
 import io.github.deplague.jmcmcp.domain.model.MemoryLeaksResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.Comparator;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
 
 /**
  * Domain service for memory leak analysis from old object samples.
@@ -22,7 +20,7 @@ public class MemoryLeaksService {
 
     public MemoryLeaksResult analyze(IItemCollection events, int topN) {
         IItemCollection samples = events.apply(ItemFilters.type("jdk.OldObjectSample"));
-        long count = JfrItemUtils.count(samples);
+        long count = JfrQuantityAggregator.count(samples);
 
         if (count == 0) {
             return new MemoryLeaksResult(false, 0, List.of(), List.of());
@@ -32,10 +30,14 @@ public class MemoryLeaksService {
         Map<String, LeakStats> siteStats = new HashMap<>();
 
         for (IItemIterable iterable : samples) {
-            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
-            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "allocationSize");
-            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
-            IMemberAccessor<Object, IItem> objAccessor = JfrItemUtils.getAccessor(iterable.getType(), "object");
+            IType<?> type3 = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = JfrAccessorRepository.getAccessor(type3, "objectClass");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrAccessorRepository.getAccessor(type2, "allocationSize");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAccessor = JfrAccessorRepository.getAccessor(type1, "stackTrace");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> objAccessor = JfrAccessorRepository.getAccessor(type, "object");
 
             for (IItem item : iterable) {
                 String className = "Unknown";
@@ -55,7 +57,7 @@ public class MemoryLeaksService {
                 if (stackAccessor != null) {
                     Object st = stackAccessor.getMember(item);
                     if (st != null) {
-                        stackTrace = JfrItemUtils.formatStackTrace(st, 5);
+                        stackTrace = JfrStackTraceService.formatStackTrace(st, 5);
                     }
                 }
 

@@ -8,10 +8,11 @@ import io.github.deplague.jmcmcp.domain.model.ThreadCpuResult;
 import io.github.deplague.jmcmcp.domain.service.HighCpuDiagnosticService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Application service that orchestrates high-CPU diagnostic analysis.

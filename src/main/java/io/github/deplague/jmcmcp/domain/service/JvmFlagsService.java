@@ -2,21 +2,22 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JvmFlagEntry;
 import io.github.deplague.jmcmcp.domain.model.JvmFlagsResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static java.util.Comparator.comparing;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for extracting JVM runtime flags from JFR recordings.
  */
 @Slf4j
+@ApplicationScoped
 public final class JvmFlagsService {
 
     public JvmFlagsResult analyze(IItemCollection events, String filter) {
@@ -26,7 +27,7 @@ public final class JvmFlagsService {
         collectFlags(events, "jdk.UintFlag", "uint", flags);
         collectFlags(events, "jdk.DoubleFlag", "double", flags);
 
-        flags.sort(Comparator.comparing(JvmFlagEntry::name));
+        flags.sort(comparing(JvmFlagEntry::name));
 
         if (filter != null && !filter.isBlank()) {
             String lower = filter.toLowerCase();
@@ -39,10 +40,12 @@ public final class JvmFlagsService {
     }
 
     private void collectFlags(IItemCollection events, String typeId, String typeName, List<JvmFlagEntry> flags) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> nameAcc = JfrItemUtils.getAccessor(iterable.getType(), "name");
-            IMemberAccessor<Object, IItem> valueAcc = JfrItemUtils.getAccessor(iterable.getType(), "value");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> nameAcc = getAccessor(type1, "name");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> valueAcc = getAccessor(type, "value");
             if (nameAcc != null && valueAcc != null) {
                 for (IItem item : iterable) {
                     Object name = nameAcc.getMember(item);

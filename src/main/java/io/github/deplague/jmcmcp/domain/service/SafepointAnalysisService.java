@@ -1,25 +1,17 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.SafepointAnalysisResult;
-import io.github.deplague.jmcmcp.domain.model.SafepointCauseEntry;
-import io.github.deplague.jmcmcp.domain.model.TopSafepointEntry;
-import io.github.deplague.jmcmcp.domain.model.TtspSummary;
-import io.github.deplague.jmcmcp.domain.model.VmOperationSummary;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
 import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Domain service for safepoint and STW pause analysis.
@@ -36,7 +28,7 @@ public class SafepointAnalysisService {
             );
         }
 
-        long count = JfrItemUtils.count(safepoints);
+        long count = JfrQuantityAggregator.count(safepoints);
         long totalNanos = sumNanos(safepoints, JfrAttributes.DURATION.getIdentifier());
         long avgNanos = avgNanos(safepoints, JfrAttributes.DURATION.getIdentifier());
         long maxNanos = maxNanos(safepoints, JfrAttributes.DURATION.getIdentifier());
@@ -45,12 +37,15 @@ public class SafepointAnalysisService {
         // Cause distribution
         Map<String, CauseStats> causeMap = new HashMap<>();
         for (IItemIterable iterable : safepoints) {
-            IMemberAccessor<String, IItem> opAccessor = JfrItemUtils.getAccessor(iterable.getType(), "operation");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<String, IItem> opAccessor = JfrAccessorRepository.getAccessor(type1, "operation");
             if (opAccessor == null) {
-                opAccessor = JfrItemUtils.getAccessor(iterable.getType(), "name");
+                IType<?> type = iterable.getType();
+                opAccessor = JfrAccessorRepository.getAccessor(type, "name");
             }
+            IType<?> type = iterable.getType();
             IMemberAccessor<IQuantity, IItem> durationAccessor =
-                    JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
+                    JfrAccessorRepository.getAccessor(type, JfrAttributes.DURATION.getIdentifier());
 
             if (opAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {
@@ -93,18 +88,18 @@ public class SafepointAnalysisService {
 
         List<TopSafepointEntry> topSafepoints = sortedSafepoints.stream()
                 .sorted((a, b) -> {
-                    IQuantity da = JfrItemUtils.getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                    IQuantity db = JfrItemUtils.getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                    IQuantity da = JfrAccessorRepository.<IQuantity>getQuantity(a, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                    IQuantity db = JfrAccessorRepository.<IQuantity>getQuantity(b, JfrAttributes.DURATION.getIdentifier()).orElse(null);
                     if (da == null) return (db == null) ? 0 : 1;
                     if (db == null) return -1;
                     return db.compareTo(da);
                 })
                 .limit(topN)
                 .map(item -> {
-                    IQuantity duration = JfrItemUtils.getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
-                    Object op = JfrItemUtils.getMember(item, "operation")
-                            .orElse(JfrItemUtils.getMember(item, "name").orElse("Unknown"));
-                    IQuantity start = JfrItemUtils.getQuantity(item, JfrAttributes.START_TIME.getIdentifier()).orElse(null);
+                    IQuantity duration = JfrAccessorRepository.<IQuantity>getQuantity(item, JfrAttributes.DURATION.getIdentifier()).orElse(null);
+                    Object op = JfrAccessorRepository.getMember(item, "operation")
+                            .orElse(JfrAccessorRepository.getMember(item, "name").orElse("Unknown"));
+                    IQuantity start = JfrAccessorRepository.<IQuantity>getQuantity(item, JfrAttributes.START_TIME.getIdentifier()).orElse(null);
                     return new TopSafepointEntry(
                             duration != null ? duration.clampedLongValueIn(UnitLookup.NANOSECOND) : 0,
                             op.toString(),
@@ -117,7 +112,7 @@ public class SafepointAnalysisService {
         IItemCollection vmOps = events.apply(ItemFilters.type("jdk.ExecuteVMOperation"));
         VmOperationSummary vmSummary = null;
         if (vmOps.hasItems()) {
-            long vmoCount = JfrItemUtils.count(vmOps);
+            long vmoCount = JfrQuantityAggregator.count(vmOps);
             long vmoAvg = avgNanos(vmOps, JfrAttributes.DURATION.getIdentifier());
             long vmoMax = maxNanos(vmOps, JfrAttributes.DURATION.getIdentifier());
             vmSummary = new VmOperationSummary(vmoCount, vmoAvg, vmoMax);
@@ -148,22 +143,22 @@ public class SafepointAnalysisService {
     }
 
     private long sumNanos(IItemCollection events, String attr) {
-        IQuantity q = JfrItemUtils.sumQuantity(events, attr);
+        IQuantity q = JfrQuantityAggregator.sumQuantity(events, attr);
         return q != null ? q.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
     }
 
     private long avgNanos(IItemCollection events, String attr) {
-        IQuantity q = JfrItemUtils.avgQuantity(events, attr);
+        IQuantity q = JfrQuantityAggregator.avgQuantity(events, attr);
         return q != null ? q.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
     }
 
     private long maxNanos(IItemCollection events, String attr) {
-        IQuantity q = JfrItemUtils.maxQuantity(events, attr);
+        IQuantity q = JfrQuantityAggregator.maxQuantity(events, attr);
         return q != null ? q.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
     }
 
     private long percentileNanos(IItemCollection events, String attr, int percentile) {
-        IQuantity q = JfrItemUtils.percentileQuantity(events, attr, percentile);
+        IQuantity q = JfrQuantityAggregator.percentileQuantity(events, attr, percentile);
         return q != null ? q.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
     }
 

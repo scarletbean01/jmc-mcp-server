@@ -2,38 +2,46 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.NativeLibraryEntry;
 import io.github.deplague.jmcmcp.domain.model.NativeMemoryResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.maxQuantity;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for native memory tracking and library analysis.
  */
 @Slf4j
+@ApplicationScoped
 public final class NativeMemoryService {
 
     public NativeMemoryResult analyze(IItemCollection events) {
-        IItemCollection nativeLibs = events.apply(ItemFilters.type("jdk.NativeLibrary"));
-        long libCount = JfrItemUtils.count(nativeLibs);
+        IItemCollection nativeLibs = events.apply(type("jdk.NativeLibrary"));
+        long libCount = count(nativeLibs);
 
-        IItemCollection heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
-        IQuantity maxHeap = JfrItemUtils.maxQuantity(heapSummary, "heapSize");
+        IItemCollection heapSummary = events.apply(type("jdk.GCHeapSummary"));
+        IQuantity maxHeap = maxQuantity(heapSummary, "heapSize");
 
-        IItemCollection props = events.apply(ItemFilters.type("jdk.InitialSystemProperty"));
+        IItemCollection props = events.apply(type("jdk.InitialSystemProperty"));
         Map<String, String> memProps = new HashMap<>();
         for (IItemIterable iterable : props) {
-            IMemberAccessor<String, IItem> keyAccessor = JfrItemUtils.getAccessor(iterable.getType(), "key");
-            IMemberAccessor<String, IItem> valueAccessor = JfrItemUtils.getAccessor(iterable.getType(), "value");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<String, IItem> keyAccessor = getAccessor(type1, "key");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<String, IItem> valueAccessor = getAccessor(type, "value");
             if (keyAccessor != null && valueAccessor != null) {
                 for (IItem item : iterable) {
                     String key = keyAccessor.getMember(item);
@@ -50,12 +58,13 @@ public final class NativeMemoryService {
         if (libCount > 0) {
             int count = 0;
             for (IItemIterable iterable : nativeLibs) {
-                IMemberAccessor<String, IItem> nameAccessor = JfrItemUtils.getAccessor(iterable.getType(), "name");
+                IType<?> type = iterable.getType();
+                IMemberAccessor<String, IItem> nameAccessor = getAccessor(type, "name");
                 if (nameAccessor != null) {
                     for (IItem item : iterable) {
                         if (count++ >= 50) break;
                         String name = nameAccessor.getMember(item);
-                        String path = JfrItemUtils.getMember(item, "topLevelPath")
+                        String path = getMember(item, "topLevelPath")
                                 .map(Object::toString)
                                 .orElse("N/A");
                         libraries.add(new NativeLibraryEntry(name, path));
@@ -67,7 +76,7 @@ public final class NativeMemoryService {
 
         return new NativeMemoryResult(
                 libCount,
-                maxHeap != null ? Optional.of(maxHeap.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO)) : Optional.empty(),
+                maxHeap != null ? of(maxHeap.displayUsing(AUTO)) : empty(),
                 memProps,
                 libraries,
                 libCount > 0 || maxHeap != null || !memProps.isEmpty()

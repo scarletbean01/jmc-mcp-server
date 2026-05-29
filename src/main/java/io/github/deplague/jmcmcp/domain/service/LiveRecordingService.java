@@ -1,15 +1,11 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.LiveRecordingDumpResult;
-import io.github.deplague.jmcmcp.domain.model.LiveRecordingInfo;
-import io.github.deplague.jmcmcp.domain.model.LiveRecordingListResult;
-import io.github.deplague.jmcmcp.domain.model.LiveRecordingStartResult;
-import io.github.deplague.jmcmcp.domain.model.LiveRecordingStopResult;
+import io.github.deplague.jmcmcp.domain.model.*;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,10 +13,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.List.of;
+import static javax.management.remote.JMXConnectorFactory.connect;
+
 /**
  * Pure domain service for managing live JFR recordings on a remote JVM via JMX.
  * Contains no MCP-specific or framework logic.
  */
+@ApplicationScoped
 public final class LiveRecordingService {
 
     private static final String FLIGHT_RECORDER_OBJECT_NAME = "jdk.management.jfr:type=FlightRecorder";
@@ -31,7 +31,7 @@ public final class LiveRecordingService {
                     flightRecorder, "getRecordingIds", new Object[0], new String[0]);
 
             if (recordingIds.isEmpty()) {
-                return new LiveRecordingListResult(List.of());
+                return new LiveRecordingListResult(of());
             }
 
             List<LiveRecordingInfo> recordings = new ArrayList<>();
@@ -96,7 +96,7 @@ public final class LiveRecordingService {
 
     private <T> T withConnection(String jmxUrl, JmxAction<T> action) throws Exception {
         JMXServiceURL url = new JMXServiceURL(jmxUrl);
-        try (JMXConnector connector = JMXConnectorFactory.connect(url)) {
+        try (JMXConnector connector = connect(url)) {
             MBeanServerConnection conn = connector.getMBeanServerConnection();
             ObjectName flightRecorder = new ObjectName(FLIGHT_RECORDER_OBJECT_NAME);
             return action.execute(conn, flightRecorder);

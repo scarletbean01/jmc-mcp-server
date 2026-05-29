@@ -3,24 +3,34 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.IoEndpointEntry;
 import io.github.deplague.jmcmcp.domain.model.IoHotspotsResult;
 import io.github.deplague.jmcmcp.domain.model.IoLatencyPercentile;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.maxQuantity;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.percentileQuantity;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
+import static java.lang.Long.compare;
+import static java.lang.Math.log;
+import static java.lang.Math.pow;
+import static java.lang.String.format;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.BYTE;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for I/O hotspots analysis.
  */
+@ApplicationScoped
 public final class IoHotspotsService {
 
     public IoHotspotsResult analyze(IItemCollection events, String endpointFilter, int topN) {
@@ -28,13 +38,13 @@ public final class IoHotspotsService {
         boolean showSocket = "all".equals(endpointFilter) || "socket".equals(endpointFilter);
 
         List<IoEndpointEntry> fileEndpoints = showFile
-                ? analyzeIoSection(events, List.of("jdk.FileRead", "jdk.FileWrite"), "path", "bytesRead", "bytesWritten", topN)
-                : List.of();
+                ? analyzeIoSection(events, of("jdk.FileRead", "jdk.FileWrite"), "path", "bytesRead", "bytesWritten", topN)
+                : of();
         List<IoEndpointEntry> socketEndpoints = showSocket
-                ? analyzeIoSection(events, List.of("jdk.SocketRead", "jdk.SocketWrite"), "host", "bytesRead", "bytesWritten", topN)
-                : List.of();
+                ? analyzeIoSection(events, of("jdk.SocketRead", "jdk.SocketWrite"), "host", "bytesRead", "bytesWritten", topN)
+                : of();
 
-        List<IoLatencyPercentile> percentiles = List.of(
+        List<IoLatencyPercentile> percentiles = of(
                 computePercentile("File Read", events, "jdk.FileRead"),
                 computePercentile("File Write", events, "jdk.FileWrite"),
                 computePercentile("Socket Read", events, "jdk.SocketRead"),
@@ -51,21 +61,25 @@ public final class IoHotspotsService {
     }
 
     private List<IoEndpointEntry> analyzeIoSection(IItemCollection events, List<String> types,
-                                                    String targetAttr, String readAttr, String writeAttr, int topN) {
+                                                   String targetAttr, String readAttr, String writeAttr, int topN) {
         Map<IoKey, IoStats> statsMap = new HashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
-        boolean isSocket = types.get(0).contains("Socket");
+        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        boolean isSocket = types.getFirst().contains("Socket");
 
         for (String typeId : types) {
-            IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
+            IItemCollection typeEvents = events.apply(type(typeId));
             boolean isRead = typeId.contains("Read");
             String bytesAttr = isRead ? readAttr : writeAttr;
 
             for (IItemIterable iterable : typeEvents) {
-                IMemberAccessor<Object, IItem> targetAccessor = JfrItemUtils.getAccessor(iterable.getType(), targetAttr);
-                IMemberAccessor<IQuantity, IItem> durationAccessor = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
-                IMemberAccessor<IQuantity, IItem> bytesAccessor = JfrItemUtils.getAccessor(iterable.getType(), bytesAttr);
-                IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                IType<?> type3 = iterable.getType();
+                IMemberAccessor<Object, IItem> targetAccessor = getAccessor(type3, targetAttr);
+                IType<?> type2 = iterable.getType();
+                IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type2, DURATION.getIdentifier());
+                IType<?> type1 = iterable.getType();
+                IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type1, bytesAttr);
+                IType<?> type = iterable.getType();
+                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
 
                 if (targetAccessor != null && durationAccessor != null) {
                     for (IItem item : iterable) {
@@ -74,7 +88,7 @@ public final class IoHotspotsService {
 
                         String target = targetObj.toString();
                         if (isSocket) {
-                            Object port = JfrItemUtils.getMember(item, "port").orElse("");
+                            Object port = getMember(item, "port").orElse("");
                             target = target + ":" + port;
                         }
 
@@ -84,17 +98,17 @@ public final class IoHotspotsService {
                         String trace = stCache.format(stackObj, 5);
 
                         IoKey key = new IoKey(target, trace);
-                        IoStats stats = statsMap.computeIfAbsent(key, k -> new IoStats());
+                        IoStats stats = statsMap.computeIfAbsent(key, _ -> new IoStats());
                         stats.count++;
                         if (duration != null) {
-                            long nanos = duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                            long nanos = duration.clampedLongValueIn(NANOSECOND);
                             stats.totalDurationNanos += nanos;
                             if (nanos > stats.maxDurationNanos) {
                                 stats.maxDurationNanos = nanos;
                             }
                         }
                         if (bytes != null) {
-                            stats.totalBytes += bytes.clampedLongValueIn(UnitLookup.BYTE);
+                            stats.totalBytes += bytes.clampedLongValueIn(BYTE);
                         }
                     }
                 }
@@ -102,7 +116,7 @@ public final class IoHotspotsService {
         }
 
         return statsMap.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().maxDurationNanos, a.getValue().maxDurationNanos))
+                .sorted((a, b) -> compare(b.getValue().maxDurationNanos, a.getValue().maxDurationNanos))
                 .limit(topN)
                 .map(e -> {
                     IoStats s = e.getValue();
@@ -118,14 +132,17 @@ public final class IoHotspotsService {
     }
 
     private IoLatencyPercentile computePercentile(String name, IItemCollection events, String typeId) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         if (!filtered.hasItems()) {
             return new IoLatencyPercentile(name, "N/A", "N/A", "N/A", "N/A");
         }
-        IQuantity p50 = JfrItemUtils.percentileQuantity(filtered, JfrAttributes.DURATION.getIdentifier(), 50);
-        IQuantity p95 = JfrItemUtils.percentileQuantity(filtered, JfrAttributes.DURATION.getIdentifier(), 95);
-        IQuantity p99 = JfrItemUtils.percentileQuantity(filtered, JfrAttributes.DURATION.getIdentifier(), 99);
-        IQuantity max = JfrItemUtils.maxQuantity(filtered, JfrAttributes.DURATION.getIdentifier());
+        String identifier2 = DURATION.getIdentifier();
+        IQuantity p50 = percentileQuantity(filtered, identifier2, 50);
+        String identifier1 = DURATION.getIdentifier();
+        IQuantity p95 = percentileQuantity(filtered, identifier1, 95);
+        String identifier = DURATION.getIdentifier();
+        IQuantity p99 = percentileQuantity(filtered, identifier, 99);
+        IQuantity max = maxQuantity(filtered, DURATION.getIdentifier());
         return new IoLatencyPercentile(name, display(p50), display(p95), display(p99), display(max));
     }
 
@@ -133,20 +150,20 @@ public final class IoHotspotsService {
         if (q == null) {
             return "N/A";
         }
-        return q.displayUsing(IDisplayable.AUTO);
+        return q.displayUsing(AUTO);
     }
 
     private static String displayNanos(long nanos) {
-        return UnitLookup.NANOSECOND.quantity(nanos).displayUsing(IDisplayable.AUTO);
+        return NANOSECOND.quantity(nanos).displayUsing(AUTO);
     }
 
     private static String formatBytes(long bytes) {
         if (bytes < 1024) {
             return bytes + " B";
         }
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        int exp = (int) (log(bytes) / log(1024));
         String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
+        return format("%.2f %sB", bytes / pow(1024, exp), pre);
     }
 
     private record IoKey(String target, String stackTrace) {

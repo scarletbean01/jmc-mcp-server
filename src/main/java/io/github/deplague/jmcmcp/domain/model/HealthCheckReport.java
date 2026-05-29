@@ -14,7 +14,6 @@ public record HealthCheckReport(
         double heapUsedPct,
         JvmMemoryInfo jvmMemory,
         JvmThreadInfo jvmThreads,
-        RecordingCacheInfo recordingCache,
-        AsyncJobQueueInfo asyncJobQueue
+        RecordingCacheInfo recordingCache
 ) {
 }

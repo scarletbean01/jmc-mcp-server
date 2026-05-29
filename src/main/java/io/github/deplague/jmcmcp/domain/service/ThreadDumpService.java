@@ -2,35 +2,38 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ThreadDumpEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadDumpResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for extracting thread dumps from JFR recordings.
  */
 @Slf4j
+@ApplicationScoped
 public final class ThreadDumpService {
 
     public ThreadDumpResult analyze(IItemCollection events, int maxDumps) {
-        IItemCollection threadDumps = events.apply(ItemFilters.type("jdk.ThreadDump"));
+        IItemCollection threadDumps = events.apply(type("jdk.ThreadDump"));
         if (!threadDumps.hasItems()) {
-            return new ThreadDumpResult(List.of(), false);
+            return new ThreadDumpResult(of(), false);
         }
 
         List<ThreadDumpEntry> entries = new ArrayList<>();
         int count = 0;
         for (IItemIterable itemIterable : threadDumps) {
-            IMemberAccessor<Object, IItem> resultAccessor = JfrItemUtils.getAccessor(itemIterable.getType(), "result");
-            IMemberAccessor<IQuantity, IItem> startTimeAccessor = JfrAttributes.START_TIME.getAccessor(itemIterable.getType());
+            IType<?> type = itemIterable.getType();
+            IMemberAccessor<Object, IItem> resultAccessor = getAccessor(type, "result");
+            IMemberAccessor<IQuantity, IItem> startTimeAccessor = START_TIME.getAccessor(itemIterable.getType());
 
             if (resultAccessor != null && startTimeAccessor != null) {
                 for (IItem item : itemIterable) {

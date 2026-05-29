@@ -3,29 +3,33 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.LeakSuspectEntry;
 import io.github.deplague.jmcmcp.domain.model.OomProjection;
 import io.github.deplague.jmcmcp.domain.model.PredictiveLeakResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static java.lang.Long.compare;
+import static java.lang.Long.parseLong;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for predictive leak analysis using linear regression on post-GC heap usage.
  */
+@ApplicationScoped
 public final class PredictiveLeakAnalysisService {
 
     public PredictiveLeakResult analyze(IItemCollection events, double rSquaredThreshold) {
-        IItemCollection heapEvents = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
-        IItemCollection heapConfigEvents = events.apply(ItemFilters.type("jdk.GCHeapConfiguration"));
-        IItemCollection oldObjectSamples = events.apply(ItemFilters.type("jdk.OldObjectSample"));
+        IItemCollection heapEvents = events.apply(type("jdk.GCHeapSummary"));
+        IItemCollection heapConfigEvents = events.apply(type("jdk.GCHeapConfiguration"));
+        IItemCollection oldObjectSamples = events.apply(type("jdk.OldObjectSample"));
 
         if (!heapEvents.hasItems()) {
             return nullResult("No GC heap summary events found. Cannot perform leak analysis.");
@@ -91,16 +95,18 @@ public final class PredictiveLeakAnalysisService {
 
     private PredictiveLeakResult nullResult(String verdict) {
         return new PredictiveLeakResult(
-                verdict, 0, 0, 0, 0, 0, null, null, 0, null, null, List.of()
+                verdict, 0, 0, 0, 0, 0, null, null, 0, null, null, of()
         );
     }
 
     private List<DataPoint> extractPostGcHeapPoints(IItemCollection heapEvents) {
         List<DataPoint> points = new ArrayList<>();
         for (IItemIterable iterable : heapEvents) {
-            IMemberAccessor<IQuantity, IItem> timeAccessor = JfrAttributes.START_TIME.getAccessor(iterable.getType());
-            IMemberAccessor<IQuantity, IItem> usedAccessor = JfrItemUtils.getAccessor(iterable.getType(), "heapUsed");
-            IMemberAccessor<Object, IItem> whenAccessor = JfrItemUtils.getAccessor(iterable.getType(), "when");
+            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type1, "heapUsed");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> whenAccessor = getAccessor(type, "when");
 
             if (timeAccessor != null && usedAccessor != null) {
                 for (IItem item : iterable) {
@@ -115,20 +121,21 @@ public final class PredictiveLeakAnalysisService {
                     }
 
                     if (isAfterGc) {
-                        long timeMs = timeQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                        long timeMs = timeQ.clampedLongValueIn(EPOCH_MS);
                         long usedBytes = usedQ.longValue();
                         points.add(new DataPoint(timeMs, usedBytes));
                     }
                 }
             }
         }
-        points.sort((a, b) -> Long.compare(a.timeMs, b.timeMs));
+        points.sort((a, b) -> compare(a.timeMs, b.timeMs));
         return points;
     }
 
     private long extractMaxHeapSize(IItemCollection heapConfigEvents, IItemCollection allEvents) {
         for (IItemIterable iterable : heapConfigEvents) {
-            IMemberAccessor<IQuantity, IItem> maxSizeAccessor = JfrItemUtils.getAccessor(iterable.getType(), "maxSize");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> maxSizeAccessor = getAccessor(type, "maxSize");
             if (maxSizeAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity maxSize = maxSizeAccessor.getMember(item);
@@ -137,10 +144,12 @@ public final class PredictiveLeakAnalysisService {
             }
         }
 
-        IItemCollection propEvents = allEvents.apply(ItemFilters.type("jdk.InitialSystemProperty"));
+        IItemCollection propEvents = allEvents.apply(type("jdk.InitialSystemProperty"));
         for (IItemIterable iterable : propEvents) {
-            IMemberAccessor<Object, IItem> keyAccessor = JfrItemUtils.getAccessor(iterable.getType(), "key");
-            IMemberAccessor<Object, IItem> valueAccessor = JfrItemUtils.getAccessor(iterable.getType(), "value");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> keyAccessor = getAccessor(type1, "key");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> valueAccessor = getAccessor(type, "value");
             if (keyAccessor != null && valueAccessor != null) {
                 for (IItem item : iterable) {
                     Object key = keyAccessor.getMember(item);
@@ -148,7 +157,7 @@ public final class PredictiveLeakAnalysisService {
                         Object value = valueAccessor.getMember(item);
                         if (value != null) {
                             try {
-                                return Long.parseLong(value.toString().trim());
+                                return parseLong(value.toString().trim());
                             } catch (NumberFormatException ignored) {
                             }
                         }
@@ -164,7 +173,8 @@ public final class PredictiveLeakAnalysisService {
         long totalCount = 0;
 
         for (IItemIterable iterable : oldObjectSamples) {
-            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type, "objectClass");
             if (classAccessor != null) {
                 for (IItem item : iterable) {
                     Object clazz = classAccessor.getMember(item);
@@ -178,7 +188,7 @@ public final class PredictiveLeakAnalysisService {
 
         long finalTotal = totalCount;
         return classCounts.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .sorted((a, b) -> compare(b.getValue(), a.getValue()))
                 .limit(10)
                 .map(entry -> new LeakSuspectEntry(
                         entry.getKey(),

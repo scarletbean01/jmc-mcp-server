@@ -1,47 +1,65 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.DirectBufferResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.IType;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static io.github.deplague.jmcmcp.domain.model.DirectBufferResult.BufferSample;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.maxQuantity;
+import static java.lang.Long.parseLong;
+import static java.lang.String.format;
+import static java.util.Comparator.comparing;
+import static java.util.List.of;
+import static java.util.Optional.empty;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.BYTE;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for direct buffer statistics analysis.
  */
 @Slf4j
+@ApplicationScoped
 public final class DirectBuffersService {
 
     public DirectBufferResult analyze(IItemCollection events) {
-        IItemCollection dbEvents = events.apply(ItemFilters.type("jdk.DirectBufferStatistics"));
+        IItemCollection dbEvents = events.apply(type("jdk.DirectBufferStatistics"));
         if (!dbEvents.hasItems()) {
             return new DirectBufferResult(
-                    Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), List.of(), false
+                    empty(), empty(), empty(),
+                    empty(), empty(), empty(),
+                    empty(), of(), false
             );
         }
 
-        IQuantity minCount = JfrItemUtils.minQuantity(dbEvents, "directBufferCount");
-        IQuantity avgCount = JfrItemUtils.avgQuantity(dbEvents, "directBufferCount");
-        IQuantity maxCount = JfrItemUtils.maxQuantity(dbEvents, "directBufferCount");
-        IQuantity maxCapacity = JfrItemUtils.maxQuantity(dbEvents, "directTotalCapacity");
-        IQuantity maxUsed = JfrItemUtils.maxQuantity(dbEvents, "directMemoryUsed");
+        var countStats = batchStats(dbEvents, "directBufferCount");
+        IQuantity minCount = countStats.get("min");
+        IQuantity avgCount = countStats.get("avg");
+        IQuantity maxCount = countStats.get("max");
+        var memStats = batchStats(dbEvents, "directMemoryUsed");
+        IQuantity maxUsed = memStats.get("max");
+        IQuantity maxCapacity = maxQuantity(dbEvents, "directTotalCapacity");
 
         long maxDirectMemorySize = -1;
-        IItemCollection props = events.apply(ItemFilters.type("jdk.InitialSystemProperty"));
+        IItemCollection props = events.apply(type("jdk.InitialSystemProperty"));
         for (IItemIterable iterable : props) {
-            var keyAcc = JfrItemUtils.getAccessor(iterable.getType(), "key");
-            var valueAcc = JfrItemUtils.getAccessor(iterable.getType(), "value");
+            IType<?> type1 = iterable.getType();
+            var keyAcc = getAccessor(type1, "key");
+            IType<?> type = iterable.getType();
+            var valueAcc = getAccessor(type, "value");
             if (keyAcc != null && valueAcc != null) {
                 for (IItem item : iterable) {
                     Object key = keyAcc.getMember(item);
@@ -49,7 +67,7 @@ public final class DirectBuffersService {
                         Object val = valueAcc.getMember(item);
                         if (val != null) {
                             try {
-                                maxDirectMemorySize = Long.parseLong(val.toString());
+                                maxDirectMemorySize = parseLong(val.toString());
                             } catch (NumberFormatException ignored) {
                             }
                         }
@@ -58,33 +76,36 @@ public final class DirectBuffersService {
             }
         }
 
-        Optional<Double> util = Optional.empty();
+        Optional<Double> util = empty();
         if (maxDirectMemorySize > 0 && maxUsed != null) {
-            long usedBytes = maxUsed.clampedLongValueIn(UnitLookup.BYTE);
+            long usedBytes = maxUsed.clampedLongValueIn(BYTE);
             util = Optional.of((double) usedBytes / maxDirectMemorySize * 100.0);
         }
 
-        List<DirectBufferResult.BufferSample> trend = new ArrayList<>();
+        List<BufferSample> trend = new ArrayList<>();
         for (IItemIterable iterable : dbEvents) {
-            var timeAcc = JfrAttributes.START_TIME.getAccessor(iterable.getType());
-            var countAcc = JfrItemUtils.getAccessor(iterable.getType(), "directBufferCount");
-            var capAcc = JfrItemUtils.getAccessor(iterable.getType(), "directTotalCapacity");
-            var usedAcc = JfrItemUtils.getAccessor(iterable.getType(), "directMemoryUsed");
+            var timeAcc = START_TIME.getAccessor(iterable.getType());
+            IType<?> type2 = iterable.getType();
+            var countAcc = getAccessor(type2, "directBufferCount");
+            IType<?> type1 = iterable.getType();
+            var capAcc = getAccessor(type1, "directTotalCapacity");
+            IType<?> type = iterable.getType();
+            var usedAcc = getAccessor(type, "directMemoryUsed");
 
             if (timeAcc != null) {
                 for (IItem item : iterable) {
                     IQuantity time = timeAcc.getMember(item);
                     if (time != null) {
-                        long ms = time.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                        long ms = time.clampedLongValueIn(EPOCH_MS);
                         long count = countAcc != null ? ((IQuantity) countAcc.getMember(item)).longValue() : 0;
-                        long cap = capAcc != null ? ((IQuantity) capAcc.getMember(item)).clampedLongValueIn(UnitLookup.BYTE) : 0;
-                        long used = usedAcc != null ? ((IQuantity) usedAcc.getMember(item)).clampedLongValueIn(UnitLookup.BYTE) : 0;
-                        trend.add(new DirectBufferResult.BufferSample(ms, count, cap, used));
+                        long cap = capAcc != null ? ((IQuantity) capAcc.getMember(item)).clampedLongValueIn(BYTE) : 0;
+                        long used = usedAcc != null ? ((IQuantity) usedAcc.getMember(item)).clampedLongValueIn(BYTE) : 0;
+                        trend.add(new BufferSample(ms, count, cap, used));
                     }
                 }
             }
         }
-        trend.sort(Comparator.comparing(DirectBufferResult.BufferSample::timestampMs));
+        trend.sort(comparing(BufferSample::timestampMs));
 
         return new DirectBufferResult(
                 displayOpt(minCount),
@@ -92,7 +113,7 @@ public final class DirectBuffersService {
                 displayOpt(maxCount),
                 displayOpt(maxCapacity),
                 displayOpt(maxUsed),
-                maxDirectMemorySize > 0 ? Optional.of(formatBytes(maxDirectMemorySize)) : Optional.empty(),
+                maxDirectMemorySize > 0 ? Optional.of(formatBytes(maxDirectMemorySize)) : empty(),
                 util,
                 trend,
                 true
@@ -100,18 +121,18 @@ public final class DirectBuffersService {
     }
 
     private static Optional<String> displayOpt(IQuantity q) {
-        return q != null ? Optional.of(q.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO)) : Optional.empty();
+        return q != null ? Optional.of(q.displayUsing(AUTO)) : empty();
     }
 
     private static String formatBytes(long bytes) {
         if (bytes < 1024) {
             return bytes + " B";
         } else if (bytes < 1024 * 1024) {
-            return String.format("%.2f KB", bytes / 1024.0);
+            return format("%.2f KB", bytes / 1024.0);
         } else if (bytes < 1024L * 1024 * 1024) {
-            return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+            return format("%.2f MB", bytes / (1024.0 * 1024.0));
         } else {
-            return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+            return format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
         }
     }
 }

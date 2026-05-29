@@ -12,4 +12,4 @@ This package coordinates the application's use cases and defines the ports for i
 - **Dependency Injection:** Use `@ApplicationScoped` and constructor-based injection.
 - **Result Caching:** This layer is responsible for caching high-level analysis results (domain records) before they are formatted for the UI.
 - **Error Handling:** Translate domain exceptions into application-level responses.
-- **Async Execution:** Delegate long-running use cases to the `AsyncJobService`.
+- **Concurrency:** We leverage **Java Virtual Threads** via the `@RunOnVirtualThread` annotation in the adapter layer. Application services should be thread-safe but generally don't need manual thread management.

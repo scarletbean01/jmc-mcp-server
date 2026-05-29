@@ -2,23 +2,28 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ContentionEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadContentionResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.IDisplayable;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.Map.Entry.comparingByValue;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for thread contention analysis.
  */
+@ApplicationScoped
 public final class ThreadContentionService {
 
     public ThreadContentionResult analyze(IItemCollection events, int topN) {
@@ -28,11 +33,11 @@ public final class ThreadContentionService {
         processContention(events, "jdk.JavaMonitorWait", durationMap);
 
         if (durationMap.isEmpty()) {
-            return new ThreadContentionResult(List.of(), null, null, false);
+            return new ThreadContentionResult(of(), null, null, false);
         }
 
         List<ContentionEntry> topContentions = durationMap.entrySet().stream()
-                .sorted(Map.Entry.<ContentionKey, Long>comparingByValue().reversed())
+                .sorted(Entry.<ContentionKey, Long>comparingByValue().reversed())
                 .limit(topN)
                 .map(e -> new ContentionEntry(
                         displayNanos(e.getValue()),
@@ -41,8 +46,8 @@ public final class ThreadContentionService {
                 ))
                 .toList();
 
-        Map.Entry<ContentionKey, Long> topEntry = durationMap.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
+        Entry<ContentionKey, Long> topEntry = durationMap.entrySet().stream()
+                .max(comparingByValue())
                 .orElse(null);
         String topLock = topEntry != null ? topEntry.getKey().monitorClass : "unknown";
         long topDuration = durationMap.values().stream().max(Long::compare).orElse(0L);
@@ -51,11 +56,14 @@ public final class ThreadContentionService {
     }
 
     private void processContention(IItemCollection events, String typeId, Map<ContentionKey, Long> map) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> monitorAccessor = JfrItemUtils.getAccessor(iterable.getType(), "monitorClass");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<Object, IItem> monitorAccessor = getAccessor(type2, "monitorClass");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type1, DURATION.getIdentifier());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
 
             if (monitorAccessor != null && durationAccessor != null && stackAccessor != null) {
                 for (IItem item : iterable) {
@@ -65,9 +73,9 @@ public final class ThreadContentionService {
 
                     if (monitorObj != null && durationQ != null && stackObj != null) {
                         String monitorClass = monitorObj.toString();
-                        String trace = JfrItemUtils.formatStackTrace(stackObj, 5);
+                        String trace = formatStackTrace(stackObj, 5);
                         ContentionKey key = new ContentionKey(monitorClass, trace);
-                        map.merge(key, durationQ.clampedLongValueIn(UnitLookup.NANOSECOND), Long::sum);
+                        map.merge(key, durationQ.clampedLongValueIn(NANOSECOND), Long::sum);
                     }
                 }
             }
@@ -75,7 +83,7 @@ public final class ThreadContentionService {
     }
 
     private static String displayNanos(long nanos) {
-        return UnitLookup.NANOSECOND.quantity(nanos).displayUsing(IDisplayable.AUTO);
+        return NANOSECOND.quantity(nanos).displayUsing(AUTO);
     }
 
     private record ContentionKey(String monitorClass, String stackTrace) {

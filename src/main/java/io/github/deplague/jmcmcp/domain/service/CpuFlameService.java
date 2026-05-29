@@ -4,41 +4,48 @@ import io.github.deplague.jmcmcp.domain.model.CallPathEntry;
 import io.github.deplague.jmcmcp.domain.model.CpuFlameMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.CpuFlameResult;
 import io.github.deplague.jmcmcp.domain.model.StateDistributionEntry;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.IMCMethod;
+import org.openjdk.jmc.common.IMCStackTrace;
+import org.openjdk.jmc.common.item.*;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.openjdk.jmc.common.IMCMethod;
-import org.openjdk.jmc.common.IMCStackTrace;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for CPU flame graph analysis.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class CpuFlameService {
 
     public CpuFlameResult analyze(IItemCollection events, int topN) {
-        IItemCollection samples = events.apply(ItemFilters.type("jdk.ExecutionSample"));
-        long totalSamples = JfrItemUtils.count(samples);
+        IItemCollection samples = events.apply(type("jdk.ExecutionSample"));
+        long totalSamples = count(samples);
         if (totalSamples == 0) {
-            return new CpuFlameResult(0, List.of(), List.of(), List.of());
+            return new CpuFlameResult(0, of(), of(), of());
         }
 
         Map<String, Long> stateDist = new HashMap<>();
         Map<String, Long> pathDist = new HashMap<>();
         Map<String, Long> hottestMethods = new HashMap<>();
-        JfrItemUtils.StackTraceFormatCache stCache = JfrItemUtils.newStackTraceFormatCache();
+        StackTraceFormatCache stCache = new StackTraceFormatCache();
 
         for (IItemIterable iterable : samples) {
+            IType<?> type1 = iterable.getType();
             IMemberAccessor<Object, IItem> stateAccessor =
-                    JfrItemUtils.getAccessor(iterable.getType(), "state");
+                    getAccessor(type1, "state");
+            IType<?> type = iterable.getType();
             IMemberAccessor<Object, IItem> stackAccessor =
-                    JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                    getAccessor(type, "stackTrace");
 
             for (IItem item : iterable) {
                 if (stateAccessor != null) {
@@ -72,7 +79,7 @@ public final class CpuFlameService {
         long finalTotal = totalSamples;
 
         List<StateDistributionEntry> stateEntries = stateDist.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<String, Long>comparingByValue().reversed())
                 .map(e -> new StateDistributionEntry(
                         e.getKey(),
                         e.getValue(),
@@ -81,7 +88,7 @@ public final class CpuFlameService {
                 .toList();
 
         List<CallPathEntry> pathEntries = pathDist.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<String, Long>comparingByValue().reversed())
                 .limit(topN)
                 .map(e -> new CallPathEntry(
                         e.getKey(),
@@ -91,7 +98,7 @@ public final class CpuFlameService {
                 .toList();
 
         List<CpuFlameMethodEntry> methodEntries = hottestMethods.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted(Entry.<String, Long>comparingByValue().reversed())
                 .limit(topN)
                 .map(e -> new CpuFlameMethodEntry(
                         e.getKey(),

@@ -2,27 +2,28 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.DiffStackTracesResult;
 import io.github.deplague.jmcmcp.domain.model.MethodDiffEntry;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
+
+import java.util.*;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTraceFocusingOn;
+import static java.lang.Double.POSITIVE_INFINITY;
+import static java.lang.Double.compare;
+import static java.lang.Math.abs;
+import static java.util.Comparator.comparingDouble;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.SECOND;
+import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getEarliestStartTime;
+import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getLatestEndTime;
 
 /**
  * Pure domain service for method-level diff between two JFR recordings.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class DiffStackTracesService {
 
     public DiffStackTracesResult analyze(
@@ -61,7 +62,7 @@ public final class DiffStackTracesService {
             double absChange = tRate - bRate;
             double pctChange = bRate > 0
                     ? ((tRate - bRate) / bRate) * 100.0
-                    : (tRate > 0 ? Double.POSITIVE_INFINITY : 0.0);
+                    : (tRate > 0 ? POSITIVE_INFINITY : 0.0);
 
             MethodDiffEntry diff = new MethodDiffEntry(method, bRate, tRate, absChange, pctChange);
 
@@ -69,16 +70,16 @@ public final class DiffStackTracesService {
                 newMethods.add(diff);
             } else if (tRate == 0 && bRate > 0) {
                 disappearedMethods.add(diff);
-            } else if (Math.abs(pctChange) > 20.0) {
+            } else if (abs(pctChange) > 20.0) {
                 changedMethods.add(diff);
             } else {
                 stableMethods.add(diff);
             }
         }
 
-        newMethods.sort(Comparator.comparingDouble(MethodDiffEntry::targetRate).reversed());
-        disappearedMethods.sort(Comparator.comparingDouble(MethodDiffEntry::baselineRate).reversed());
-        changedMethods.sort((a, b) -> Double.compare(Math.abs(b.pctChange()), Math.abs(a.pctChange())));
+        newMethods.sort(comparingDouble(MethodDiffEntry::targetRate).reversed());
+        disappearedMethods.sort(comparingDouble(MethodDiffEntry::baselineRate).reversed());
+        changedMethods.sort((a, b) -> compare(abs(b.pctChange()), abs(a.pctChange())));
 
         long baselineTotal = baselineMethods.values().stream().mapToLong(Long::longValue).sum();
         long targetTotal = targetMethods.values().stream().mapToLong(Long::longValue).sum();
@@ -96,23 +97,21 @@ public final class DiffStackTracesService {
     }
 
     private double getDurationSeconds(IItemCollection events) {
-        IQuantity start = RulesToolkit.getEarliestStartTime(events);
-        IQuantity end = RulesToolkit.getLatestEndTime(events);
+        IQuantity start = getEarliestStartTime(events);
+        IQuantity end = getLatestEndTime(events);
         if (start != null && end != null) {
-            return end.subtract(start).doubleValueIn(UnitLookup.SECOND);
+            return end.subtract(start).doubleValueIn(SECOND);
         }
         return 1.0;
     }
 
     private Map<String, Long> extractMethodCounts(IItemCollection events, String packagePrefix) {
         Map<String, Long> methodCounts = new HashMap<>();
-        IItemCollection samples = events.apply(ItemFilters.type("jdk.ExecutionSample"));
+        IItemCollection samples = events.apply(type("jdk.ExecutionSample"));
 
         for (IItemIterable iterable : samples) {
-            IMemberAccessor<Object, IItem> stackAccessor = JfrItemUtils.getAccessor(
-                    iterable.getType(),
-                    "stackTrace"
-            );
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
             if (stackAccessor == null) {
                 continue;
             }
@@ -123,7 +122,7 @@ public final class DiffStackTracesService {
                     continue;
                 }
 
-                String trace = JfrItemUtils.formatStackTraceFocusingOn(st, 1, packagePrefix);
+                String trace = formatStackTraceFocusingOn(st, 1, packagePrefix);
                 if (trace == null || trace.isEmpty()
                         || trace.startsWith("No frames") || trace.startsWith("Empty")) {
                     continue;

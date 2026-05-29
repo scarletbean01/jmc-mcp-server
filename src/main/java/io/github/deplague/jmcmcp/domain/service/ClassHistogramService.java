@@ -2,24 +2,26 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ClassAllocEntry;
 import io.github.deplague.jmcmcp.domain.model.ClassHistogramResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static java.lang.Long.compare;
+import static java.lang.String.format;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for class allocation histogram.
  */
 @Slf4j
+@ApplicationScoped
 public final class ClassHistogramService {
 
     public ClassHistogramResult analyze(IItemCollection events, int topN) {
@@ -28,11 +30,11 @@ public final class ClassHistogramService {
         processAllocations(events, "jdk.ObjectAllocationOutsideTLAB", stats);
 
         if (stats.isEmpty()) {
-            return new ClassHistogramResult(List.of(), false);
+            return new ClassHistogramResult(of(), false);
         }
 
         List<ClassAllocEntry> entries = stats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalBytes, a.getValue().totalBytes))
+                .sorted((a, b) -> compare(b.getValue().totalBytes, a.getValue().totalBytes))
                 .limit(topN)
                 .map(e -> {
                     ClassAllocStats s = e.getValue();
@@ -50,10 +52,12 @@ public final class ClassHistogramService {
     }
 
     private void processAllocations(IItemCollection events, String typeId, Map<String, ClassAllocStats> stats) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> classAccessor = JfrItemUtils.getAccessor(iterable.getType(), "objectClass");
-            IMemberAccessor<IQuantity, IItem> allocAccessor = JfrItemUtils.getAccessor(iterable.getType(), "allocationSize");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type1, "objectClass");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> allocAccessor = getAccessor(type, "allocationSize");
             if (classAccessor != null && allocAccessor != null) {
                 for (IItem item : iterable) {
                     Object clazzObj = classAccessor.getMember(item);
@@ -73,11 +77,11 @@ public final class ClassHistogramService {
         if (bytes < 1024) {
             return bytes + " B";
         } else if (bytes < 1024 * 1024) {
-            return String.format("%.2f KB", bytes / 1024.0);
+            return format("%.2f KB", bytes / 1024.0);
         } else if (bytes < 1024L * 1024 * 1024) {
-            return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+            return format("%.2f MB", bytes / (1024.0 * 1024.0));
         } else {
-            return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+            return format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
         }
     }
 

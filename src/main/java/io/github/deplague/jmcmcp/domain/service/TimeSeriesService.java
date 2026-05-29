@@ -2,24 +2,34 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.TimeSeriesBucketEntry;
 import io.github.deplague.jmcmcp.domain.model.TimeSeriesResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
-import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
+
+import static io.github.deplague.jmcmcp.domain.service.TimeSeriesService.MetricType.AVERAGE;
+import static io.github.deplague.jmcmcp.domain.service.TimeSeriesService.MetricType.SUM;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static java.lang.Long.parseLong;
+import static java.lang.Math.ceil;
+import static java.lang.String.format;
+import static java.time.Duration.*;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
+import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getEarliestStartTime;
+import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getLatestEndTime;
 
 /**
  * Pure domain service for time-series performance trend analysis.
  * Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class TimeSeriesService {
 
     public TimeSeriesResult analyze(
@@ -27,22 +37,22 @@ public final class TimeSeriesService {
             String bucketSizeStr,
             String metricFilter) {
 
-        IQuantity startQ = RulesToolkit.getEarliestStartTime(events);
-        IQuantity endQ = RulesToolkit.getLatestEndTime(events);
+        IQuantity startQ = getEarliestStartTime(events);
+        IQuantity endQ = getLatestEndTime(events);
 
         if (startQ == null || endQ == null) {
             return new TimeSeriesResult(
                     formatDuration(60_000L),
                     "",
-                    List.of(),
+                    of(),
                     false,
                     false,
                     false
             );
         }
 
-        long startMillis = startQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
-        long endMillis = endQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
+        long startMillis = startQ.clampedLongValueIn(EPOCH_MS);
+        long endMillis = endQ.clampedLongValueIn(EPOCH_MS);
         long bucketMillis = parseDuration(bucketSizeStr).toMillis();
 
         if (bucketMillis <= 0) {
@@ -50,12 +60,12 @@ public final class TimeSeriesService {
         }
 
         String warning = "";
-        int numBuckets = (int) Math.ceil(
+        int numBuckets = (int) ceil(
                 (double) (endMillis - startMillis) / bucketMillis
         );
         if (numBuckets > 500) {
             long newBucketMillis = (endMillis - startMillis) / 500;
-            warning = String.format(
+            warning = format(
                     "> **Warning:** The requested bucket size '%s' would result in %d buckets, "
                             + "exceeding the maximum limit of 500. The bucket size has been "
                             + "automatically adjusted to %s to maintain performance and readability.\n\n",
@@ -85,18 +95,18 @@ public final class TimeSeriesService {
                     startMillis,
                     bucketMillis,
                     buckets,
-                    MetricType.AVERAGE
+                    AVERAGE
             );
         }
         if (showGc) {
             processMetric(
                     events,
                     "jdk.GCPhasePause",
-                    JfrAttributes.DURATION.getIdentifier(),
+                    DURATION.getIdentifier(),
                     startMillis,
                     bucketMillis,
                     buckets,
-                    MetricType.SUM
+                    SUM
             );
         }
         if (showAlloc) {
@@ -107,7 +117,7 @@ public final class TimeSeriesService {
                     startMillis,
                     bucketMillis,
                     buckets,
-                    MetricType.SUM
+                    SUM
             );
             processMetric(
                     events,
@@ -116,7 +126,7 @@ public final class TimeSeriesService {
                     startMillis,
                     bucketMillis,
                     buckets,
-                    MetricType.SUM
+                    SUM
             );
         }
 
@@ -154,23 +164,24 @@ public final class TimeSeriesService {
             Bucket[] buckets,
             MetricType mType) {
 
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable itemIterable : filtered) {
             IMemberAccessor<IQuantity, IItem> timeAccessor =
-                    JfrAttributes.START_TIME.getAccessor(itemIterable.getType());
+                    START_TIME.getAccessor(itemIterable.getType());
+            IType<?> type = itemIterable.getType();
             IMemberAccessor<IQuantity, IItem> valAccessor =
-                    JfrItemUtils.getAccessor(itemIterable.getType(), attrId);
+                    getAccessor(type, attrId);
 
             if (timeAccessor != null && valAccessor != null) {
                 for (IItem item : itemIterable) {
                     IQuantity timeQ = timeAccessor.getMember(item);
                     IQuantity valQ = valAccessor.getMember(item);
                     if (timeQ != null && valQ != null) {
-                        long time = timeQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                        long time = timeQ.clampedLongValueIn(EPOCH_MS);
                         int bucketIdx = (int) ((time - startMillis) / bucketMillis);
                         if (bucketIdx >= 0 && bucketIdx < buckets.length) {
                             double val = valQ.doubleValue();
-                            if (mType == MetricType.SUM) {
+                            if (mType == SUM) {
                                 if (typeId.contains("Allocation")) {
                                     buckets[bucketIdx].allocSum += (long) val;
                                 } else if (typeId.contains("GC")) {
@@ -189,22 +200,22 @@ public final class TimeSeriesService {
 
     private static Duration parseDuration(String s) {
         if (s == null || s.isEmpty()) {
-            return Duration.ofMinutes(1);
+            return ofMinutes(1);
         }
         try {
-            long value = Long.parseLong(s.substring(0, s.length() - 1));
+            long value = parseLong(s.substring(0, s.length() - 1));
             if (s.endsWith("s")) {
-                return Duration.ofSeconds(value);
+                return ofSeconds(value);
             }
             if (s.endsWith("m")) {
-                return Duration.ofMinutes(value);
+                return ofMinutes(value);
             }
             if (s.endsWith("h")) {
-                return Duration.ofHours(value);
+                return ofHours(value);
             }
-            return Duration.ofMinutes(Long.parseLong(s));
+            return ofMinutes(parseLong(s));
         } catch (Exception e) {
-            return Duration.ofMinutes(1);
+            return ofMinutes(1);
         }
     }
 

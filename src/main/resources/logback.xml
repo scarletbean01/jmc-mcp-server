@@ -2,7 +2,7 @@
     <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.err</target>
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{tool:-sys}:%X{file:-global}] - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -13,4 +13,5 @@
     <!-- Suppress noisy frameworks -->
     <logger name="io.modelcontextprotocol" level="WARN" />
     <logger name="org.openjdk.jmc" level="WARN" />
+    <logger name="io.github.deplague" level="INFO" />
 </configuration>

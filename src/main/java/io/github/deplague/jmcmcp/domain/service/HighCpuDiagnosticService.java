@@ -1,8 +1,11 @@
 package io.github.deplague.jmcmcp.domain.service;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 /**
  * Pure domain service for formatting a high-CPU diagnostic macro report.
  */
+@ApplicationScoped
 public final class HighCpuDiagnosticService {
 
     public String formatReport(String healthResult, String threadResult, String hotMethodsResult) {

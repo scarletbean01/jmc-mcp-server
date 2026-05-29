@@ -3,31 +3,34 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.RequestWaterfallEvent;
 import io.github.deplague.jmcmcp.domain.model.RequestWaterfallResult;
 import io.github.deplague.jmcmcp.domain.model.WaterfallPhaseSummary;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.regex.Pattern;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+import java.util.regex.Pattern;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static java.util.Comparator.comparingLong;
+import static java.util.List.of;
+import static java.util.regex.Pattern.compile;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS;
+import static org.openjdk.jmc.common.unit.UnitLookup.MILLISECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for reconstructing a chronological waterfall of events
  * for a specific thread. Contains no MCP-specific or UI formatting logic.
  */
+@ApplicationScoped
 public final class RequestWaterfallService {
 
-    private static final List<String> WATERFALL_EVENT_TYPES = List.of(
+    private static final List<String> WATERFALL_EVENT_TYPES = of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",
             "jdk.ThreadPark", "jdk.SocketRead", "jdk.SocketWrite",
             "jdk.FileRead", "jdk.FileWrite", "jdk.JavaExceptionThrow"
@@ -38,33 +41,36 @@ public final class RequestWaterfallService {
             String threadName,
             int maxEvents) {
 
-        Pattern threadPattern = Pattern.compile(threadName);
+        Pattern threadPattern = compile(threadName);
 
         List<RequestWaterfallEvent> waterfallEvents = new ArrayList<>();
         Map<String, Long> eventTypeCounts = new LinkedHashMap<>();
 
         for (String typeId : WATERFALL_EVENT_TYPES) {
-            IItemCollection typeEvents = events.apply(ItemFilters.type(typeId));
+            IItemCollection typeEvents = events.apply(type(typeId));
             if (!typeEvents.hasItems()) {
                 continue;
             }
 
             for (IItemIterable iterable : typeEvents) {
+                IType<?> type1 = iterable.getType();
                 IMemberAccessor<Object, IItem> threadAccessor =
-                        JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
+                        getAccessor(type1, "eventThread");
                 if (threadAccessor == null) {
-                    threadAccessor = JfrItemUtils.getAccessor(iterable.getType(), "sampledThread");
+                    IType<?> type = iterable.getType();
+                    threadAccessor = getAccessor(type, "sampledThread");
                 }
                 if (threadAccessor == null) {
                     continue;
                 }
 
                 IMemberAccessor<IQuantity, IItem> startTimeAccessor =
-                        JfrAttributes.START_TIME.getAccessor(iterable.getType());
+                        START_TIME.getAccessor(iterable.getType());
                 IMemberAccessor<IQuantity, IItem> durationAccessor =
-                        JfrAttributes.DURATION.getAccessor(iterable.getType());
+                        DURATION.getAccessor(iterable.getType());
+                IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+                        getAccessor(type, "stackTrace");
 
                 for (IItem item : iterable) {
                     Object threadObj = threadAccessor.getMember(item);
@@ -80,7 +86,7 @@ public final class RequestWaterfallService {
                     if (startTimeAccessor != null) {
                         IQuantity startQ = startTimeAccessor.getMember(item);
                         if (startQ != null) {
-                            timeMs = startQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                            timeMs = startQ.clampedLongValueIn(EPOCH_MS);
                         }
                     }
 
@@ -88,7 +94,7 @@ public final class RequestWaterfallService {
                     if (durationAccessor != null) {
                         IQuantity durQ = durationAccessor.getMember(item);
                         if (durQ != null) {
-                            durationMs = durQ.clampedLongValueIn(UnitLookup.MILLISECOND);
+                            durationMs = durQ.clampedLongValueIn(MILLISECOND);
                         }
                     }
 
@@ -98,7 +104,7 @@ public final class RequestWaterfallService {
                         Object st = stackAccessor.getMember(item);
                         if (st != null) {
                             topFrame = extractTopFrame(st);
-                            fullTrace = JfrItemUtils.formatFullStackTrace(st);
+                            fullTrace = formatFullStackTrace(st);
                         }
                     }
 
@@ -115,11 +121,11 @@ public final class RequestWaterfallService {
 
         if (waterfallEvents.isEmpty()) {
             return new RequestWaterfallResult(
-                    List.of(), eventTypeCounts, List.of(),
+                    of(), eventTypeCounts, of(),
                     Set.of(), 0, 0, false);
         }
 
-        waterfallEvents.sort(Comparator.comparingLong(RequestWaterfallEvent::timeMs));
+        waterfallEvents.sort(comparingLong(RequestWaterfallEvent::timeMs));
 
         long baseTimeMs = waterfallEvents.get(0).timeMs();
         long endTimeMs = waterfallEvents.get(waterfallEvents.size() - 1).timeMs();
@@ -128,7 +134,7 @@ public final class RequestWaterfallService {
             waterfallEvents = waterfallEvents.subList(0, maxEvents);
         }
 
-        Set<String> matchedThreads = new java.util.LinkedHashSet<>();
+        Set<String> matchedThreads = new LinkedHashSet<>();
         Map<String, MutablePhaseSummary> phaseMap = new LinkedHashMap<>();
         for (RequestWaterfallEvent we : waterfallEvents) {
             matchedThreads.add(we.threadName());
@@ -172,20 +178,20 @@ public final class RequestWaterfallService {
         return "OTHER";
     }
 
-    private String extractDetail(org.openjdk.jmc.common.item.IType<IItem> type, IItem item) {
+    private String extractDetail(IType<IItem> type, IItem item) {
         String typeId = type.getIdentifier();
         StringBuilder detail = new StringBuilder();
 
         switch (typeId) {
             case "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait" -> {
-                Object monitor = JfrItemUtils.getMember(item, "monitorClass").orElse(null);
+                Object monitor = getMember(item, "monitorClass").orElse(null);
                 if (monitor != null) {
                     detail.append(monitor.toString());
                 }
             }
             case "jdk.SocketRead", "jdk.SocketWrite" -> {
-                Object host = JfrItemUtils.getMember(item, "host").orElse(null);
-                Object port = JfrItemUtils.getMember(item, "port").orElse(null);
+                Object host = getMember(item, "host").orElse(null);
+                Object port = getMember(item, "port").orElse(null);
                 if (host != null) {
                     detail.append(host);
                     if (port != null) {
@@ -193,20 +199,20 @@ public final class RequestWaterfallService {
                     }
                 }
                 String bytesAttr = typeId.equals("jdk.SocketRead") ? "bytesRead" : "bytesWritten";
-                Object bytes = JfrItemUtils.getMember(item, bytesAttr).orElse(null);
+                Object bytes = getMember(item, bytesAttr).orElse(null);
                 if (bytes != null) {
                     detail.append(" (").append(bytes).append("B)");
                 }
             }
             case "jdk.FileRead", "jdk.FileWrite" -> {
-                Object path = JfrItemUtils.getMember(item, "path").orElse(null);
+                Object path = getMember(item, "path").orElse(null);
                 if (path != null) {
                     detail.append(path);
                 }
             }
             case "jdk.JavaExceptionThrow" -> {
-                Object thrownClass = JfrItemUtils.getMember(item, "thrownClass").orElse(null);
-                Object message = JfrItemUtils.getMember(item, "message").orElse(null);
+                Object thrownClass = getMember(item, "thrownClass").orElse(null);
+                Object message = getMember(item, "message").orElse(null);
                 if (thrownClass != null) {
                     detail.append(thrownClass);
                 }
@@ -220,7 +226,7 @@ public final class RequestWaterfallService {
     }
 
     private String extractTopFrame(Object stackTraceObj) {
-        String full = JfrItemUtils.formatStackTrace(stackTraceObj, 1);
+        String full = formatStackTrace(stackTraceObj, 1);
         if (full.startsWith("at ")) {
             return full.substring(3).trim();
         }

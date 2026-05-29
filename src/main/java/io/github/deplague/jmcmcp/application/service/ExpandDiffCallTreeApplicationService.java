@@ -1,8 +1,9 @@
 package io.github.deplague.jmcmcp.application.service;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.ExpandDiffCallTreeService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -21,13 +22,13 @@ public class ExpandDiffCallTreeApplicationService {
     public ExpandDiffCallTreeResult expand(String treeId, String nodeId) {
         CallTreeCache.CachedDiffTree cached = callTreeCache.getDiffTree(treeId);
         if (cached == null) {
-            throw new IllegalArgumentException(
+            throw new AnalysisFailedException(
                     "Diff tree not found or expired. Please call `get_diff_tree` again.");
         }
 
         CallTreeCache.DiffTreeNode targetNode = CallTreeCache.findDiffNode(cached.root(), nodeId);
         if (targetNode == null) {
-            throw new IllegalArgumentException(
+            throw new AnalysisFailedException(
                     "Node `" + nodeId + "` not found in diff tree.");
         }
 

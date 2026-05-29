@@ -1,19 +1,25 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
 import java.util.List;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
+import static java.lang.String.format;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.MILLISECOND;
+import static org.openjdk.jmc.common.unit.UnitLookup.SECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service for quick analysis.
  * Computes shared metrics, classifies severity, detects dominant bottleneck,
  * and generates recommendations without any framework dependencies.
  */
+@ApplicationScoped
 public final class QuickAnalysisService {
 
     public record SharedMetrics(
@@ -54,32 +60,27 @@ public final class QuickAnalysisService {
     }
 
     private SharedMetrics computeSharedMetrics(IItemCollection events) {
-        IQuantity avgCpu = JfrItemUtils.avgQuantity(
-                events.apply(ItemFilters.type("jdk.CPULoad")), "machineTotal");
-        IItemCollection gcPauses = events.apply(ItemFilters.type("jdk.GCPhasePause"));
-        long gcPauseCount = JfrItemUtils.count(gcPauses);
-        IQuantity p99GcPause = JfrItemUtils.percentileQuantity(
-                gcPauses, JfrAttributes.DURATION.getIdentifier(), 99);
-        long exceptionCount = JfrItemUtils.count(
-                events.apply(ItemFilters.type("jdk.JavaExceptionThrow")));
-        long errorCount = JfrItemUtils.count(
-                events.apply(ItemFilters.type("jdk.JavaErrorThrow")));
-        IQuantity totalLockDuration = JfrItemUtils.sumQuantity(
-                events.apply(ItemFilters.type("jdk.JavaMonitorEnter")),
-                JfrAttributes.DURATION.getIdentifier());
-        IQuantity avgSocketRead = JfrItemUtils.avgQuantity(
-                events.apply(ItemFilters.type("jdk.SocketRead")),
-                JfrAttributes.DURATION.getIdentifier());
-        IItemCollection heapSummary = events.apply(ItemFilters.type("jdk.GCHeapSummary"));
-        IQuantity maxHeapUsed = JfrItemUtils.maxQuantity(heapSummary, "heapUsed");
-        IQuantity maxHeapSize = JfrItemUtils.maxQuantity(heapSummary, "heapSize");
-        long jitCount = JfrItemUtils.count(
-                events.apply(ItemFilters.type("jdk.Compilation")));
-        long totalEvents = JfrItemUtils.count(events);
+        IItemCollection items2 = events.apply(type("jdk.CPULoad"));
+        var cpuStats = batchStats(items2, "machineTotal");
+        IItemCollection gcPauses = events.apply(type("jdk.GCPhasePause"));
+        long gcPauseCount = count(gcPauses);
+        String identifier = DURATION.getIdentifier();
+        var gcPauseStats = batchStats(gcPauses, identifier, 99);
+        long exceptionCount = count(events.apply(type("jdk.JavaExceptionThrow")));
+        long errorCount = count(events.apply(type("jdk.JavaErrorThrow")));
+        IItemCollection items = events.apply(type("jdk.JavaMonitorEnter"));
+        IQuantity totalLockDuration = sumQuantity(items, DURATION.getIdentifier());
+        IItemCollection items1 = events.apply(type("jdk.SocketRead"));
+        var socketReadStats = batchStats(items1, DURATION.getIdentifier());
+        IItemCollection heapSummary = events.apply(type("jdk.GCHeapSummary"));
+        var heapStats = batchStats(heapSummary, "heapUsed");
+        IQuantity maxHeapSize = maxQuantity(heapSummary, "heapSize");
+        long jitCount = count(events.apply(type("jdk.Compilation")));
+        long totalEvents = count(events);
         return new SharedMetrics(
-                totalEvents, avgCpu, gcPauseCount, p99GcPause,
+                totalEvents, cpuStats.get("avg"), gcPauseCount, gcPauseStats.get("p99"),
                 exceptionCount, errorCount, totalLockDuration,
-                avgSocketRead, maxHeapUsed, maxHeapSize, jitCount);
+                socketReadStats.get("avg"), heapStats.get("max"), maxHeapSize, jitCount);
     }
 
     private List<Finding> classifySeverity(IItemCollection events, SharedMetrics metrics) {
@@ -90,66 +91,66 @@ public final class QuickAnalysisService {
             if (cpuPct > 90) {
                 findings.add(
                         new Finding("CRITICAL", "🔴",
-                                String.format("CPU utilization %.1f%% (machine total)", cpuPct)));
+                                format("CPU utilization %.1f%% (machine total)", cpuPct)));
             } else if (cpuPct > 75) {
                 findings.add(
                         new Finding("HIGH", "🟠",
-                                String.format("CPU utilization %.1f%%", cpuPct)));
+                                format("CPU utilization %.1f%%", cpuPct)));
             } else if (cpuPct > 60) {
                 findings.add(
                         new Finding("MEDIUM", "🟡",
-                                String.format("CPU utilization %.1f%%", cpuPct)));
+                                format("CPU utilization %.1f%%", cpuPct)));
             }
         }
 
         if (metrics.totalLockDuration != null) {
-            double lockSec = metrics.totalLockDuration.doubleValueIn(UnitLookup.SECOND);
+            double lockSec = metrics.totalLockDuration.doubleValueIn(SECOND);
             if (lockSec > 30) {
                 findings.add(
                         new Finding("CRITICAL", "🔴",
-                                String.format("Lock contention total %.1fs across all monitors", lockSec)));
+                                format("Lock contention total %.1fs across all monitors", lockSec)));
             } else if (lockSec > 10) {
                 findings.add(
                         new Finding("HIGH", "🟠",
-                                String.format("Lock contention total %.1fs", lockSec)));
+                                format("Lock contention total %.1fs", lockSec)));
             } else if (lockSec > 5) {
                 findings.add(
                         new Finding("MEDIUM", "🟡",
-                                String.format("Lock contention total %.1fs", lockSec)));
+                                format("Lock contention total %.1fs", lockSec)));
             }
         }
 
         if (metrics.p99GcPause != null) {
-            double p99Ms = metrics.p99GcPause.doubleValueIn(UnitLookup.MILLISECOND);
+            double p99Ms = metrics.p99GcPause.doubleValueIn(MILLISECOND);
             if (p99Ms > 500) {
                 findings.add(
                         new Finding("CRITICAL", "🔴",
-                                String.format("GC P99 pause %.1fms", p99Ms)));
+                                format("GC P99 pause %.1fms", p99Ms)));
             } else if (p99Ms > 200) {
                 findings.add(
                         new Finding("HIGH", "🟠",
-                                String.format("GC P99 pause %.1fms (%d pauses)", p99Ms, metrics.gcPauseCount)));
+                                format("GC P99 pause %.1fms (%d pauses)", p99Ms, metrics.gcPauseCount)));
             } else if (p99Ms > 100) {
                 findings.add(
                         new Finding("MEDIUM", "🟡",
-                                String.format("GC P99 pause %.1fms", p99Ms)));
+                                format("GC P99 pause %.1fms", p99Ms)));
             }
         }
 
         if (metrics.avgSocketRead != null) {
-            double avgMs = metrics.avgSocketRead.doubleValueIn(UnitLookup.MILLISECOND);
+            double avgMs = metrics.avgSocketRead.doubleValueIn(MILLISECOND);
             if (avgMs > 500) {
                 findings.add(
                         new Finding("CRITICAL", "🔴",
-                                String.format("Socket read latency %.1fms avg", avgMs)));
+                                format("Socket read latency %.1fms avg", avgMs)));
             } else if (avgMs > 100) {
                 findings.add(
                         new Finding("HIGH", "🟠",
-                                String.format("Socket read latency %.1fms avg", avgMs)));
+                                format("Socket read latency %.1fms avg", avgMs)));
             } else if (avgMs > 50) {
                 findings.add(
                         new Finding("MEDIUM", "🟡",
-                                String.format("Socket read latency %.1fms avg", avgMs)));
+                                format("Socket read latency %.1fms avg", avgMs)));
             }
         }
 
@@ -159,28 +160,28 @@ public final class QuickAnalysisService {
             if (heapPct > 90) {
                 findings.add(
                         new Finding("CRITICAL", "🔴",
-                                String.format("Heap usage %.1f%% of max", heapPct)));
+                                format("Heap usage %.1f%% of max", heapPct)));
             } else if (heapPct > 75) {
                 findings.add(
                         new Finding("HIGH", "🟠",
-                                String.format("Heap usage %.1f%% of max", heapPct)));
+                                format("Heap usage %.1f%% of max", heapPct)));
             } else if (heapPct > 60) {
                 findings.add(
                         new Finding("MEDIUM", "🟡",
-                                String.format("Heap usage %.1f%% of max", heapPct)));
+                                format("Heap usage %.1f%% of max", heapPct)));
             }
         }
 
         if (metrics.errorCount > 0) {
             findings.add(
                     new Finding("HIGH", "🟠",
-                            String.format("%d Java errors thrown", metrics.errorCount)));
+                            format("%d Java errors thrown", metrics.errorCount)));
         }
 
         if (metrics.jitCount > 500) {
             findings.add(
                     new Finding("MEDIUM", "🟡",
-                            String.format("JIT compilation storm (%d compilations)", metrics.jitCount)));
+                            format("JIT compilation storm (%d compilations)", metrics.jitCount)));
         }
 
         return findings;
@@ -189,11 +190,11 @@ public final class QuickAnalysisService {
     private String detectDominantBottleneck(SharedMetrics metrics) {
         double cpuScore = metrics.avgCpu != null ? metrics.avgCpu.doubleValue() : 0;
         double lockScore = metrics.totalLockDuration != null
-                ? metrics.totalLockDuration.doubleValueIn(UnitLookup.SECOND) : 0;
+                ? metrics.totalLockDuration.doubleValueIn(SECOND) : 0;
         double gcScore = metrics.p99GcPause != null
-                ? metrics.p99GcPause.doubleValueIn(UnitLookup.MILLISECOND) : 0;
+                ? metrics.p99GcPause.doubleValueIn(MILLISECOND) : 0;
         double ioScore = metrics.avgSocketRead != null
-                ? metrics.avgSocketRead.doubleValueIn(UnitLookup.MILLISECOND) : 0;
+                ? metrics.avgSocketRead.doubleValueIn(MILLISECOND) : 0;
 
         if (cpuScore > 0.75) {
             return "cpu";
@@ -214,7 +215,7 @@ public final class QuickAnalysisService {
         StringBuilder sb = new StringBuilder();
         sb.append("- **Total Events:** ").append(metrics.totalEvents).append("\n");
         if (metrics.avgCpu != null) {
-            sb.append(String.format("- **Avg CPU Load:** %.1f%%\n", metrics.avgCpu.doubleValue() * 100));
+            sb.append(format("- **Avg CPU Load:** %.1f%%\n", metrics.avgCpu.doubleValue() * 100));
         }
         sb.append("- **GC Pauses:** ").append(metrics.gcPauseCount).append("\n");
         sb.append("- **Exceptions:** ").append(metrics.exceptionCount).append("\n");

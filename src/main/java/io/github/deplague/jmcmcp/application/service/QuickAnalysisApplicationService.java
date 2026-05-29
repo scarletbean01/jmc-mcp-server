@@ -1,24 +1,16 @@
 package io.github.deplague.jmcmcp.application.service;
 
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
-import io.github.deplague.jmcmcp.domain.model.ErrorAnalysisResult;
-import io.github.deplague.jmcmcp.domain.model.GcAnalysisResult;
-import io.github.deplague.jmcmcp.domain.model.HeapTrendsResult;
-import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
-import io.github.deplague.jmcmcp.domain.model.IoHotspotsResult;
-import io.github.deplague.jmcmcp.domain.model.LockAnalysisResult;
-import io.github.deplague.jmcmcp.domain.model.SystemHealthResult;
-import io.github.deplague.jmcmcp.domain.model.ThreadContentionResult;
-import io.github.deplague.jmcmcp.domain.model.ThreadCpuResult;
+import io.github.deplague.jmcmcp.domain.model.*;
 import io.github.deplague.jmcmcp.domain.service.QuickAnalysisService;
-import io.github.deplague.jmcmcp.tools.SchemaUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import org.openjdk.jmc.common.item.IItemCollection;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import org.openjdk.jmc.common.item.IItemCollection;
 
 /**
  * Orchestrates the quick analysis use case.
@@ -400,10 +392,10 @@ public class QuickAnalysisApplicationService {
         sb.append("|------|-----|-----|-----|\n");
         for (var b : result.heapBuckets()) {
             sb.append(String.format("| %s | %s | %s | %s |%n",
-                    SchemaUtil.formatTime(b.bucketStartMs()),
-                    b.minBytes() != null ? SchemaUtil.formatBytes(b.minBytes()) : "N/A",
-                    b.avgBytes() != null ? SchemaUtil.formatBytes(b.avgBytes()) : "N/A",
-                    b.maxBytes() != null ? SchemaUtil.formatBytes(b.maxBytes()) : "N/A"));
+                    FormatUtil.formatTime(b.bucketStartMs()),
+                    b.minBytes() != null ? FormatUtil.formatBytes(b.minBytes()) : "N/A",
+                    b.avgBytes() != null ? FormatUtil.formatBytes(b.avgBytes()) : "N/A",
+                    b.maxBytes() != null ? FormatUtil.formatBytes(b.maxBytes()) : "N/A"));
         }
         sb.append("\n");
 
@@ -412,13 +404,13 @@ public class QuickAnalysisApplicationService {
         sb.append("|------|----------|----------|----------|---------------|---------------|---------------|\n");
         for (var b : result.metaspaceBuckets()) {
             sb.append(String.format("| %s | %s | %s | %s | %s | %s | %s |%n",
-                    SchemaUtil.formatTime(b.bucketStartMs()),
-                    b.minUsedBytes() != null ? SchemaUtil.formatBytes(b.minUsedBytes()) : "N/A",
-                    b.avgUsedBytes() != null ? SchemaUtil.formatBytes(b.avgUsedBytes()) : "N/A",
-                    b.maxUsedBytes() != null ? SchemaUtil.formatBytes(b.maxUsedBytes()) : "N/A",
-                    b.minCommittedBytes() != null ? SchemaUtil.formatBytes(b.minCommittedBytes()) : "N/A",
-                    b.avgCommittedBytes() != null ? SchemaUtil.formatBytes(b.avgCommittedBytes()) : "N/A",
-                    b.maxCommittedBytes() != null ? SchemaUtil.formatBytes(b.maxCommittedBytes()) : "N/A"));
+                    FormatUtil.formatTime(b.bucketStartMs()),
+                    b.minUsedBytes() != null ? FormatUtil.formatBytes(b.minUsedBytes()) : "N/A",
+                    b.avgUsedBytes() != null ? FormatUtil.formatBytes(b.avgUsedBytes()) : "N/A",
+                    b.maxUsedBytes() != null ? FormatUtil.formatBytes(b.maxUsedBytes()) : "N/A",
+                    b.minCommittedBytes() != null ? FormatUtil.formatBytes(b.minCommittedBytes()) : "N/A",
+                    b.avgCommittedBytes() != null ? FormatUtil.formatBytes(b.avgCommittedBytes()) : "N/A",
+                    b.maxCommittedBytes() != null ? FormatUtil.formatBytes(b.maxCommittedBytes()) : "N/A"));
         }
         sb.append("\n");
 
@@ -427,7 +419,7 @@ public class QuickAnalysisApplicationService {
         sb.append("|------|-----|-----|-----|\n");
         for (var b : result.threadBuckets()) {
             sb.append(String.format("| %s | %s | %s | %s |%n",
-                    SchemaUtil.formatTime(b.bucketStartMs()),
+                    FormatUtil.formatTime(b.bucketStartMs()),
                     b.minCount() != null ? b.minCount() : "N/A",
                     b.avgCount() != null ? b.avgCount() : "N/A",
                     b.maxCount() != null ? b.maxCount() : "N/A"));

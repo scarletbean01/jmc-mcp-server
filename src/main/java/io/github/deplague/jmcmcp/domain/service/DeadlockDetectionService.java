@@ -2,39 +2,38 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.DeadlockCycle;
 import io.github.deplague.jmcmcp.domain.model.DeadlockDetectionResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
+import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import java.util.*;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
+import static java.lang.String.join;
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service for deadlock detection.
  */
 @Slf4j
+@ApplicationScoped
 public final class DeadlockDetectionService {
 
     public DeadlockDetectionResult analyze(IItemCollection events) {
-        IItemCollection threadDumps = events.apply(ItemFilters.type("jdk.ThreadDump"));
+        IItemCollection threadDumps = events.apply(type("jdk.ThreadDump"));
 
         if (!threadDumps.hasItems()) {
-            IItemCollection monitorEnter = events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
-            IItemCollection monitorWait = events.apply(ItemFilters.type("jdk.JavaMonitorWait"));
+            IItemCollection monitorEnter = events.apply(type("jdk.JavaMonitorEnter"));
+            IItemCollection monitorWait = events.apply(type("jdk.JavaMonitorWait"));
             return new DeadlockDetectionResult(
-                    List.of(),
+                    of(),
                     0, 0, 0, 0,
-                    JfrItemUtils.count(monitorEnter),
-                    JfrItemUtils.count(monitorWait),
+                    count(monitorEnter),
+                    count(monitorWait),
                     false,
                     true
             );
@@ -43,7 +42,7 @@ public final class DeadlockDetectionService {
         ThreadDumpData latestDump = extractLatestThreadDump(threadDumps);
         if (latestDump == null) {
             return new DeadlockDetectionResult(
-                    List.of(), 0, 0, 0, 0, 0, 0, true, false
+                    of(), 0, 0, 0, 0, 0, 0, true, false
             );
         }
 
@@ -78,8 +77,9 @@ public final class DeadlockDetectionService {
         IQuantity latestTime = null;
 
         for (IItemIterable iterable : threadDumps) {
-            IMemberAccessor<Object, IItem> resultAccessor = JfrItemUtils.getAccessor(iterable.getType(), "result");
-            IMemberAccessor<IQuantity, IItem> timeAccessor = JfrAttributes.START_TIME.getAccessor(iterable.getType());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> resultAccessor = getAccessor(type, "result");
+            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
 
             if (resultAccessor != null) {
                 for (IItem item : iterable) {
@@ -176,7 +176,7 @@ public final class DeadlockDetectionService {
                         String m = waitFor.get(t);
                         if (m != null) cycleMonitors.add(m);
                     }
-                    String cycleKey = String.join("->", cycleThreads);
+                    String cycleKey = join("->", cycleThreads);
                     if (!visited.contains(cycleKey)) {
                         visited.add(cycleKey);
                         cycles.add(new DeadlockCycle(new ArrayList<>(cycleThreads), cycleMonitors));

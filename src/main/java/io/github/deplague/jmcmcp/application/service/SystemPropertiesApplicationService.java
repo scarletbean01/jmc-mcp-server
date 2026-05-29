@@ -5,10 +5,11 @@ import io.github.deplague.jmcmcp.domain.model.SystemPropertiesResult;
 import io.github.deplague.jmcmcp.domain.service.SystemPropertiesService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Application service that orchestrates JFR loading and system properties extraction.

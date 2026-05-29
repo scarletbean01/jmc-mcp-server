@@ -1,28 +1,15 @@
 package io.github.deplague.jmcmcp;
 
-import io.github.deplague.jmcmcp.adapters.mcp.McpTool;
-import io.github.deplague.jmcmcp.async.AsyncJobService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrRecordingCache;
-import io.github.deplague.jmcmcp.resources.JdkBugDatabaseResource;
-import io.github.deplague.jmcmcp.adapters.infrastructure.security.RecordingAccessController;
-import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
-import io.modelcontextprotocol.server.McpServer;
-import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
-import io.modelcontextprotocol.spec.McpSchema;
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.quarkus.runtime.Quarkus;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.jackson.databind.json.JsonMapper;
+
+import java.util.concurrent.CountDownLatch;
 
 /**
  * MCP Server entry point for Java Mission Control / JFR analysis.
@@ -30,8 +17,6 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Communicates via stdio (stdin/stdout) using the Model Context Protocol.
  * Never writes to stdout — all logging goes to stderr via logback.</p>
  *
- * <p>Hexagonal architecture: all tools are CDI-discovered {@link McpTool}
- * adapters delegating to domain/application services.</p>
  */
 @QuarkusMain
 public final class JmcMcpServer implements QuarkusApplication {
@@ -41,16 +26,8 @@ public final class JmcMcpServer implements QuarkusApplication {
     );
 
     @Inject
-    Instance<McpTool> mcpTools;
-
-    @Inject
     JfrRecordingCache cache;
 
-    @Inject
-    RecordingAccessController accessController;
-
-    @Inject
-    AsyncJobService asyncJobService;
 
     @Inject
     CallTreeCache callTreeCache;
@@ -63,50 +40,6 @@ public final class JmcMcpServer implements QuarkusApplication {
     public int run(String... args) throws Exception {
         LOG.info("Starting JMC MCP Server...");
 
-        // Create stdio transport provider with Jackson 3 JSON mapper
-        JsonMapper jsonMapper = JsonMapper.builder().build();
-        StdioServerTransportProvider transport =
-                new StdioServerTransportProvider(
-                        new JacksonMcpJsonMapper(jsonMapper)
-                );
-
-        // Build the sync MCP server
-        McpSyncServer server = McpServer.sync(transport)
-                .serverInfo("jmc-mcp", "1.0.0")
-                .capabilities(
-                        McpSchema.ServerCapabilities.builder()
-                                .tools(true)
-                                .resources(true, true)
-                                .build()
-                )
-                .build();
-
-        // Register resources
-        server.addResource(new JdkBugDatabaseResource().spec());
-
-        // Register CDI-discovered tools (refactored Phase-1 adapters)
-        List<McpServerFeatures.SyncToolSpecification> tools =
-                new ArrayList<>();
-        for (McpTool tool : mcpTools) {
-            tools.add(tool.spec());
-            LOG.debug(
-                    "Registered CDI tool: {}",
-                    tool.spec().tool().name()
-            );
-        }
-
-        // All tools are now CDI-discovered via Instance<McpTool>
-
-        for (var tool : tools) {
-            server.addTool(tool);
-            LOG.debug("Registered tool: {}", tool.tool().name());
-        }
-
-        LOG.info(
-                "JMC MCP Server started with {} tools. Waiting for requests...",
-                tools.size()
-        );
-
         // Register shutdown hook for graceful cleanup of daemon-thread executors
         CountDownLatch shutdownLatch = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(
@@ -114,7 +47,6 @@ public final class JmcMcpServer implements QuarkusApplication {
                     LOG.info("Shutting down JMC MCP Server...");
                     cache.shutdown();
                     callTreeCache.shutdown();
-                    asyncJobService.shutdown();
                     shutdownLatch.countDown();
                 })
         );

@@ -2,31 +2,43 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JdbcNPlusOnePattern;
 import io.github.deplague.jmcmcp.domain.model.JdbcNPlusOneResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static java.lang.Double.compare;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.util.Comparator.comparing;
+import static java.util.List.of;
+import static java.util.Map.Entry;
+import static java.util.Map.Entry.comparingByValue;
+import static java.util.regex.Pattern.compile;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_NS;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Pure domain service that detects JDBC N+1 query patterns by analyzing
  * sequential short-duration socket I/O events correlated with SQL/ORM stack traces.
  */
+@ApplicationScoped
 public final class SmartJdbcNPlusOneAnalyzerService {
 
-    private static final Pattern JDBC_PATTERN = Pattern.compile(
+    private static final Pattern JDBC_PATTERN = compile(
             "java\\.sql\\.|javax\\.sql\\.|oracle\\.jdbc|org\\.postgresql|com\\.mysql|org\\.h2|com\\.microsoft\\.sqlserver|com\\.ibm\\.db2");
-    private static final Pattern ORM_PATTERN = Pattern.compile(
+    private static final Pattern ORM_PATTERN = compile(
             "org\\.hibernate|org\\.eclipse\\.linkage|org\\.apache\\.openjpa|com\\.ibatis|org\\.mybatis|org\\.springframework\\.orm");
     private static final long SHORT_DURATION_NS = 1_000_000; // < 1ms
     private static final int MIN_BURST_SIZE = 5;
@@ -38,20 +50,20 @@ public final class SmartJdbcNPlusOneAnalyzerService {
         collectSocketEvents(events, "jdk.SocketWrite", socketEvents);
 
         if (socketEvents.isEmpty()) {
-            return new JdbcNPlusOneResult(List.of(), 0, false);
+            return new JdbcNPlusOneResult(of(), 0, false);
         }
 
-        socketEvents.sort(Comparator.comparing((SocketEvent e) -> e.threadName)
+        socketEvents.sort(comparing((SocketEvent e) -> e.threadName)
                 .thenComparingLong(e -> e.startTimeNanos));
 
         List<JdbcNPlusOnePattern> patterns = detectBursts(socketEvents);
 
         if (patterns.isEmpty()) {
-            return new JdbcNPlusOneResult(List.of(), socketEvents.size(), false);
+            return new JdbcNPlusOneResult(of(), socketEvents.size(), false);
         }
 
         patterns.sort((a, b) -> {
-            int cmp = Double.compare(b.confidence(), a.confidence());
+            int cmp = compare(b.confidence(), a.confidence());
             if (cmp != 0) {
                 return cmp;
             }
@@ -66,12 +78,16 @@ public final class SmartJdbcNPlusOneAnalyzerService {
     }
 
     private void collectSocketEvents(IItemCollection events, String typeId, List<SocketEvent> result) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            IMemberAccessor<IQuantity, IItem> startAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.START_TIME.getIdentifier());
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type3 = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type3, "eventThread");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> startAcc = getAccessor(type2, START_TIME.getIdentifier());
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type1, DURATION.getIdentifier());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
 
             if (threadAcc == null || startAcc == null) {
                 continue;
@@ -88,11 +104,11 @@ public final class SmartJdbcNPlusOneAnalyzerService {
                 }
 
                 String threadName = extractThreadName(threadObj);
-                long startNanos = startTime.clampedLongValueIn(UnitLookup.EPOCH_NS);
-                long durationNanos = duration != null ? duration.clampedLongValueIn(UnitLookup.NANOSECOND) : 0;
+                long startNanos = startTime.clampedLongValueIn(EPOCH_NS);
+                long durationNanos = duration != null ? duration.clampedLongValueIn(NANOSECOND) : 0;
 
-                if (JfrItemUtils.stackTraceMatches(stackObj, JDBC_PATTERN)) {
-                    String fullTrace = JfrItemUtils.formatFullStackTrace(stackObj);
+                if (stackTraceMatches(stackObj, JDBC_PATTERN)) {
+                    String fullTrace = formatFullStackTrace(stackObj);
                     result.add(new SocketEvent(threadName, startNanos, durationNanos, fullTrace));
                 }
             }
@@ -162,8 +178,8 @@ public final class SmartJdbcNPlusOneAnalyzerService {
                     }
 
                     String triggeringMethod = methodCounts.entrySet().stream()
-                            .max(Map.Entry.comparingByValue())
-                            .map(Map.Entry::getKey)
+                            .max(comparingByValue())
+                            .map(Entry::getKey)
                             .orElse("Unknown");
 
                     double confidence = calculateConfidence(totalReads, windowMs, shortCount, burstSize, hasOrm);
@@ -180,7 +196,7 @@ public final class SmartJdbcNPlusOneAnalyzerService {
                     ));
                 }
 
-                i = Math.max(j, i + 1);
+                i = max(j, i + 1);
             }
         }
 
@@ -215,7 +231,7 @@ public final class SmartJdbcNPlusOneAnalyzerService {
 
         score += 0.1;
 
-        return Math.min(1.0, score);
+        return min(1.0, score);
     }
 
     private static String extractTriggeringMethod(String fullTrace) {

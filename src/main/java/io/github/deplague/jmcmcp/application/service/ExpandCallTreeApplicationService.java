@@ -1,8 +1,9 @@
 package io.github.deplague.jmcmcp.application.service;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
+import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.model.ExpandCallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.ExpandCallTreeService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class ExpandCallTreeApplicationService {
     public ExpandCallTreeResult expand(String treeId, String nodeId) {
         CallTreeCache.CachedTree cached = callTreeCache.getTree(treeId);
         if (cached == null) {
-            throw new IllegalArgumentException(
+            throw new AnalysisFailedException(
                     "Tree not found or expired. Please call `get_call_tree` again."
             );
         }

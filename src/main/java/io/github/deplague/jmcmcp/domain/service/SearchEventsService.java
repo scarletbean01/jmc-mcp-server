@@ -2,21 +2,26 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.SearchEventEntry;
 import io.github.deplague.jmcmcp.domain.model.SearchEventsResult;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IAccessorKey;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.List.of;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for searching specific JFR events.
  */
 @Slf4j
+@ApplicationScoped
 public final class SearchEventsService {
 
     public SearchEventsResult search(IItemCollection events, String eventType, int limit) {
@@ -28,9 +33,9 @@ public final class SearchEventsService {
             }
         }
 
-        IItemCollection filtered = events.apply(ItemFilters.type(eventType));
+        IItemCollection filtered = events.apply(type(eventType));
         if (!filtered.hasItems()) {
-            return new SearchEventsResult(eventType, displayName, List.of(), false);
+            return new SearchEventsResult(eventType, displayName, of(), false);
         }
 
         List<SearchEventEntry> entries = new ArrayList<>();

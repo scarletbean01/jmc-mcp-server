@@ -2,54 +2,76 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JfrRuleEntry;
 import io.github.deplague.jmcmcp.domain.model.JfrRulesResult;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.concurrent.RunnableFuture;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.flightrecorder.rules.IResult;
 import org.openjdk.jmc.flightrecorder.rules.IRule;
-import org.openjdk.jmc.flightrecorder.rules.RuleRegistry;
 import org.openjdk.jmc.flightrecorder.rules.Severity;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RunnableFuture;
+
+import static org.openjdk.jmc.flightrecorder.rules.RuleRegistry.getRules;
+import static org.openjdk.jmc.flightrecorder.rules.Severity.WARNING;
+import static org.openjdk.jmc.flightrecorder.rules.Severity.valueOf;
 
 /**
  * Pure domain service for JMC rules engine analysis.
  */
 @Slf4j
+@ApplicationScoped
 public final class JfrRulesService {
 
     public JfrRulesResult analyze(IItemCollection events, String minSevStr) {
         Severity threshold;
         try {
-            threshold = Severity.valueOf(minSevStr);
+            threshold = valueOf(minSevStr);
         } catch (IllegalArgumentException e) {
-            threshold = Severity.WARNING;
+            threshold = WARNING;
         }
 
         List<JfrRuleEntry> significantResults = new ArrayList<>();
-        for (IRule rule : RuleRegistry.getRules()) {
-            try {
-                RunnableFuture<IResult> future = rule.createEvaluation(events, null, null);
-                future.run();
-                IResult r = future.get();
+        List<Future<IResult>> futures = new ArrayList<>();
 
-                if (r.getSeverity().compareTo(threshold) >= 0) {
-                    significantResults.add(new JfrRuleEntry(
-                            rule.getName(),
-                            r.getSeverity().getLocalizedName(),
-                            r.getSummary(),
-                            r.getExplanation()
-                    ));
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (IRule rule : getRules()) {
+                try {
+                    RunnableFuture<IResult> future = rule.createEvaluation(events, null, null);
+                    futures.add(executor.submit(() -> {
+                        future.run();
+                        return future.get();
+                    }));
+                } catch (Exception ex) {
+                    // Skip rules that fail creation
                 }
-            } catch (Exception ex) {
-                // Skip rules that fail
+            }
+
+            for (Future<IResult> future : futures) {
+                try {
+                    IResult r = future.get();
+                    if (r != null && r.getSeverity() != null && r.getSeverity().compareTo(threshold) >= 0) {
+                        significantResults.add(new JfrRuleEntry(
+                                r.getRule() != null ? r.getRule().getName() : "Unknown",
+                                r.getSeverity().getLocalizedName(),
+                                r.getSummary(),
+                                r.getExplanation()
+                        ));
+                    }
+                } catch (InterruptedException | ExecutionException ex) {
+                    // Skip rules that fail during evaluation
+                }
             }
         }
 
         significantResults.sort((a, b) -> {
-            Severity sa = Severity.valueOf(a.severity().toUpperCase());
-            Severity sb1 = Severity.valueOf(b.severity().toUpperCase());
+            Severity sa = valueOf(a.severity().toUpperCase());
+            Severity sb1 = valueOf(b.severity().toUpperCase());
             return sb1.compareTo(sa);
         });
 

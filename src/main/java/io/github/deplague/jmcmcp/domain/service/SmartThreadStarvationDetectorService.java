@@ -1,44 +1,44 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.BlockedPoolEntry;
-import io.github.deplague.jmcmcp.domain.model.ConnectionPoolSummary;
-import io.github.deplague.jmcmcp.domain.model.CpuLoadSummary;
-import io.github.deplague.jmcmcp.domain.model.ThreadDumpSummary;
-import io.github.deplague.jmcmcp.domain.model.ThreadStarvationResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import io.github.deplague.jmcmcp.domain.model.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.unit.IQuantity;
+
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.openjdk.jmc.common.item.IItem;
-import org.openjdk.jmc.common.item.IItemCollection;
-import org.openjdk.jmc.common.item.IItemIterable;
-import org.openjdk.jmc.common.item.IMemberAccessor;
-import org.openjdk.jmc.common.item.ItemFilters;
-import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static java.lang.Integer.parseInt;
+import static java.lang.Long.compare;
+import static java.lang.Math.min;
+import static java.lang.String.format;
+import static java.util.regex.Pattern.compile;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
 /**
  * Pure domain service that detects thread starvation patterns.
  */
+@ApplicationScoped
 public final class SmartThreadStarvationDetectorService {
 
-    private static final Pattern POOL_PATTERN = Pattern.compile(
+    private static final Pattern POOL_PATTERN = compile(
             "com\\.zaxxer\\.hikari|org\\.apache\\.tomcat\\.jdbc|com\\.mchange\\.v2\\.c3p0|org\\.apache\\.commons\\.dbcp|oracle\\.ucp");
-    private static final Pattern THREAD_STATE_PATTERN = Pattern.compile("java\\.lang\\.Thread\\.State:\\s*(\\w+)");
+    private static final Pattern THREAD_STATE_PATTERN = compile("java\\.lang\\.Thread\\.State:\\s*(\\w+)");
 
     public ThreadStarvationResult analyze(IItemCollection events, int topN) {
         CpuLoadSummary cpuSummary = analyzeCpuLoad(events);
 
         Set<String> activeThreads = new HashSet<>();
-        IItemCollection execSamples = events.apply(ItemFilters.type("jdk.ExecutionSample"));
+        IItemCollection execSamples = events.apply(type("jdk.ExecutionSample"));
         for (IItemIterable iterable : execSamples) {
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type, "eventThread");
             if (threadAcc != null) {
                 for (IItem item : iterable) {
                     Object thread = threadAcc.getMember(item);
@@ -58,7 +58,7 @@ public final class SmartThreadStarvationDetectorService {
         if (poolSummary.blockEvents > 10) {
             poolSummary.poolDetected = true;
             poolSummary.threadsWaiting = poolSummary.waitingThreads.size();
-            poolSummary.confidence = Math.min(1.0, poolSummary.blockEvents / 100.0);
+            poolSummary.confidence = min(1.0, poolSummary.blockEvents / 100.0);
         }
 
         ThreadDumpSummary dumpSummary = analyzeThreadDumps(events);
@@ -69,7 +69,7 @@ public final class SmartThreadStarvationDetectorService {
         String agentHint = buildAgentHint(primaryDiagnosis, cpuSummary, activeThreads.size(), blockedStats, dumpSummary, poolSummary);
 
         List<BlockedPoolEntry> topBlockedPools = blockedStats.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue().totalBlockedNanos, a.getValue().totalBlockedNanos))
+                .sorted((a, b) -> compare(b.getValue().totalBlockedNanos, a.getValue().totalBlockedNanos))
                 .limit(topN)
                 .map(e -> new BlockedPoolEntry(e.getKey(), e.getValue().blockCount, e.getValue().totalBlockedNanos))
                 .toList();
@@ -96,16 +96,19 @@ public final class SmartThreadStarvationDetectorService {
     }
 
     private CpuLoadSummary analyzeCpuLoad(IItemCollection events) {
-        IItemCollection cpuLoads = events.apply(ItemFilters.type("jdk.CPULoad"));
+        IItemCollection cpuLoads = events.apply(type("jdk.CPULoad"));
         double totalJvmUser = 0;
         double totalJvmSystem = 0;
         double totalMachine = 0;
         int count = 0;
 
         for (IItemIterable iterable : cpuLoads) {
-            IMemberAccessor<IQuantity, IItem> jvmUserAcc = JfrItemUtils.getAccessor(iterable.getType(), "jvmUser");
-            IMemberAccessor<IQuantity, IItem> jvmSysAcc = JfrItemUtils.getAccessor(iterable.getType(), "jvmSystem");
-            IMemberAccessor<IQuantity, IItem> machineAcc = JfrItemUtils.getAccessor(iterable.getType(), "machineTotal");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> jvmUserAcc = getAccessor(type2, "jvmUser");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> jvmSysAcc = getAccessor(type1, "jvmSystem");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> machineAcc = getAccessor(type, "machineTotal");
 
             for (IItem item : iterable) {
                 if (jvmUserAcc != null) {
@@ -142,10 +145,12 @@ public final class SmartThreadStarvationDetectorService {
     }
 
     private void analyzeBlocking(IItemCollection events, String typeId, Map<String, BlockedStats> stats) {
-        IItemCollection filtered = events.apply(ItemFilters.type(typeId));
+        IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type, DURATION.getIdentifier());
             if (threadAcc == null) {
                 continue;
             }
@@ -163,7 +168,7 @@ public final class SmartThreadStarvationDetectorService {
                 if (durationAcc != null) {
                     IQuantity duration = durationAcc.getMember(item);
                     if (duration != null) {
-                        s.totalBlockedNanos += duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                        s.totalBlockedNanos += duration.clampedLongValueIn(NANOSECOND);
                     }
                 }
             }
@@ -171,13 +176,14 @@ public final class SmartThreadStarvationDetectorService {
     }
 
     private ThreadDumpSummary analyzeThreadDumps(IItemCollection events) {
-        IItemCollection dumps = events.apply(ItemFilters.type("jdk.ThreadDump"));
+        IItemCollection dumps = events.apply(type("jdk.ThreadDump"));
         int totalThreads = 0;
         int blockedCount = 0;
         int waitingCount = 0;
 
         for (IItemIterable iterable : dumps) {
-            IMemberAccessor<Object, IItem> resultAcc = JfrItemUtils.getAccessor(iterable.getType(), "result");
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> resultAcc = getAccessor(type, "result");
             if (resultAcc == null) {
                 continue;
             }
@@ -206,13 +212,16 @@ public final class SmartThreadStarvationDetectorService {
     }
 
     private void analyzeMonitorEnterBlocking(IItemCollection events,
-                                               Map<String, BlockedStats> blockedStats,
-                                               MutablePoolSummary poolSummary) {
-        IItemCollection filtered = events.apply(ItemFilters.type("jdk.JavaMonitorEnter"));
+                                             Map<String, BlockedStats> blockedStats,
+                                             MutablePoolSummary poolSummary) {
+        IItemCollection filtered = events.apply(type("jdk.JavaMonitorEnter"));
         for (IItemIterable iterable : filtered) {
-            IMemberAccessor<Object, IItem> threadAcc = JfrItemUtils.getAccessor(iterable.getType(), "eventThread");
-            IMemberAccessor<IQuantity, IItem> durationAcc = JfrItemUtils.getAccessor(iterable.getType(), JfrAttributes.DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> stackAcc = JfrItemUtils.getAccessor(iterable.getType(), "stackTrace");
+            IType<?> type2 = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type2, "eventThread");
+            IType<?> type1 = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type1, DURATION.getIdentifier());
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
             if (threadAcc == null) {
                 continue;
             }
@@ -230,14 +239,14 @@ public final class SmartThreadStarvationDetectorService {
                 if (durationAcc != null) {
                     IQuantity duration = durationAcc.getMember(item);
                     if (duration != null) {
-                        s.totalBlockedNanos += duration.clampedLongValueIn(UnitLookup.NANOSECOND);
+                        s.totalBlockedNanos += duration.clampedLongValueIn(NANOSECOND);
                     }
                 }
 
                 if (stackAcc != null) {
                     Object stackObj = stackAcc.getMember(item);
-                    if (stackObj != null && JfrItemUtils.stackTraceMatches(stackObj, POOL_PATTERN)) {
-                        String trace = JfrItemUtils.formatFullStackTrace(stackObj);
+                    if (stackObj != null && stackTraceMatches(stackObj, POOL_PATTERN)) {
+                        String trace = formatFullStackTrace(stackObj);
                         if (trace != null) {
                             poolSummary.blockEvents++;
                             poolSummary.waitingThreads.add(threadName);
@@ -259,32 +268,32 @@ public final class SmartThreadStarvationDetectorService {
         long totalBlocked = blockedStats.values().stream().mapToLong(s -> s.blockCount).sum();
 
         if (poolSummary.poolDetected && poolSummary.confidence > 0.6) {
-            findings.add(String.format("Detected %d threads blocked on connection pool `%s`",
+            findings.add(format("Detected %d threads blocked on connection pool `%s`",
                     poolSummary.threadsWaiting, poolSummary.poolName));
             return "🔴 Connection Pool Exhaustion";
         }
 
         if (cpu.sampleCount() > 0 && cpu.avgMachineTotal() > 0.85 && cpu.efficiency() < 0.3) {
-            findings.add(String.format("Machine CPU at %.0f%% but JVM only using %.0f%%",
+            findings.add(format("Machine CPU at %.0f%% but JVM only using %.0f%%",
                     cpu.avgMachineTotal() * 100, cpu.avgJvmUser() * 100));
             return "🔴 CPU Saturation (External)";
         }
 
         if (dumpSummary.totalThreads() > 0 && dumpSummary.blockedCount() > dumpSummary.totalThreads() * 0.4) {
-            findings.add(String.format("%.0f%% of threads are BLOCKED (%d / %d)",
+            findings.add(format("%.0f%% of threads are BLOCKED (%d / %d)",
                     (double) dumpSummary.blockedCount() / dumpSummary.totalThreads() * 100,
                     dumpSummary.blockedCount(), dumpSummary.totalThreads()));
             return "🔴 Lock Contention Starvation";
         }
 
         if (activeThreads > 50 && cpu.sampleCount() > 0 && cpu.avgJvmUser() < 0.2) {
-            findings.add(String.format("High thread count (%d) with low JVM CPU (%.0f%%)",
+            findings.add(format("High thread count (%d) with low JVM CPU (%.0f%%)",
                     activeThreads, cpu.avgJvmUser() * 100));
             return "🟡 Thread Over-Provisioning";
         }
 
         if (totalBlocked > 100) {
-            findings.add(String.format("High blocking event count: %d", totalBlocked));
+            findings.add(format("High blocking event count: %d", totalBlocked));
             return "🟡 Significant Thread Blocking";
         }
 
@@ -301,7 +310,7 @@ public final class SmartThreadStarvationDetectorService {
                     .append(poolSummary.threadsWaiting).append(" threads waiting. ");
             hint.append("Check for slow SQL queries or increase `maximumPoolSize`.");
         } else if (cpu.efficiency() < 0.3 && cpu.avgMachineTotal() > 0.8) {
-            hint.append("Machine CPU is saturated (").append(String.format("%.0f%%", cpu.avgMachineTotal() * 100))
+            hint.append("Machine CPU is saturated (").append(format("%.0f%%", cpu.avgMachineTotal() * 100))
                     .append("). The JVM is not getting enough CPU time. Consider scaling horizontally or vertically.");
         } else if (dumpSummary.blockedCount() > activeThreads * 0.5) {
             hint.append("More than 50% of threads are BLOCKED. Heavy lock contention is starving the application. ");
@@ -330,7 +339,7 @@ public final class SmartThreadStarvationDetectorService {
         int dashIdx = threadName.lastIndexOf('-');
         if (dashIdx > 0) {
             try {
-                Integer.parseInt(threadName.substring(dashIdx + 1));
+                parseInt(threadName.substring(dashIdx + 1));
                 return threadName.substring(0, dashIdx);
             } catch (NumberFormatException ignored) {
             }

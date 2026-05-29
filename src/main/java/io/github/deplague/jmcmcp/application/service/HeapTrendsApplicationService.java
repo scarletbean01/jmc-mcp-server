@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.HeapTrendsResult;
 import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Application service that orchestrates heap, metaspace and thread trend analysis.

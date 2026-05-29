@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.ClassHistogramResult;
 import io.github.deplague.jmcmcp.domain.service.ClassHistogramService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates class allocation histogram analysis use case.

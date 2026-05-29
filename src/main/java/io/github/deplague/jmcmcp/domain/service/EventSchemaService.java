@@ -3,21 +3,30 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.EventFieldInfo;
 import io.github.deplague.jmcmcp.domain.model.EventSchemaResult;
 import io.github.deplague.jmcmcp.domain.model.EventTypeInfo;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
+import org.openjdk.jmc.common.IDescribable;
 import org.openjdk.jmc.common.item.IAccessorKey;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.item.IType;
-import org.openjdk.jmc.common.item.ItemFilters;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static io.github.deplague.jmcmcp.domain.model.EventSchemaResult.EventTypeDetail;
+import static java.util.Comparator.comparing;
+import static java.util.List.of;
+import static java.util.Optional.empty;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**
  * Pure domain service for discovering JFR event types and their field schemas.
  */
 @Slf4j
+@ApplicationScoped
 public final class EventSchemaService {
 
     public EventSchemaResult analyze(IItemCollection events, String eventType) {
@@ -33,20 +42,20 @@ public final class EventSchemaService {
         for (IItemIterable iterable : events) {
             IType<?> type = iterable.getType();
             String typeId = type.getIdentifier();
-            long count = iterable.stream().count();
+            long count = iterable.getItemCount();
             int fieldCount = type.getAccessorKeys().size();
             typeInfos.add(new EventTypeInfo(typeId, type.getName(), count, fieldCount));
         }
 
-        typeInfos.sort(Comparator.comparing(EventTypeInfo::typeId));
-        return new EventSchemaResult(typeInfos, Optional.empty());
+        typeInfos.sort(comparing(EventTypeInfo::typeId));
+        return new EventSchemaResult(typeInfos, empty());
     }
 
     private EventSchemaResult analyzeDetail(IItemCollection events, String eventType) {
-        IItemCollection filtered = events.apply(ItemFilters.type(eventType));
+        IItemCollection filtered = events.apply(type(eventType));
         if (!filtered.hasItems()) {
-            return new EventSchemaResult(List.of(), Optional.of(new EventSchemaResult.EventTypeDetail(
-                    eventType, null, 0, 0, List.of()
+            return new EventSchemaResult(of(), Optional.of(new EventTypeDetail(
+                    eventType, null, 0, 0, of()
             )));
         }
 
@@ -54,19 +63,19 @@ public final class EventSchemaService {
         long eventCount = 0;
         for (IItemIterable iterable : filtered) {
             type = iterable.getType();
-            eventCount += iterable.stream().count();
+            eventCount += iterable.getItemCount();
         }
 
         if (type == null) {
-            return new EventSchemaResult(List.of(), Optional.of(new EventSchemaResult.EventTypeDetail(
-                    eventType, null, 0, 0, List.of()
+            return new EventSchemaResult(of(), Optional.of(new EventTypeDetail(
+                    eventType, null, 0, 0, of()
             )));
         }
 
         List<EventFieldInfo> fields = new ArrayList<>();
-        List<java.util.Map.Entry<IAccessorKey<?>, ? extends org.openjdk.jmc.common.IDescribable>> entries =
+        List<Map.Entry<IAccessorKey<?>, ? extends IDescribable>> entries =
                 new ArrayList<>(type.getAccessorKeys().entrySet());
-        entries.sort(Comparator.comparing(e -> e.getKey().getIdentifier()));
+        entries.sort(comparing(e -> e.getKey().getIdentifier()));
 
         for (var entry : entries) {
             String fieldId = entry.getKey().getIdentifier();
@@ -74,13 +83,13 @@ public final class EventSchemaService {
             fields.add(new EventFieldInfo(fieldId, description != null ? description : ""));
         }
 
-        EventSchemaResult.EventTypeDetail detail = new EventSchemaResult.EventTypeDetail(
+        EventTypeDetail detail = new EventTypeDetail(
                 eventType,
                 type.getName(),
                 eventCount,
                 type.getAccessorKeys().size(),
                 fields
         );
-        return new EventSchemaResult(List.of(), Optional.of(detail));
+        return new EventSchemaResult(of(), Optional.of(detail));
     }
 }

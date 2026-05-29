@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.JfrRulesResult;
 import io.github.deplague.jmcmcp.domain.service.JfrRulesService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates JFR rules engine analysis use case.

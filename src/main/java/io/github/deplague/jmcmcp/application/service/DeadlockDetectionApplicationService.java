@@ -5,9 +5,10 @@ import io.github.deplague.jmcmcp.domain.model.DeadlockDetectionResult;
 import io.github.deplague.jmcmcp.domain.service.DeadlockDetectionService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
+
+import java.io.IOException;
 
 /**
  * Orchestrates deadlock detection use case.

@@ -1,22 +1,14 @@
 package io.github.deplague.jmcmcp.application.service;
 
-import io.github.deplague.jmcmcp.async.AsyncJobService;
-import io.github.deplague.jmcmcp.domain.model.AsyncJobQueueInfo;
-import io.github.deplague.jmcmcp.domain.model.HealthCheckReport;
-import io.github.deplague.jmcmcp.domain.model.JvmMemoryInfo;
-import io.github.deplague.jmcmcp.domain.model.JvmThreadInfo;
-import io.github.deplague.jmcmcp.domain.model.RecordingCacheInfo;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
+import io.github.deplague.jmcmcp.domain.model.*;
 import io.github.deplague.jmcmcp.domain.service.HealthCheckService;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrRecordingCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
-import java.lang.management.RuntimeMXBean;
-import java.lang.management.ThreadMXBean;
-import java.time.Instant;
 import lombok.RequiredArgsConstructor;
+
+import java.lang.management.*;
+import java.time.Instant;
 
 /**
  * Application service that orchestrates server health check data gathering.
@@ -26,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 public class HealthCheckApplicationService {
 
     private final JfrRecordingCache recordingCache;
-    private final AsyncJobService asyncJobService;
     private final HealthCheckService healthCheckService;
     private final Instant startedAt = Instant.now();
 
@@ -65,20 +56,10 @@ public class HealthCheckApplicationService {
                 recordingCache.getTotalCachedBytes()
         );
 
-        AsyncJobQueueInfo asyncJobQueueInfo = new AsyncJobQueueInfo(
-                asyncJobService.activeJobs(),
-                asyncJobService.pendingJobs(),
-                asyncJobService.completedJobs(),
-                asyncJobService.failedJobs(),
-                asyncJobService.totalJobs(),
-                asyncJobService.recommendedPollSeconds()
-        );
-
         return healthCheckService.buildReport(
                 jvmMemory,
                 jvmThreads,
                 recordingCacheInfo,
-                asyncJobQueueInfo,
                 uptimeMs,
                 startedAt,
                 System.getProperty("java.vm.name"),

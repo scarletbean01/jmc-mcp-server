@@ -1,13 +1,14 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JfrOverviewResult;
-import io.github.deplague.jmcmcp.adapters.infrastructure.jfr.JfrItemUtils;
-import java.util.HashMap;
-import java.util.Map;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Domain service for JFR recording overview analysis.
@@ -33,7 +34,7 @@ public class JfrOverviewService {
 
         for (IItemIterable itemIterable : fullEvents) {
             String typeId = itemIterable.getType().getIdentifier();
-            long count = itemIterable.stream().count();
+            long count = itemIterable.getItemCount();
             eventCounts.merge(typeId, count, Long::sum);
             totalEvents += count;
 
@@ -43,7 +44,8 @@ public class JfrOverviewService {
             }
         }
 
-        Long filteredEventsCount = hasTimeFilter ? JfrItemUtils.count(filteredEvents) : null;
+        Long filteredEventsCount;
+        filteredEventsCount = hasTimeFilter ? JfrQuantityAggregator.count(filteredEvents) : null;
 
         return new JfrOverviewResult(
                 filePath,
