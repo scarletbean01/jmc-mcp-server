@@ -1,8 +1,8 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import io.github.deplague.jmcmcp.domain.model.HotMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
+import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 
@@ -14,7 +14,6 @@ import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository
 import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTraceFocusingOn;
 import static java.util.List.of;
 import static java.util.Map.Entry;
-import static java.util.Map.Entry.comparingByValue;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 
 /**

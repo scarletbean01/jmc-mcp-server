@@ -1,7 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.jfr;
 
-import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.IMCFrame;
+import org.openjdk.jmc.common.IMCStackTrace;
 
 import java.util.List;
 import java.util.Objects;

@@ -1,8 +1,8 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import io.github.deplague.jmcmcp.domain.model.AllocationHotspotEntry;
 import io.github.deplague.jmcmcp.domain.model.AllocationHotspotsResult;
+import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;

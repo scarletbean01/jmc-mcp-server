@@ -1,6 +1,5 @@
 package io.github.deplague.jmcmcp;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.quarkus.runtime.Quarkus;
 import io.quarkus.runtime.QuarkusApplication;
@@ -28,10 +27,6 @@ public final class JmcMcpServer implements QuarkusApplication {
     @Inject
     JfrRecordingCache cache;
 
-
-    @Inject
-    CallTreeCache callTreeCache;
-
     public static void main(String[] args) {
         Quarkus.run(JmcMcpServer.class, args);
     }
@@ -46,7 +41,6 @@ public final class JmcMcpServer implements QuarkusApplication {
                 new Thread(() -> {
                     LOG.info("Shutting down JMC MCP Server...");
                     cache.shutdown();
-                    callTreeCache.shutdown();
                     shutdownLatch.countDown();
                 })
         );

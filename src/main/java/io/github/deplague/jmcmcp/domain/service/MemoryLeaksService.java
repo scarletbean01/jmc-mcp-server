@@ -6,6 +6,7 @@ import io.github.deplague.jmcmcp.domain.model.MemoryLeaksResult;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -16,7 +17,8 @@ import java.util.Map;
 /**
  * Domain service for memory leak analysis from old object samples.
  */
-public class MemoryLeaksService {
+@ApplicationScoped
+public final class MemoryLeaksService {
 
     public MemoryLeaksResult analyze(IItemCollection events, int topN) {
         IItemCollection samples = events.apply(ItemFilters.type("jdk.OldObjectSample"));

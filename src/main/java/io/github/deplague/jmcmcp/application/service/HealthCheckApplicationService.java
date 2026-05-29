@@ -1,8 +1,11 @@
 package io.github.deplague.jmcmcp.application.service;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
-import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.model.HealthCheckReport;
+import io.github.deplague.jmcmcp.domain.model.JvmMemoryInfo;
+import io.github.deplague.jmcmcp.domain.model.JvmThreadInfo;
+import io.github.deplague.jmcmcp.domain.model.RecordingCacheInfo;
 import io.github.deplague.jmcmcp.domain.service.HealthCheckService;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;

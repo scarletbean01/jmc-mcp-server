@@ -1,12 +1,11 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.application.service.FormatUtil;
 import io.github.deplague.jmcmcp.application.service.HealthCheckApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HealthCheckReport;
-import io.github.deplague.jmcmcp.application.service.FormatUtil;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolResponse;
 import io.smallrye.common.annotation.RunOnVirtualThread;
-import io.github.deplague.jmcmcp.infrastructure.mcp.HandleToolError;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;

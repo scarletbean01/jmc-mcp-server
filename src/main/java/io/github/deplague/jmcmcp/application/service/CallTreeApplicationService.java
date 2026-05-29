@@ -1,9 +1,9 @@
 package io.github.deplague.jmcmcp.application.service;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.CallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.CallTreeService;
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Getter;

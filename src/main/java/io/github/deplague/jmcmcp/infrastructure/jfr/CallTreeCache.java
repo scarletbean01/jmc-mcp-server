@@ -2,6 +2,7 @@ package io.github.deplague.jmcmcp.infrastructure.jfr;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCMethod;
 import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
 import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
@@ -10,7 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Cache for interactive call tree and diff tree models using Caffeine.
@@ -18,6 +22,7 @@ import java.util.*;
  * <p>Maintains {@link StacktraceTreeModel} instances mapped to unique tree IDs,
  * with TTL and size-based eviction.</p>
  */
+@ApplicationScoped
 public final class CallTreeCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(CallTreeCache.class);
@@ -37,12 +42,12 @@ public final class CallTreeCache {
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
                 .maximumSize(MAX_ENTRIES)
                 .build();
-        
+
         this.diffTrees = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
                 .maximumSize(MAX_ENTRIES)
                 .build();
-                
+
         LOG.info("CallTreeCache initialized: TTL={}min, MaxSize={}", ttlMinutes, MAX_ENTRIES);
     }
 
@@ -308,13 +313,6 @@ public final class CallTreeCache {
         return (int) diffTrees.estimatedSize();
     }
 
-    /**
-     * Shutdown no longer needed, retained for API compatibility.
-     */
-    public void shutdown() {
-        // No-op
-    }
-
     // ------------------------------------------------------------------
     // Cached tree wrappers
     // ------------------------------------------------------------------
@@ -326,7 +324,8 @@ public final class CallTreeCache {
             String packageFilter,
             double totalSamples,
             Instant createdAt
-    ) {}
+    ) {
+    }
 
     public record CachedDiffTree(
             DiffTreeNode root,
@@ -337,7 +336,8 @@ public final class CallTreeCache {
             double baselineTotalSamples,
             double targetTotalSamples,
             Instant createdAt
-    ) {}
+    ) {
+    }
 
     // ------------------------------------------------------------------
     // Diff tree node

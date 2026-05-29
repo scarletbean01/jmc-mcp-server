@@ -3,6 +3,7 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.*;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.UnitLookup;
@@ -16,7 +17,8 @@ import java.util.Map;
 /**
  * Domain service for safepoint and STW pause analysis.
  */
-public class SafepointAnalysisService {
+@ApplicationScoped
+public final class SafepointAnalysisService {
 
     public SafepointAnalysisResult analyze(IItemCollection events, int topN) {
         IItemCollection safepoints = events.apply(ItemFilters.type("jdk.SafepointBegin"));

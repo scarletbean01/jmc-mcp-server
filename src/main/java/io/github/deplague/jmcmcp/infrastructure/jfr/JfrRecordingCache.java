@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Weigher;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.exception.RecordingNotFoundException;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.flightrecorder.JfrLoaderToolkit;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Enterprise-grade cache for loaded JFR recordings using Caffeine and
  * platform-thread offloading for CPU-bound parsing to avoid Virtual Thread pinning.
  */
+@ApplicationScoped
 public final class JfrRecordingCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(JfrRecordingCache.class);

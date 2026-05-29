@@ -1,6 +1,9 @@
 package io.github.deplague.jmcmcp.infrastructure.jfr;
 
-import org.openjdk.jmc.common.item.*;
+import org.openjdk.jmc.common.item.IItem;
+import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IItemIterable;
+import org.openjdk.jmc.common.item.IMemberAccessor;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.IUnit;
 

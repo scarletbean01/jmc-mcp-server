@@ -1,7 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.jfr;
 
-import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
+import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.openjdk.jmc.common.item.IItemCollection;

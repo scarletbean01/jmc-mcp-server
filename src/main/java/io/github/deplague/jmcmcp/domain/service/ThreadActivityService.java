@@ -1,11 +1,10 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
-
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 
 import java.util.HashMap;
 import java.util.List;

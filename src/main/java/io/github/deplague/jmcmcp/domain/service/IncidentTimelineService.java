@@ -2,24 +2,37 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.IncidentTimelineResult;
 import io.github.deplague.jmcmcp.domain.model.TimelineEventEntry;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
-import org.openjdk.jmc.common.item.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.openjdk.jmc.common.item.IItem;
+import org.openjdk.jmc.common.item.IItemCollection;
+import org.openjdk.jmc.common.item.IItemIterable;
+import org.openjdk.jmc.common.item.IType;
 import org.openjdk.jmc.common.unit.IQuantity;
-import org.openjdk.jmc.common.unit.UnitLookup;
-import org.openjdk.jmc.flightrecorder.JfrAttributes;
 
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
+import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
+import static java.time.Instant.ofEpochMilli;
+import static java.time.Instant.parse;
+import static java.util.Comparator.comparingLong;
+import static java.util.Set.of;
+import static org.openjdk.jmc.common.IDisplayable.AUTO;
+import static org.openjdk.jmc.common.item.ItemFilters.interval;
+import static org.openjdk.jmc.common.item.ItemFilters.type;
+import static org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
+import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
 /**
  * Domain service for incident timeline analysis.
  */
-public class IncidentTimelineService {
+@ApplicationScoped
+public final class IncidentTimelineService {
 
-    private static final Set<String> SIGNIFICANT_EVENTS = Set.of(
+    private static final Set<String> SIGNIFICANT_EVENTS = of(
             "jdk.GCPhasePause",
             "jdk.ExecuteVMOperation",
             "jdk.SafepointBegin",
@@ -60,11 +73,11 @@ public class IncidentTimelineService {
 
         long startMillis = anchorMillis - windowMs;
         long endMillis = anchorMillis + windowMs;
-        IQuantity startQ = UnitLookup.EPOCH_MS.quantity(startMillis);
-        IQuantity endQ = UnitLookup.EPOCH_MS.quantity(endMillis);
+        IQuantity startQ = EPOCH_MS.quantity(startMillis);
+        IQuantity endQ = EPOCH_MS.quantity(endMillis);
 
         IItemCollection windowEvents = events.apply(
-                ItemFilters.interval(JfrAttributes.START_TIME, startQ, true, endQ, true)
+                interval(START_TIME, startQ, true, endQ, true)
         );
 
         List<TimelineEventEntry> timeline = new ArrayList<>();
@@ -75,16 +88,16 @@ public class IncidentTimelineService {
                 continue;
             }
 
-            var timeAcc = JfrAttributes.START_TIME.getAccessor(iterable.getType());
-            var durAcc = JfrAttributes.DURATION.getAccessor(iterable.getType());
+            var timeAcc = START_TIME.getAccessor(iterable.getType());
+            var durAcc = DURATION.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
-            var threadAcc = JfrAccessorRepository.getAccessor(type, "eventThread");
+            var threadAcc = getAccessor(type, "eventThread");
 
             if (timeAcc != null) {
                 for (IItem item : iterable) {
                     IQuantity timeQ = timeAcc.getMember(item);
                     if (timeQ != null) {
-                        long ts = timeQ.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                        long ts = timeQ.clampedLongValueIn(EPOCH_MS);
 
                         StringBuilder desc = new StringBuilder();
 
@@ -92,7 +105,7 @@ public class IncidentTimelineService {
                             IQuantity dur = durAcc.getMember(item);
                             if (dur != null) {
                                 desc.append(" [Dur: ")
-                                        .append(dur.displayUsing(org.openjdk.jmc.common.IDisplayable.AUTO))
+                                        .append(dur.displayUsing(AUTO))
                                         .append("]");
                             }
                         }
@@ -110,7 +123,7 @@ public class IncidentTimelineService {
                         boolean isAnchor = ts == anchorMillis && anchorEvent != null;
                         timeline.add(new TimelineEventEntry(
                                 ts,
-                                java.time.Instant.ofEpochMilli(ts).toString(),
+                                ofEpochMilli(ts).toString(),
                                 desc.toString(),
                                 typeId,
                                 isAnchor
@@ -127,10 +140,10 @@ public class IncidentTimelineService {
             }
         }
 
-        timeline.sort(Comparator.comparingLong(TimelineEventEntry::timestampMillis));
+        timeline.sort(comparingLong(TimelineEventEntry::timestampMillis));
 
         return new IncidentTimelineResult(
-                java.time.Instant.ofEpochMilli(anchorMillis).toString(),
+                ofEpochMilli(anchorMillis).toString(),
                 windowMs,
                 timeline.size() > 1000,
                 timeline
@@ -139,14 +152,14 @@ public class IncidentTimelineService {
 
     private long resolveAnchorMillis(IItemCollection events, String anchorEvent, String anchorTimeStr) {
         if (anchorEvent != null && !anchorEvent.isEmpty()) {
-            IItemCollection anchors = events.apply(ItemFilters.type(anchorEvent));
+            IItemCollection anchors = events.apply(type(anchorEvent));
             for (IItemIterable iterable : anchors) {
-                var timeAcc = JfrAttributes.START_TIME.getAccessor(iterable.getType());
+                var timeAcc = START_TIME.getAccessor(iterable.getType());
                 if (timeAcc != null && iterable.iterator().hasNext()) {
                     IItem first = iterable.iterator().next();
                     IQuantity time = timeAcc.getMember(first);
                     if (time != null) {
-                        return time.clampedLongValueIn(UnitLookup.EPOCH_MS);
+                        return time.clampedLongValueIn(EPOCH_MS);
                     }
                 }
             }
@@ -155,7 +168,7 @@ public class IncidentTimelineService {
 
         if (anchorTimeStr != null && !anchorTimeStr.isEmpty()) {
             try {
-                return Instant.parse(anchorTimeStr).toEpochMilli();
+                return parse(anchorTimeStr).toEpochMilli();
             } catch (Exception e) {
                 return -2; // parse error
             }
@@ -166,21 +179,21 @@ public class IncidentTimelineService {
 
     private String extractContext(IItem item, String typeId) {
         if (typeId.contains("Exception") || typeId.contains("Error")) {
-            return JfrAccessorRepository.getMember(item, "thrownClass").map(Object::toString).orElse("");
+            return getMember(item, "thrownClass").map(Object::toString).orElse("");
         }
         if (typeId.contains("MonitorEnter") || typeId.contains("ThreadPark")) {
-            return JfrAccessorRepository.getMember(item, "monitorClass").map(Object::toString).orElse("");
+            return getMember(item, "monitorClass").map(Object::toString).orElse("");
         }
         if (typeId.contains("File") || typeId.contains("Socket")) {
-            String path = JfrAccessorRepository.getMember(item, "path").map(Object::toString).orElse("");
+            String path = getMember(item, "path").map(Object::toString).orElse("");
             if (!path.isEmpty()) {
                 return path;
             }
-            return JfrAccessorRepository.getMember(item, "host").map(Object::toString).orElse("");
+            return getMember(item, "host").map(Object::toString).orElse("");
         }
         if (typeId.contains("PhasePause") || typeId.contains("ExecuteVMOperation") || typeId.contains("Safepoint")) {
-            return JfrAccessorRepository.getMember(item, "name").map(Object::toString).orElse(
-                    JfrAccessorRepository.getMember(item, "operation").map(Object::toString).orElse("")
+            return getMember(item, "name").map(Object::toString).orElse(
+                    getMember(item, "operation").map(Object::toString).orElse("")
             );
         }
         return "";

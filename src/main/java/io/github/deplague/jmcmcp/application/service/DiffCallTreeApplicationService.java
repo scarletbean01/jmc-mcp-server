@@ -1,13 +1,14 @@
 package io.github.deplague.jmcmcp.application.service;
 
-import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeData;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeResult;
 import io.github.deplague.jmcmcp.domain.service.DiffCallTreeService;
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
 
@@ -25,11 +26,8 @@ public class DiffCallTreeApplicationService {
 
     private final JfrProvider jfrProvider;
     private final DiffCallTreeService diffCallTreeService;
+    @Getter
     private final CallTreeCache callTreeCache;
-
-    public CallTreeCache getCallTreeCache() {
-        return callTreeCache;
-    }
 
     public DiffCallTreeResult analyze(
             String baselinePath,

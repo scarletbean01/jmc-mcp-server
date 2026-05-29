@@ -1,6 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.security;
 
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
  * {@code JMC_MCP_ALLOWED_SCHEMES}.</p>
  */
 @Getter
+@ApplicationScoped
 public final class RecordingAccessController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RecordingAccessController.class);
