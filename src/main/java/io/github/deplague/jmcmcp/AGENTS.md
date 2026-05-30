@@ -4,8 +4,9 @@ This is the root package of the JMC MCP Server, responsible for bootstrapping an
 
 ## Responsibilities
 - **Bootstrap:** `JmcMcpServer.java` is a `@QuarkusMain` entry point.
-- **Discovery:** The server uses the Quarkus MCP server extension, which automatically discovers tools and resources via CDI annotations.
-- **Configuration:** Runtime configuration is managed through `application.properties`.
+- **Discovery:** The server uses the Quarkus MCP server extension and Quarkus REST, which automatically discover tools, resources, and endpoints via CDI annotations.
+- **Public API:** The root package orchestrates the lifecycle of the REST API driving adapter.
+- **Configuration:** Runtime configuration (CORS, Storage, Logging) is managed through `application.properties`.
 
 ## Guidelines for Agents
 - **Infrastructure Layer:** This package is part of the Infrastructure layer in our hexagonal architecture.

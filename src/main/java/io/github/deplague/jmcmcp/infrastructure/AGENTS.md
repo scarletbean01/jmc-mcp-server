@@ -4,16 +4,18 @@ This is the technical implementation layer of the hexagonal architecture. It con
 
 ## Responsibilities
 
-- **Inbound Adapters (mcp):** Declarative MCP tool and resource definitions that drive the application.
+- **Inbound Adapters (mcp):** Declarative MCP tool and resource definitions.
+- **Inbound Adapters (api):** Public REST API implementation for external integration.
 - **Outbound Adapters (jfr):** Implementation of application ports for JFR loading, parsing, and caching.
-- **Security:** Technical access control and path validation.
-- **Low-level JMC Access:** Optimized attribute extraction and aggregation utilities.
+- **Security:** Technical guards for path validation and access control.
 
 ## Sub-packages
 
-- **`mcp`**: The Model Context Protocol delivery mechanism.
-- **`jfr`**: Technical JFR infrastructure, port implementations (`JfrProvider`), and low-level caches.
-- **`security`**: File system access control and JFR path validation.
+- **`mcp`**: Model Context Protocol delivery.
+- **`api`**: Public REST API (Quarkus REST, SSE).
+- **`jfr`**: Technical JFR infrastructure and persistence.
+- **`security`**: Access control logic.
+
 
 ## Guidelines for Agents
 
