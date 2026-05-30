@@ -52,4 +52,32 @@ public class ComparisonResource {
                     .build();
         }
     }
+
+    @RunOnVirtualThread
+    @POST
+    @Path("/structured")
+    public Response compareStructured(CompareRequest request) {
+        String baselinePath = storageService.getRecordingPath(request.baselineRecordingId());
+        String comparisonPath = storageService.getRecordingPath(request.comparisonRecordingId());
+
+        if (baselinePath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Baseline recording not found: " + request.baselineRecordingId()))
+                    .build();
+        }
+        if (comparisonPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Comparison recording not found: " + request.comparisonRecordingId()))
+                    .build();
+        }
+
+        try {
+            Object result = dispatcher.compareRecordingsStructured(baselinePath, comparisonPath);
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Comparison failed: " + e.getMessage()))
+                    .build();
+        }
+    }
 }

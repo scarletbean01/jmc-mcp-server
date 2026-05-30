@@ -1,35 +1,36 @@
+# Build artifacts
 /target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+/resources/public/js/compiled/
+/.shadow-cljs/
+/.cpcache/
+/.cljs_rhino_repl
+/out/
 
-### IntelliJ IDEA ###
-.idea/
-*.iws
-*.iml
-*.ipr
+# Dependencies
+/node_modules/
+/checkouts/
+/.lein-plugins/
+/.lein-failures/
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings/
-.springBeans
-.sts4-cache
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
-.vscode/
-
-### Mac OS ###
+# IDE and Editor files
+/.idea/
+/*.iml
+/*.ipr
+/*.iws
+/.project
+/.classpath
+/.settings/
+/.vscode/
 .DS_Store
+.dir-locals.el
 
-### Logs ###
-*.log
+# Temporary files
+/*.log
+/*.swp
+/*.swo
+/.nrepl-port
+/.shadow-cljs/*.port
+
+# Environment variables
+.env
+.env.local

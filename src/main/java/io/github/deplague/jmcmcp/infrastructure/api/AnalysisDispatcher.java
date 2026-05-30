@@ -175,6 +175,10 @@ public class AnalysisDispatcher {
         return compareService.analyze(baselinePath, comparisonPath);
     }
 
+    public Object compareRecordingsStructured(String baselinePath, String comparisonPath) throws Exception {
+        return compareService.analyzeStructured(baselinePath, comparisonPath);
+    }
+
     private int intParam(Map<String, Object> params, String key, int defaultValue) {
         Object val = params.get(key);
         if (val instanceof Number n) return n.intValue();

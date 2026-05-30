@@ -3,6 +3,11 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.model.RecordingComparisonDelta;
 import io.github.deplague.jmcmcp.domain.model.RecordingComparisonMetric;
+import io.github.deplague.jmcmcp.domain.model.RecordingComparisonMetricRow;
+import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRecordingInfo;
+import io.github.deplague.jmcmcp.domain.model.RecordingComparisonResult;
+import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRuleChange;
+import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRules;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
@@ -363,7 +368,7 @@ public final class CompareRecordingsService {
         );
 
         CompletableFuture<Map<String, List<String>>> metricsTask =
-                supplyAsync(() -> calculateMetrics(bCtx, tCtx));
+                supplyAsync(() -> calculateMetricsMarkdown(bCtx, tCtx));
         CompletableFuture<Map<String, Severity>> rulesBaselineTask =
                 supplyAsync(() -> evaluateRules(bCtx));
         CompletableFuture<Map<String, Severity>> rulesTargetTask =
@@ -525,7 +530,7 @@ public final class CompareRecordingsService {
         return sb.toString();
     }
 
-    private Map<String, List<String>> calculateMetrics(
+    private Map<String, List<String>> calculateMetricsMarkdown(
             AnalysisContext bCtx,
             AnalysisContext tCtx
     ) {
@@ -599,6 +604,303 @@ public final class CompareRecordingsService {
             }
         }
         return categories;
+    }
+
+    public RecordingComparisonResult analyzeStructured(
+            IItemCollection baselineEvents,
+            double baselineDurationSec,
+            String baselinePath,
+            IItemCollection targetEvents,
+            double targetDurationSec,
+            String targetPath
+    ) {
+        AnalysisContext bCtx = new AnalysisContext(
+                baselineEvents,
+                baselineDurationSec,
+                baselinePath
+        );
+        AnalysisContext tCtx = new AnalysisContext(
+                targetEvents,
+                targetDurationSec,
+                targetPath
+        );
+
+        CompletableFuture<Map<String, List<RecordingComparisonMetricRow>>> metricsTask =
+                supplyAsync(() -> calculateMetricsStructured(bCtx, tCtx));
+        CompletableFuture<Map<String, Severity>> rulesBaselineTask =
+                supplyAsync(() -> evaluateRules(bCtx));
+        CompletableFuture<Map<String, Severity>> rulesTargetTask =
+                supplyAsync(() -> evaluateRules(tCtx));
+
+        CompletableFuture<List<RecordingComparisonDelta>> cpuDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{"jdk.ExecutionSample"},
+                                "stackTrace",
+                                null
+                        )
+                );
+
+        CompletableFuture<List<RecordingComparisonDelta>> allocDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{
+                                        "jdk.ObjectAllocationInNewTLAB",
+                                        "jdk.ObjectAllocationOutsideTLAB",
+                                },
+                                "objectClass",
+                                "allocationSize"
+                        )
+                );
+
+        CompletableFuture<List<RecordingComparisonDelta>> contentionDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{"jdk.JavaMonitorEnter", "jdk.ThreadPark"},
+                                "stackTrace",
+                                DURATION.getIdentifier()
+                        )
+                );
+
+        CompletableFuture<List<RecordingComparisonDelta>> exceptionDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{
+                                        "jdk.JavaExceptionThrow",
+                                        "jdk.JavaErrorThrow",
+                                },
+                                "thrownClass",
+                                null
+                        )
+                );
+
+        try {
+            allOf(
+                    metricsTask,
+                    rulesBaselineTask,
+                    rulesTargetTask,
+                    cpuDeltasTask,
+                    allocDeltasTask,
+                    contentionDeltasTask,
+                    exceptionDeltasTask
+            ).join();
+        } catch (CompletionException e) {
+            throw new AnalysisFailedException(
+                    "Parallel analysis failed: " + e.getCause().getMessage(),
+                    e.getCause()
+            );
+        }
+
+        List<String> warnings = new ArrayList<>();
+        if (
+                abs(bCtx.durationSec - tCtx.durationSec) /
+                        max(bCtx.durationSec, tCtx.durationSec) >
+                        0.5
+        ) {
+            warnings.add(
+                    format(
+                            "Warning: Recording durations differ significantly (%.1fs vs %.1fs). Normalized per-second comparisons may be skewed by startup or shutdown behavior.",
+                            bCtx.durationSec,
+                            tCtx.durationSec
+                    )
+            );
+        }
+
+        List<String> summary = buildSummaryPoints(
+                metricsTask.join(),
+                rulesBaselineTask.join(),
+                rulesTargetTask.join()
+        );
+
+        RecordingComparisonRules ruleChanges = buildRuleChanges(
+                rulesBaselineTask.join(),
+                rulesTargetTask.join()
+        );
+
+        return new RecordingComparisonResult(
+                new RecordingComparisonRecordingInfo(baselinePath, bCtx.durationSec),
+                new RecordingComparisonRecordingInfo(targetPath, tCtx.durationSec),
+                warnings,
+                summary,
+                metricsTask.join(),
+                ruleChanges,
+                cpuDeltasTask.join(),
+                allocDeltasTask.join(),
+                contentionDeltasTask.join(),
+                exceptionDeltasTask.join()
+        );
+    }
+
+    private Map<String, List<RecordingComparisonMetricRow>> calculateMetricsStructured(
+            AnalysisContext bCtx,
+            AnalysisContext tCtx
+    ) {
+        Map<String, List<RecordingComparisonMetric>> groups = new LinkedHashMap<>();
+        for (RecordingComparisonMetric def : METRICS) {
+            String key =
+                    def.eventId() +
+                            "|" +
+                            (def.attrId() != null ? def.attrId() : "__count__");
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(def);
+        }
+
+        Map<String, List<RecordingComparisonMetricRow>> categories = new LinkedHashMap<>();
+        for (List<RecordingComparisonMetric> group : groups.values()) {
+            IItemCollection bEvents = bCtx.events.apply(
+                    type(group.getFirst().eventId())
+            );
+            IItemCollection tEvents = tCtx.events.apply(
+                    type(group.getFirst().eventId())
+            );
+
+            Map<RecordingComparisonMetric, IQuantity> bVals = computeMetricsBatch(
+                    bEvents,
+                    group
+            );
+            Map<RecordingComparisonMetric, IQuantity> tVals = computeMetricsBatch(
+                    tEvents,
+                    group
+            );
+
+            for (RecordingComparisonMetric def : group) {
+                IQuantity bVal = bVals.get(def);
+                IQuantity tVal = tVals.get(def);
+
+                Double deltaPercent = null;
+                String indicator = "info";
+
+                if (bVal != null && tVal != null) {
+                    double bv = bVal.doubleValue();
+                    double tv = tVal.doubleValue();
+                    if (def.normalize()) {
+                        bv /= bCtx.durationSec;
+                        tv /= tCtx.durationSec;
+                    }
+                    if (bv != 0) {
+                        double diff = ((tv - bv) / bv) * 100.0;
+                        deltaPercent = diff;
+                        indicator = getIndicatorSemantic(diff);
+                    } else if (tv != 0) {
+                        deltaPercent = 100.0;
+                        indicator = "regression";
+                    } else {
+                        deltaPercent = 0.0;
+                    }
+                }
+
+                String label = def.label() + (def.normalize() ? " *" : "");
+                RecordingComparisonMetricRow row = new RecordingComparisonMetricRow(
+                        label,
+                        bVal != null ? bVal.doubleValue() : null,
+                        display(bVal),
+                        tVal != null ? tVal.doubleValue() : null,
+                        display(tVal),
+                        deltaPercent,
+                        def.normalize(),
+                        indicator
+                );
+                categories
+                        .computeIfAbsent(def.category(), k -> new ArrayList<>())
+                        .add(row);
+            }
+        }
+        return categories;
+    }
+
+    private List<String> buildSummaryPoints(
+            Map<String, List<RecordingComparisonMetricRow>> metrics,
+            Map<String, Severity> bRules,
+            Map<String, Severity> tRules
+    ) {
+        List<String> majorPoints = new ArrayList<>();
+
+        for (String rule : tRules.keySet()) {
+            Severity bSev = bRules.getOrDefault(rule, OK);
+            Severity tSev = tRules.get(rule);
+            if (tSev.compareTo(bSev) > 0 && tSev.compareTo(INFO) > 0) {
+                majorPoints.add(
+                        "New Performance Issue: Rule `" +
+                                rule +
+                                "` increased from " +
+                                bSev.getLocalizedName() +
+                                " to " +
+                                tSev.getLocalizedName()
+                );
+            }
+        }
+
+        for (List<RecordingComparisonMetricRow> rows : metrics.values()) {
+            for (RecordingComparisonMetricRow row : rows) {
+                if ("regression".equals(row.indicator())) {
+                    String deltaStr = row.deltaPercent() != null
+                            ? format("+%.2f%%", row.deltaPercent())
+                            : "N/A";
+                    majorPoints.add(
+                            "Regression: " +
+                                    row.label() +
+                                    " increased by " +
+                                    deltaStr
+                    );
+                }
+            }
+        }
+
+        if (majorPoints.isEmpty()) {
+            majorPoints.add(
+                    "No major regressions detected. The system performance appears stable compared to the baseline."
+            );
+        }
+        return majorPoints.stream().limit(5).toList();
+    }
+
+    private RecordingComparisonRules buildRuleChanges(
+            Map<String, Severity> baselineRules,
+            Map<String, Severity> targetRules
+    ) {
+        List<RecordingComparisonRuleChange> regressions = new ArrayList<>();
+        List<RecordingComparisonRuleChange> improvements = new ArrayList<>();
+
+        Set<String> allRules = new TreeSet<>(baselineRules.keySet());
+        allRules.addAll(targetRules.keySet());
+
+        for (String ruleName : allRules) {
+            Severity bSev = baselineRules.getOrDefault(ruleName, OK);
+            Severity tSev = targetRules.getOrDefault(ruleName, OK);
+
+            if (tSev.compareTo(bSev) > 0) {
+                regressions.add(
+                        new RecordingComparisonRuleChange(
+                                ruleName,
+                                bSev.getLocalizedName(),
+                                tSev.getLocalizedName()
+                        )
+                );
+            } else if (tSev.compareTo(bSev) < 0) {
+                improvements.add(
+                        new RecordingComparisonRuleChange(
+                                ruleName,
+                                bSev.getLocalizedName(),
+                                tSev.getLocalizedName()
+                        )
+                );
+            }
+        }
+
+        return new RecordingComparisonRules(regressions, improvements);
+    }
+
+    private String getIndicatorSemantic(double delta) {
+        if (delta > 10.0) return "regression";
+        if (delta < -10.0) return "improvement";
+        return "info";
     }
 
     private static IQuantity toIQuantity(Object value) {

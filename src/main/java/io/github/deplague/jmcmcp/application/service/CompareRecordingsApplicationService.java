@@ -40,6 +40,23 @@ public class CompareRecordingsApplicationService {
         );
     }
 
+    public io.github.deplague.jmcmcp.domain.model.RecordingComparisonResult analyzeStructured(String baselinePath, String targetPath) throws IOException {
+        IItemCollection baselineEvents = jfrProvider.loadRecording(baselinePath);
+        IItemCollection targetEvents = jfrProvider.loadRecording(targetPath);
+
+        double baselineDurationSec = getDurationSeconds(baselineEvents);
+        double targetDurationSec = getDurationSeconds(targetEvents);
+
+        return compareRecordingsService.analyzeStructured(
+                baselineEvents,
+                baselineDurationSec,
+                baselinePath,
+                targetEvents,
+                targetDurationSec,
+                targetPath
+        );
+    }
+
     private double getDurationSeconds(IItemCollection events) {
         IQuantity start = RulesToolkit.getEarliestStartTime(events);
         IQuantity end = RulesToolkit.getLatestEndTime(events);
