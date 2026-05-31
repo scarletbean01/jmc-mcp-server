@@ -3,9 +3,10 @@ package io.github.deplague.jmcmcp.domain.model;
 import java.util.List;
 
 /**
- * Result of expanding a specific node in a diff call tree.
+ * Result of expanding a node in a differential call tree.
  */
 public record ExpandDiffCallTreeResult(
+    String treeId,
     String parentNodeId,
     String parentMethodName,
     double parentBaselineCumulative,
@@ -13,9 +14,8 @@ public record ExpandDiffCallTreeResult(
     double parentDelta,
     double parentPercentageChange,
     String parentChangeType,
-    List<DiffCallTreeNodeEntry> children,
     double baselineTotal,
     double targetTotal,
-    boolean hasChildren
+    List<ExpandDiffCallTreeChildEntry> children
 ) {
 }

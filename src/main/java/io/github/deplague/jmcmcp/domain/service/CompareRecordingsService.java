@@ -1,13 +1,7 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonDelta;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonMetric;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonMetricRow;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRecordingInfo;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonResult;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRuleChange;
-import io.github.deplague.jmcmcp.domain.model.RecordingComparisonRules;
+import io.github.deplague.jmcmcp.domain.model.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
@@ -381,7 +375,8 @@ public final class CompareRecordingsService {
                                 tCtx,
                                 new String[]{"jdk.ExecutionSample"},
                                 "stackTrace",
-                                null
+                                null,
+                                "Samples/sec"
                         )
                 );
 
@@ -395,7 +390,8 @@ public final class CompareRecordingsService {
                                         "jdk.ObjectAllocationOutsideTLAB",
                                 },
                                 "objectClass",
-                                "allocationSize"
+                                "allocationSize",
+                                "Bytes/sec"
                         )
                 );
 
@@ -406,7 +402,8 @@ public final class CompareRecordingsService {
                                 tCtx,
                                 new String[]{"jdk.JavaMonitorEnter", "jdk.ThreadPark"},
                                 "stackTrace",
-                                DURATION.getIdentifier()
+                                DURATION.getIdentifier(),
+                                "Nanos/sec"
                         )
                 );
 
@@ -420,7 +417,8 @@ public final class CompareRecordingsService {
                                         "jdk.JavaErrorThrow",
                                 },
                                 "thrownClass",
-                                null
+                                null,
+                                "Throws/sec"
                         )
                 );
 
@@ -639,7 +637,8 @@ public final class CompareRecordingsService {
                                 tCtx,
                                 new String[]{"jdk.ExecutionSample"},
                                 "stackTrace",
-                                null
+                                null,
+                                "Samples/sec"
                         )
                 );
 
@@ -653,7 +652,8 @@ public final class CompareRecordingsService {
                                         "jdk.ObjectAllocationOutsideTLAB",
                                 },
                                 "objectClass",
-                                "allocationSize"
+                                "allocationSize",
+                                "Bytes/sec"
                         )
                 );
 
@@ -664,7 +664,8 @@ public final class CompareRecordingsService {
                                 tCtx,
                                 new String[]{"jdk.JavaMonitorEnter", "jdk.ThreadPark"},
                                 "stackTrace",
-                                DURATION.getIdentifier()
+                                DURATION.getIdentifier(),
+                                "Nanos/sec"
                         )
                 );
 
@@ -678,7 +679,8 @@ public final class CompareRecordingsService {
                                         "jdk.JavaErrorThrow",
                                 },
                                 "thrownClass",
-                                null
+                                null,
+                                "Throws/sec"
                         )
                 );
 
@@ -1131,7 +1133,8 @@ public final class CompareRecordingsService {
             AnalysisContext target,
             String[] typeIds,
             String keyAttr,
-            String valueAttr
+            String valueAttr,
+            String unit
     ) {
         Map<String, Double> bRates = calculateRates(
                 baseline,
@@ -1154,7 +1157,17 @@ public final class CompareRecordingsService {
             double bRate = bRates.getOrDefault(key, 0.0);
             double tRate = tRates.getOrDefault(key, 0.0);
             if (bRate == 0 && tRate == 0) continue;
-            deltas.add(new RecordingComparisonDelta(key, bRate, tRate, tRate - bRate));
+
+            double delta = tRate - bRate;
+            deltas.add(new RecordingComparisonDelta(
+                    key,
+                    bRate,
+                    formatValue(bRate, unit),
+                    tRate,
+                    formatValue(tRate, unit),
+                    delta,
+                    formatValue(delta, unit)
+            ));
         }
 
         deltas.sort(comparingDouble(RecordingComparisonDelta::delta).reversed());

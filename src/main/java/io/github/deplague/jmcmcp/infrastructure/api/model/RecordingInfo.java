@@ -7,10 +7,10 @@ import java.util.Map;
  * Metadata about an uploaded JFR recording.
  */
 public record RecordingInfo(
-        String recordingId,
-        String fileName,
-        long fileSize,
-        Instant uploadedAt,
+        String id,
+        String filename,
+        long size,
+        Instant uploadTime,
         double durationSeconds,
         long totalEvents,
         Map<String, String> availability

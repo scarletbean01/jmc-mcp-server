@@ -1,40 +1,42 @@
 package io.github.deplague.jmcmcp.domain.service;
 
-import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
+import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeChildEntry;
 import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeResult;
+import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache.*;
-
 /**
- * Pure domain service for expanding a node in a diff call tree.
- * Contains no MCP-specific or UI formatting logic.
+ * Domain service for expanding nodes in a differential call tree.
  */
 @ApplicationScoped
 public final class ExpandDiffCallTreeService {
 
     public ExpandDiffCallTreeResult expand(
+            CallTreeCache.DiffTreeNode parentNode,
+            String treeId,
             String parentNodeId,
-            DiffTreeNode parentNode,
             String packageFilter,
             double baselineTotal,
-            double targetTotal) {
+            double targetTotal
+    ) {
+        List<ExpandDiffCallTreeChildEntry> children = new ArrayList<>();
+        List<CallTreeCache.DiffTreeNode> visibleChildren = CallTreeCache.getVisibleDiffChildren(parentNode, packageFilter);
 
-        List<DiffTreeNode> visibleChildren = getVisibleDiffChildren(
-                parentNode, packageFilter);
-        List<DiffCallTreeNodeEntry> childEntries = new ArrayList<>();
+        for (int i = 0; i < visibleChildren.size(); i++) {
+            CallTreeCache.DiffTreeNode child = visibleChildren.get(i);
+            String childId = parentNodeId + "-" + i;
 
-        for (DiffTreeNode child : visibleChildren) {
-            double baselinePct = baselineTotal > 0
-                    ? (child.baselineCumulative() / baselineTotal) * 100.0 : 0.0;
-            double targetPct = targetTotal > 0
-                    ? (child.targetCumulative() / targetTotal) * 100.0 : 0.0;
-            boolean hasChildren = !getVisibleDiffChildren(child, null).isEmpty();
-            childEntries.add(new DiffCallTreeNodeEntry(
-                    formatMethodName(child),
+            double baselinePct = baselineTotal > 0 ? (child.baselineCumulative() / baselineTotal) * 100.0 : 0.0;
+            double targetPct = targetTotal > 0 ? (child.targetCumulative() / targetTotal) * 100.0 : 0.0;
+
+            boolean hasChildren = !CallTreeCache.getVisibleDiffChildren(child, null).isEmpty();
+
+            children.add(new ExpandDiffCallTreeChildEntry(
+                    childId,
+                    CallTreeCache.formatMethodName(child),
                     child.baselineCumulative(),
                     child.targetCumulative(),
                     child.delta(),
@@ -46,17 +48,17 @@ public final class ExpandDiffCallTreeService {
         }
 
         return new ExpandDiffCallTreeResult(
+                treeId,
                 parentNodeId,
-                formatMethodName(parentNode),
+                CallTreeCache.formatMethodName(parentNode),
                 parentNode.baselineCumulative(),
                 parentNode.targetCumulative(),
                 parentNode.delta(),
                 parentNode.percentageChange(),
                 parentNode.changeType(),
-                childEntries,
                 baselineTotal,
                 targetTotal,
-                !visibleChildren.isEmpty()
+                children
         );
     }
 }

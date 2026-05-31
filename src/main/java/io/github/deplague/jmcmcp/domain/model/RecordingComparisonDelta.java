@@ -6,7 +6,10 @@ package io.github.deplague.jmcmcp.domain.model;
 public record RecordingComparisonDelta(
     String key,
     double baselineRate,
+    String baselineDisplay,
     double targetRate,
-    double delta
+    String targetDisplay,
+    double delta,
+    String deltaDisplay
 ) {
 }

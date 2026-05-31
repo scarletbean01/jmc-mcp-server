@@ -5,13 +5,12 @@ import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
 import io.github.deplague.jmcmcp.infrastructure.api.model.CompareRequest;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+
+import java.util.Map;
 
 /**
  * REST resource for comparing two JFR recordings.
@@ -77,6 +76,74 @@ public class ComparisonResource {
         } catch (Exception e) {
             return Response.serverError()
                     .entity(ApiResponse.error("Comparison failed: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @RunOnVirtualThread
+    @POST
+    @Path("/call-tree")
+    public Response diffCallTree(CompareRequest request) {
+        String baselinePath = storageService.getRecordingPath(request.baselineRecordingId());
+        String comparisonPath = storageService.getRecordingPath(request.comparisonRecordingId());
+
+        if (baselinePath == null || comparisonPath == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        try {
+            Map<String, Object> p = request.params();
+            Object result = dispatcher.diffCallTree(
+                    baselinePath, comparisonPath,
+                    (String) p.getOrDefault("subsystem", "cpu"),
+                    (String) p.get("packageFilter"));
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Diff call tree failed: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @RunOnVirtualThread
+    @POST
+    @Path("/stack-traces")
+    public Response diffStackTraces(CompareRequest request) {
+        String baselinePath = storageService.getRecordingPath(request.baselineRecordingId());
+        String comparisonPath = storageService.getRecordingPath(request.comparisonRecordingId());
+
+        if (baselinePath == null || comparisonPath == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        try {
+            Map<String, Object> p = request.params();
+            Object result = dispatcher.diffStackTraces(
+                    baselinePath, comparisonPath,
+                    (String) p.get("packagePrefix"),
+                    (int) p.getOrDefault("topN", 20));
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Diff stack traces failed: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @RunOnVirtualThread
+    @POST
+    @Path("/call-tree/{treeId}/expand")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response expandDiffCallTree(
+            @PathParam("treeId") String treeId,
+            @QueryParam("nodeId") String nodeId
+    ) {
+        try {
+            Object result = dispatcher.expandDiffCallTree(treeId, nodeId);
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Expansion failed: " + e.getMessage()))
                     .build();
         }
     }

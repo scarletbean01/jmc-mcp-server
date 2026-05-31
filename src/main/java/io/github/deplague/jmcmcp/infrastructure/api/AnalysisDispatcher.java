@@ -28,6 +28,7 @@ public class AnalysisDispatcher {
     private final ThreadCpuApplicationService threadCpuService;
     private final CallTreeApplicationService callTreeService;
     private final ExpandCallTreeApplicationService expandCallTreeService;
+    private final ExpandDiffCallTreeApplicationService expandDiffCallTreeService;
     private final CpuFlameApplicationService cpuFlameService;
     private final AllocationFlameApplicationService allocationFlameService;
     private final LockFlameApplicationService lockFlameService;
@@ -91,9 +92,9 @@ public class AnalysisDispatcher {
     }
 
     private Object doDispatch(String analysisType, String filePath, AnalysisRequest request) throws Exception {
-        String startTime = request.startTime();
-        String endTime = request.endTime();
-        Map<String, Object> p = request.params();
+        String startTime = request.getStartTime();
+        String endTime = request.getEndTime();
+        Map<String, Object> p = request.getParams();
 
         return switch (analysisType) {
             case "overview" -> overviewService.analyze(filePath, startTime, endTime);
@@ -187,6 +188,10 @@ public class AnalysisDispatcher {
         return expandCallTreeService.expand(treeId, nodeId);
     }
 
+    public Object expandDiffCallTree(String treeId, String nodeId) throws Exception {
+        return expandDiffCallTreeService.expand(treeId, nodeId);
+    }
+
     public Object compareRecordings(String baselinePath, String comparisonPath) throws Exception {
         return metrics.timeAnalysis("compare", () -> {
             try {
@@ -203,6 +208,30 @@ public class AnalysisDispatcher {
         return metrics.timeAnalysis("compare-structured", () -> {
             try {
                 return compareService.analyzeStructured(baselinePath, comparisonPath);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public Object diffCallTree(String baselinePath, String targetPath, String subsystem, String packageFilter) throws Exception {
+        return metrics.timeAnalysis("diff-call-tree", () -> {
+            try {
+                return diffCallTreeService.analyze(baselinePath, targetPath, subsystem, packageFilter);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public Object diffStackTraces(String baselinePath, String targetPath, String packagePrefix, int topN) throws Exception {
+        return metrics.timeAnalysis("diff-stack-traces", () -> {
+            try {
+                return diffStackService.analyze(baselinePath, targetPath, packagePrefix, topN);
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {

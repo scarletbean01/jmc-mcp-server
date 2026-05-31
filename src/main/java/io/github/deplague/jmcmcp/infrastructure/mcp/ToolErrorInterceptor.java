@@ -26,9 +26,9 @@ public class ToolErrorInterceptor {
         String jfrFilePath = extractJfrFilePath(context);
         String fileName = jfrFilePath != null ? new File(jfrFilePath).getName() : "no-file";
 
-        try (MDC.MDCCloseable mdcTool = MDC.putCloseable("tool", toolName);
-             MDC.MDCCloseable mdcFile = MDC.putCloseable("file", fileName)) {
-            
+        try (MDC.MDCCloseable _ = MDC.putCloseable("tool", toolName);
+             MDC.MDCCloseable _ = MDC.putCloseable("file", fileName)) {
+
             try {
                 return context.proceed();
             } catch (Exception e) {

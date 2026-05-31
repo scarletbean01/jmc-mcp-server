@@ -1,8 +1,9 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
 import io.github.deplague.jmcmcp.application.service.ExpandDiffCallTreeApplicationService;
-import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
+import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeChildEntry;
 import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeResult;
+import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
@@ -56,10 +57,19 @@ public final class ExpandDiffCallTreeTool {
             sb.append("| Node ID | Method | Baseline | Target | Δ | Baseline % | Target % | Change |\n");
             sb.append("|---------|--------|---------:|-------:|--:|-----------:|---------:|:------:|\n");
 
-            for (int i = 0; i < result.children().size(); i++) {
-                DiffCallTreeNodeEntry child = result.children().get(i);
-                String childNodeId = result.parentNodeId() + "-" + i;
-                DiffCallTreeTool.appendDiffNodeRow(sb, childNodeId, child,
+            for (ExpandDiffCallTreeChildEntry child : result.children()) {
+                DiffCallTreeNodeEntry entry = new DiffCallTreeNodeEntry(
+                        child.nodeId(),
+                        child.methodName(),
+                        child.baselineCumulative(),
+                        child.targetCumulative(),
+                        child.delta(),
+                        child.baselinePct(),
+                        child.targetPct(),
+                        child.changeType(),
+                        child.hasChildren()
+                );
+                DiffCallTreeTool.appendDiffNodeRow(sb, child.nodeId(), entry,
                         result.baselineTotal(), result.targetTotal());
             }
         }

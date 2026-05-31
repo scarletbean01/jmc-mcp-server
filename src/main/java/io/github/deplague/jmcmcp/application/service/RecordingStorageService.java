@@ -110,7 +110,7 @@ public class RecordingStorageService {
                         return new RecordingInfo(meta.recordingId, meta.fileName, meta.fileSize, meta.uploadedAt, 0, 0, Map.of());
                     }
                 })
-                .sorted(java.util.Comparator.comparing(RecordingInfo::uploadedAt).reversed())
+                .sorted(java.util.Comparator.comparing(RecordingInfo::uploadTime).reversed())
                 .toList();
     }
 

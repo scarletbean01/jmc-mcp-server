@@ -6,9 +6,9 @@ import java.time.Instant;
  * Response returned after a JFR recording upload.
  */
 public record UploadResponse(
-        String recordingId,
-        String fileName,
-        long fileSize,
-        Instant uploadedAt
+        String id,
+        String filename,
+        long size,
+        Instant uploadTime
 ) {
 }

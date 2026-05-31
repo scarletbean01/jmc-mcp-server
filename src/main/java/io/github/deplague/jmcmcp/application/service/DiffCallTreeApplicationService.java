@@ -50,13 +50,15 @@ public class DiffCallTreeApplicationService {
 
         List<DiffCallTreeNodeEntry> nodes = new ArrayList<>();
         List<CallTreeCache.DiffTreeNode> visibleChildren = CallTreeCache.getVisibleDiffChildren(data.root(), packageFilter);
-        for (CallTreeCache.DiffTreeNode child : visibleChildren) {
+        for (int i = 0; i < visibleChildren.size(); i++) {
+            CallTreeCache.DiffTreeNode child = visibleChildren.get(i);
             double baselinePct = data.baselineTotal() > 0
                     ? (child.baselineCumulative() / data.baselineTotal()) * 100.0 : 0.0;
             double targetPct = data.targetTotal() > 0
                     ? (child.targetCumulative() / data.targetTotal()) * 100.0 : 0.0;
             boolean hasChildren = !CallTreeCache.getVisibleDiffChildren(child, null).isEmpty();
             nodes.add(new DiffCallTreeNodeEntry(
+                    "root-" + i,
                     CallTreeCache.formatMethodName(child),
                     child.baselineCumulative(),
                     child.targetCumulative(),
