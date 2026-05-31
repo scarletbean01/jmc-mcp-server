@@ -77,6 +77,18 @@ public class RecordingUploadResource {
 
     @RunOnVirtualThread
     @GET
+    public Response listRecordings() {
+        try {
+            return Response.ok(ApiResponse.ok(storageService.listRecordings())).build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Failed to list recordings: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @RunOnVirtualThread
+    @GET
     @Path("/{id}")
     public Response getRecording(@PathParam("id") String recordingId) {
         try {

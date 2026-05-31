@@ -58,11 +58,9 @@ public final class ThreadContentionService {
     private void processContention(IItemCollection events, String typeId, Map<ContentionKey, Long> map) {
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> monitorAccessor = getAccessor(type2, "monitorClass");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type1, DURATION.getIdentifier());
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> monitorAccessor = getAccessor(type, "monitorClass");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
             IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
 
             if (monitorAccessor != null && durationAccessor != null && stackAccessor != null) {

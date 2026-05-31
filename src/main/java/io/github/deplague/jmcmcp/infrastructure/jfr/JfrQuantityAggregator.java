@@ -4,6 +4,7 @@ import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.item.IMemberAccessor;
+import org.openjdk.jmc.common.item.IType;
 import org.openjdk.jmc.common.unit.IQuantity;
 import org.openjdk.jmc.common.unit.IUnit;
 
@@ -11,11 +12,43 @@ import java.util.*;
 
 /**
  * Aggregator for computing statistics across JFR item collections.
+ * Uses primitive double arrays for percentile computation to avoid boxing overhead.
  */
 public final class JfrQuantityAggregator {
 
+    private static final int INITIAL_ARRAY_CAPACITY = 1024;
+
     private JfrQuantityAggregator() {
         // utility class
+    }
+
+    /**
+     * Growable primitive double array to avoid ArrayList<Double> boxing.
+     */
+    private static final class DoubleArray {
+        double[] data = new double[INITIAL_ARRAY_CAPACITY];
+        int size = 0;
+        IUnit unit;
+
+        void add(double value, IUnit u) {
+            if (size == data.length) {
+                data = Arrays.copyOf(data, data.length * 2);
+            }
+            data[size++] = value;
+            if (unit == null) unit = u;
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        void sort() {
+            Arrays.sort(data, 0, size);
+        }
+
+        double get(int index) {
+            return data[index];
+        }
     }
 
     /**
@@ -25,7 +58,8 @@ public final class JfrQuantityAggregator {
         double sum = 0;
         IUnit unit = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
@@ -50,7 +84,8 @@ public final class JfrQuantityAggregator {
         long count = 0;
         IUnit unit = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
@@ -74,7 +109,8 @@ public final class JfrQuantityAggregator {
     public static IQuantity maxQuantity(IItemCollection items, String identifier) {
         IQuantity max = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
@@ -98,7 +134,8 @@ public final class JfrQuantityAggregator {
     public static IQuantity minQuantity(IItemCollection items, String identifier) {
         IQuantity min = null;
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
@@ -118,18 +155,20 @@ public final class JfrQuantityAggregator {
 
     /**
      * Calculate a percentile for a quantity attribute across an item collection.
+     * Uses a primitive double array to avoid Double boxing overhead.
      */
     public static IQuantity percentileQuantity(IItemCollection items, String identifier, double percentile) {
-        List<IQuantity> values = new ArrayList<>();
+        DoubleArray values = new DoubleArray();
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
                     if (raw != null) {
                         IQuantity q = JfrValueConverter.toIQuantity(raw);
                         if (q != null) {
-                            values.add(q);
+                            values.add(q.doubleValue(), q.getUnit());
                         }
                     }
                 }
@@ -138,13 +177,14 @@ public final class JfrQuantityAggregator {
         if (values.isEmpty()) {
             return null;
         }
-        Collections.sort(values);
-        int index = (int) Math.max(0, Math.ceil((percentile / 100.0) * values.size()) - 1);
-        return values.get(index);
+        values.sort();
+        int index = (int) Math.max(0, Math.ceil((percentile / 100.0) * values.size) - 1);
+        return values.unit != null ? values.unit.quantity(values.get(index)) : null;
     }
 
     /**
      * Batch-compute statistics in a single pass.
+     * Uses a primitive double array for percentile computation to avoid boxing.
      */
     public static Map<String, IQuantity> batchStats(IItemCollection items, String identifier, double... percentiles) {
         double sum = 0;
@@ -152,12 +192,13 @@ public final class JfrQuantityAggregator {
         IQuantity min = null;
         IQuantity max = null;
         IUnit unit = null;
-        List<IQuantity> values = null;
+        DoubleArray values = null;
 
         boolean needPercentile = percentiles != null && percentiles.length > 0;
 
         for (IItemIterable iterable : items) {
-            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(iterable.getType(), identifier);
+            IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> accessor = JfrAccessorRepository.getAccessor(type, identifier);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);
@@ -170,8 +211,8 @@ public final class JfrQuantityAggregator {
                             if (max == null || q.compareTo(max) > 0) max = q;
                             if (unit == null) unit = q.getUnit();
                             if (needPercentile) {
-                                if (values == null) values = new ArrayList<>();
-                                values.add(q);
+                                if (values == null) values = new DoubleArray();
+                                values.add(q.doubleValue(), q.getUnit());
                             }
                         }
                     }
@@ -189,10 +230,10 @@ public final class JfrQuantityAggregator {
         result.put("avg", unit.quantity(sum / count));
 
         if (values != null && !values.isEmpty()) {
-            Collections.sort(values);
+            values.sort();
             for (double p : percentiles) {
-                int index = (int) Math.max(0, Math.ceil((p / 100.0) * values.size()) - 1);
-                result.put("p" + (int) p, values.get(index));
+                int index = (int) Math.max(0, Math.ceil((p / 100.0) * values.size) - 1);
+                result.put("p" + (int) p, values.unit != null ? values.unit.quantity(values.get(index)) : null);
             }
         }
         return result;

@@ -48,7 +48,7 @@ public final class GcCauseService {
         for (IItemIterable iterable : gcEvents) {
             IType<?> type = iterable.getType();
             IMemberAccessor<String, IItem> causeAccessor = getAccessor(type, "cause");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor((IType<IItem>) type);
 
             if (causeAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {

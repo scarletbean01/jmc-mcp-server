@@ -1,16 +1,19 @@
 {
-	"name": "frontend",
-	"scripts": {
-		"ancient": "clojure -Sdeps '{:deps {com.github.liquidz/antq {:mvn/version \"RELEASE\"}}}' -m antq.core",
-		"watch": "npx shadow-cljs watch app",
-		"release": "npx shadow-cljs release app",
-		"build-report": "npx shadow-cljs run shadow.cljs.build-report app target/build-report.html"
-	},
-	"dependencies": {
-		"react": "17.0.2",
-		"react-dom": "17.0.2"
-	},
-	"devDependencies": {
-		"shadow-cljs": "3.4.6"
-	}
+  "name": "jmc-mcp-dashboard",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npx shadow-cljs watch app",
+    "build": "npx shadow-cljs release app",
+    "watch": "npx shadow-cljs watch app",
+    "release": "npx shadow-cljs release app",
+    "build-report": "npx shadow-cljs run shadow.cljs.build-report app target/build-report.html",
+    "ancient": "clojure -Sdeps '{:deps {com.github.liquidz/antq {:mvn/version \"RELEASE\"}}}' -m antq.core"
+  },
+  "dependencies": {
+    "react": "17.0.2",
+    "react-dom": "17.0.2"
+  },
+  "devDependencies": {
+    "shadow-cljs": "3.4.6"
+  }
 }

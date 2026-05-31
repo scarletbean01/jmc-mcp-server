@@ -3,6 +3,7 @@ package io.github.deplague.jmcmcp.infrastructure.mcp;
 import io.github.deplague.jmcmcp.application.service.HotMethodsApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HotMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
+import io.github.deplague.jmcmcp.infrastructure.mcp.util.MarkdownBuffer;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
@@ -57,10 +58,10 @@ public final class HotMethodsTool {
             return "# Hot Methods\n\nNo execution samples found in the recording.";
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("# Hot Methods & Call Paths\n\n");
-        sb.append("| Samples | Stack Trace (top 5 frames) |\n");
-        sb.append("|---------|----------------------------|\n");
+        MarkdownBuffer sb = MarkdownBuffer.get();
+        sb.line("# Hot Methods & Call Paths").nl();
+        sb.line("| Samples | Stack Trace (top 5 frames) |");
+        sb.line("|---------|----------------------------|");
 
         for (HotMethodEntry entry : result.entries()) {
             sb.append("| ").append(entry.sampleCount()).append(" | ");
@@ -78,6 +79,6 @@ public final class HotMethodsTool {
                         "`. Consider `thread_cpu` to see which threads consume the most CPU, `stack_trace_search` with `class_pattern` to find all events involving this class, or `correlate` to see if this method is associated with lock contention or I/O.</agent_hint>\n"
                 );
 
-        return sb.toString();
+        return sb.toStringAndReset();
     }
 }

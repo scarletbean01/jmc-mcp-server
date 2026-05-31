@@ -3,9 +3,11 @@ package io.github.deplague.jmcmcp.infrastructure.jfr;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Weigher;
+import io.github.deplague.jmcmcp.infrastructure.api.metrics.AnalysisMetrics;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.exception.RecordingNotFoundException;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.flightrecorder.JfrLoaderToolkit;
@@ -30,20 +32,21 @@ public final class JfrRecordingCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(JfrRecordingCache.class);
 
-    private static final long DEFAULT_TTL_MINUTES = 60;
-    private static final double HEAP_MULTIPLIER_ESTIMATE = 4.0;
-    
-    // Use half of max memory as the maximum cache weight
-    private static final long MAX_CACHE_WEIGHT = Runtime.getRuntime().maxMemory() / 2;
+    private static final long DEFAULT_TTL_MINUTES =
+            Long.getLong("jmc.cache.ttl.minutes", 60);
+    private static final long REFRESH_AFTER_WRITE_MINUTES =
+            Long.getLong("jmc.cache.refresh.minutes", 30);
+    private static final double HEAP_MULTIPLIER_ESTIMATE =
+            Double.parseDouble(System.getProperty("jmc.cache.heap.multiplier", "3.5"));
+    private static final int MAX_WEIGHT_PERCENT =
+            Integer.getInteger("jmc.cache.max-weight-percent", 50);
+
+    private static final long MAX_CACHE_WEIGHT =
+            Runtime.getRuntime().maxMemory() * Math.max(1, Math.min(100, MAX_WEIGHT_PERCENT)) / 100;
 
     // Dedicated pool for CPU-bound JFR parsing so we don't pin virtual thread carriers
-    private final ExecutorService parsingExecutor = Executors.newFixedThreadPool(
-            Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
-            r -> {
-                Thread t = new Thread(r, "jfr-parser");
-                t.setDaemon(true);
-                return t;
-            }
+    private final ExecutorService parsingExecutor = Executors.newWorkStealingPool(
+            Math.max(4, Runtime.getRuntime().availableProcessors())
     );
 
     private final Cache<String, CacheEntry> cache;
@@ -53,21 +56,37 @@ public final class JfrRecordingCache {
     private final AtomicLong missCount = new AtomicLong(0);
     private final AtomicLong evictionCount = new AtomicLong(0);
 
+    private final AnalysisMetrics metrics;
+
     public JfrRecordingCache() {
-        this(DEFAULT_TTL_MINUTES);
+        this(null);
     }
 
-    public JfrRecordingCache(long ttlMinutes) {
-        this.cache = Caffeine.newBuilder()
+    public JfrRecordingCache(AnalysisMetrics metrics) {
+        this(DEFAULT_TTL_MINUTES, metrics);
+    }
+
+    public JfrRecordingCache(long ttlMinutes, AnalysisMetrics metrics) {
+        this.metrics = metrics;
+        this.cache = Caffeine.<String, CacheEntry>newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
                 .maximumWeight(MAX_CACHE_WEIGHT)
                 .weigher((Weigher<String, CacheEntry>) (key, value) -> (int) Math.min(Integer.MAX_VALUE, value.estimatedHeapWeight))
                 .removalListener((key, value, cause) -> {
                     evictionCount.incrementAndGet();
-                    LOG.info("Evicted recording: {} (cause: {})", key, cause);
+                    if (metrics != null) {
+                        metrics.recordCacheEviction();
+                    }
+                    if (value != null && value.estimatedHeapWeight > 512 * 1024 * 1024L) {
+                        System.gc();
+                    }
+                    LOG.info("Evicted recording: {} (cause: {}, weight={})", key, cause,
+                            value != null ? formatBytes(value.estimatedHeapWeight) : "?");
                 })
+                .recordStats()
                 .build();
-        LOG.info("JfrRecordingCache initialized: TTL={}min, MaxWeight={}", ttlMinutes, formatBytes(MAX_CACHE_WEIGHT));
+        LOG.info("JfrRecordingCache initialized: TTL={}min, MaxWeight={}",
+                ttlMinutes, formatBytes(MAX_CACHE_WEIGHT));
     }
 
     public IItemCollection load(String filePath) throws IOException {
@@ -78,6 +97,9 @@ public final class JfrRecordingCache {
         if (entry != null) {
             if (file.lastModified() == entry.fileLastModified && file.length() == entry.fileSize) {
                 hitCount.incrementAndGet();
+                if (metrics != null) {
+                    metrics.recordCacheHit();
+                }
                 LOG.debug("Cache hit for recording: {}", key);
                 return entry.collection;
             }
@@ -91,6 +113,9 @@ public final class JfrRecordingCache {
         }
 
         missCount.incrementAndGet();
+        if (metrics != null) {
+            metrics.recordCacheMiss();
+        }
         LOG.info("Loading JFR recording: {} (size={})", key, formatBytes(file.length()));
 
         IItemCollection events;

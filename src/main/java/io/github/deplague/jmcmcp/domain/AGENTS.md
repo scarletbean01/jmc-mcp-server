@@ -1,16 +1,29 @@
 # Package: io.github.deplague.jmcmcp.domain
 
-This package contains the core domain logic of the application, following Hexagonal Architecture principles.
+This package contains the core domain logic, analysis heuristics, and performance models.
 
 ## Sub-packages
-- **`model`**: Contains domain entities and records (e.g., `*Result` records returned by analysis).
-- **`service`**: Pure Java services that perform JFR analysis.
-- **`exception`**: Domain-specific exceptions.
+- **`model`**: Pure Java Records representing analysis results (e.g., `AllocationFlameResult`, `GcAnalysisResult`).
+- **`service`**: Stateless services implementing JFR analysis heuristics and business logic.
+- **`exception`**: Domain-specific exception hierarchy (e.g., `JmcMcpDomainException`, `RecordingNotFoundException`).
+
+## Key Classes
+- **`*Service`**: Dozens of specialized analysis services (e.g., `ThreadCpuService`, `MemoryLeaksService`, `JdbcNPlusOneAnalyzerService`).
+- **`*Result`**: Data transfer objects (Java Records) that encapsulate analysis findings.
+
+## Responsibilities
+- **Analysis Heuristics:** Implementing the logic to detect performance patterns (e.g., N+1 queries, thread starvation, memory leaks).
+- **Domain Modeling:** Defining the structure of JFR analysis results.
+- **Unit Conversion:** Handling JFR quantities and time-series data.
+
+## Patterns Used
+- **Stateless Services:** All domain services are thread-safe and stateless.
+- **Rich Data Models:** Using Java Records for immutable, structured analysis output.
+- **Custom Exceptions:** Using a typed exception hierarchy for granular error reporting.
 
 ## Guidelines for Agents
-- **Purity:** This package MUST NOT depend on any frameworks (Quarkus, MCP SDK, etc.).
-- **JMC Dependency:** While normally a domain layer is agnostic of all libraries, this layer is **explicitly allowed** to depend on JMC core libraries (`org.openjdk.jmc.common` and `org.openjdk.jmc.flightrecorder`). This avoids the overhead of translating millions of JFR events into POJOs.
-- **Dependencies:** Only pure Java, JSR-330 (`jakarta.inject`, `@ApplicationScoped`), and JMC core libraries are allowed. Lombok is permitted as it is a compile-time utility.
-- **Logic:** Business logic and analysis heuristics belong here. Do not include Markdown formatting or infrastructure concerns.
-- **Null Safety:** Use `Optional` or explicit null checks where appropriate.
-- **Thread Safety:** Domain services should be stateless or thread-safe.
+- **Framework-Free:** This package MUST NOT depend on frameworks like Quarkus or Micrometer.
+- **JMC Dependency:** Direct dependency on JMC Core (`org.openjdk.jmc.common`, `org.openjdk.jmc.flightrecorder`) is **explicitly permitted** and required for performance.
+- **Logic Only:** No formatting (Markdown/JSON) or protocol-specific code belongs here.
+- **Performance:** When implementing new heuristics, be mindful of JFR event volume. Use efficient iterators and avoid large intermediate collections.
+- **Purity:** Keep domain models as simple Java Records.

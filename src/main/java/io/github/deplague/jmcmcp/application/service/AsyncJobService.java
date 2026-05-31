@@ -10,10 +10,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 /**
  * Manages asynchronous analysis jobs with in-memory storage and SSE event broadcasting.
+ * Uses a managed executor for async work and a semaphore for backpressure.
  */
 @Slf4j
 @ApplicationScoped
@@ -21,6 +24,13 @@ public class AsyncJobService {
 
     private final Map<String, AsyncJob> jobs = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JobStatusResponse>> listeners = new ConcurrentHashMap<>();
+
+    /**
+     * Semaphore to limit concurrent async analysis jobs and prevent
+     * thread starvation / heap exhaustion under load.
+     * Default permits: 50 (tunable via quarkus.thread-pool.max-threads).
+     */
+    private final Semaphore backpressure = new Semaphore(50);
 
     public AsyncJob createJob(String recordingId, String analysisType) {
         String jobId = UUID.randomUUID().toString();
@@ -92,6 +102,26 @@ public class AsyncJobService {
                     future
             ));
         }
+    }
+
+    /**
+     * Submit async work using a managed executor with backpressure.
+     * Blocks until a permit is available, then runs the task asynchronously.
+     */
+    public CompletableFuture<Void> submitAsync(Runnable task, Executor managedExecutor) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                backpressure.acquire();
+                try {
+                    task.run();
+                } finally {
+                    backpressure.release();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Async job interrupted", e);
+            }
+        }, managedExecutor);
     }
 
     /**

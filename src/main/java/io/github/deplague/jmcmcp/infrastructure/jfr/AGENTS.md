@@ -1,18 +1,28 @@
 # Package: io.github.deplague.jmcmcp.infrastructure.jfr
 
-This package contains the technical infrastructure for loading, parsing, and caching Java Flight Recorder (JFR) data using the JMC core libraries.
+This package contains the high-performance implementation for JFR parsing and caching.
+
+## Key Classes
+- **`JfrRecordingCache`**: Enterprise-grade Caffeine cache for `IItemCollection`. Offloads CPU-bound parsing to a dedicated platform thread pool to avoid pinning Virtual Thread carriers.
+- **`JfrProviderImpl`**: Implements the `JfrProvider` port, integrating caching and recording access.
+- **`JfrAccessorRepository`**: Provides high-performance attribute accessors to minimize reflection/lookup during event processing.
+- **`JfrQuantityAggregator`**: Helper for statistical computations (min, max, avg, percentiles) on JFR quantities.
+- **`CallTreeCache`**: Specialized cache for interactive call tree exploration.
+- **`AnalysisResultCache`**: Caches the final domain results of analysis operations.
 
 ## Responsibilities
-- **Data Ingestion:** `JfrProviderImpl` implements the `JfrProvider` application port.
-- **Recording Caching:** `JfrRecordingCache` manages parsed `IItemCollection` instances using Caffeine to avoid redundant parsing.
-- **Call Tree Caching:** `CallTreeCache` manages stateful call tree data for interactive exploration using Caffeine.
-- **Low-level Utilities:** Modularized helpers for attribute extraction, quantity aggregation, zero-allocation map grouping, and stack trace formatting.
+- **Efficient Parsing:** Loading JFR files with minimal overhead.
+- **Memory Management:** Using weighed caches and explicit GC hints to manage large JFR objects.
+- **Data Conversion:** Translating JFR-specific types to domain models via `JfrValueConverter`.
+- **Grouped Access:** Using `StackTraceKey` for zero-allocation stack trace grouping.
+
+## Patterns Used
+- **Platform Thread Offloading:** CPU-intensive JFR loading is handled by a managed `ExecutorService`.
+- **Weighed Caching:** Caffeine caches are weighed by estimated heap impact.
+- **Identity Deduplication:** Using `JfrStackTraceService` to minimize heap pressure when formatting traces.
 
 ## Guidelines for Agents
-- **Performance:** JFR files can be massive. Always prefer `JfrRecordingCache.loadRecording()` over direct parsing.
-- **Deduplication:** Use the identity-based caches in `JfrStackTraceService` when formatting large numbers of events to minimize heap pressure.
-- **Zero-Allocation Grouping:** Use `StackTraceKey` when grouping JFR events by stack trace in hash maps. Never format the full trace into a String until *after* grouping is complete.
-- **Modular Utilities:**
-    - Use `JfrAccessorRepository` for high-performance attribute access.
-    - Use `JfrQuantityAggregator` for statistical computations.
-    - Use `JfrValueConverter` for type and display conversions.
+- **Performance First:** Never parse a JFR file directly; always go through `JfrRecordingCache`.
+- **Memory Pressure:** JFR data is heavy. Be surgical with event filtering.
+- **Stack Traces:** When grouping by stack trace, use `StackTraceKey` instead of converting to Strings early.
+- **Metrics:** Register cache gauges with `AnalysisMetrics`.

@@ -36,11 +36,9 @@ public final class ThreadCpuService {
         StackTraceFormatCache stCache = new StackTraceFormatCache();
 
         for (IItemIterable iterable : samples) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type2, "sampledThread");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type1, "stackTrace");
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "sampledThread");
+            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
             IMemberAccessor<String, IItem> stateAccessor = getAccessor(type, "state");
 
             if (threadAccessor != null) {

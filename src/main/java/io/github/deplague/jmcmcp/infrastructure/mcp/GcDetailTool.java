@@ -2,6 +2,7 @@ package io.github.deplague.jmcmcp.infrastructure.mcp;
 
 import io.github.deplague.jmcmcp.application.service.GcDetailApplicationService;
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.infrastructure.mcp.util.MarkdownBuffer;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
@@ -40,8 +41,8 @@ public final class GcDetailTool {
     }
 
     private String formatMarkdown(GcDetailResult result) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# Detailed GC Analysis\n\n");
+        MarkdownBuffer sb = MarkdownBuffer.get();
+        sb.line("# Detailed GC Analysis").nl();
 
         if (result.config() != null) {
             appendConfig(sb, result.config());
@@ -67,25 +68,25 @@ public final class GcDetailTool {
             appendHeapTrends(sb, result.heapTrendSummary(), result.gcCycles());
         }
 
-        return sb.toString();
+        return sb.toStringAndReset();
     }
 
-    private void appendConfig(StringBuilder sb, GcConfiguration config) {
-        sb.append("## GC Configuration\n");
-        sb.append("- **Young Collector:** ").append(config.youngCollector()).append("\n");
-        sb.append("- **Old Collector:** ").append(config.oldCollector()).append("\n");
-        sb.append("- **Parallel GC Threads:** ").append(config.parallelGcThreads()).append("\n");
-        sb.append("- **Concurrent GC Threads:** ").append(config.concurrentGcThreads()).append("\n");
-        sb.append("- **Min Heap Size:** ").append(config.minHeapSize()).append("\n");
-        sb.append("- **Max Heap Size:** ").append(config.maxHeapSize()).append("\n");
-        sb.append("- **Initial Heap Size:** ").append(config.initialHeapSize()).append("\n");
+    private void appendConfig(MarkdownBuffer sb, GcConfiguration config) {
+        sb.line("## GC Configuration");
+        sb.append("- **Young Collector:** ").append(config.youngCollector()).append('\n');
+        sb.append("- **Old Collector:** ").append(config.oldCollector()).append('\n');
+        sb.append("- **Parallel GC Threads:** ").append(config.parallelGcThreads()).append('\n');
+        sb.append("- **Concurrent GC Threads:** ").append(config.concurrentGcThreads()).append('\n');
+        sb.append("- **Min Heap Size:** ").append(config.minHeapSize()).append('\n');
+        sb.append("- **Max Heap Size:** ").append(config.maxHeapSize()).append('\n');
+        sb.append("- **Initial Heap Size:** ").append(config.initialHeapSize()).append('\n');
         sb.append("- **Max Tenuring Threshold:** ").append(config.maxTenuringThreshold()).append("\n\n");
     }
 
-    private void appendGenerationalSummary(StringBuilder sb, GenerationalSummary summary) {
-        sb.append("## Generational Summary\n");
-        sb.append("| Generation | Count | Total Duration | Avg Duration |\n");
-        sb.append("|------------|-------|----------------|--------------|\n");
+    private void appendGenerationalSummary(MarkdownBuffer sb, GenerationalSummary summary) {
+        sb.line("## Generational Summary");
+        sb.line("| Generation | Count | Total Duration | Avg Duration |");
+        sb.line("|------------|-------|----------------|--------------|");
         sb.append("| Young | ").append(summary.youngCount()).append(" | ")
                 .append(summary.youngTotalDuration()).append(" | ")
                 .append(summary.youngAvgDuration()).append(" |\n");
@@ -94,35 +95,35 @@ public final class GcDetailTool {
                 .append(summary.oldAvgDuration()).append(" |\n\n");
     }
 
-    private void appendReferenceStats(StringBuilder sb, List<ReferenceStatEntry> stats, Double overhead) {
-        sb.append("### GC Reference Statistics & Processing\n");
-        sb.append("| Reference Type / Phase | Count | Total Processing Time |\n");
-        sb.append("|------------------------|-------|-----------------------|\n");
+    private void appendReferenceStats(MarkdownBuffer sb, List<ReferenceStatEntry> stats, Double overhead) {
+        sb.line("### GC Reference Statistics & Processing");
+        sb.line("| Reference Type / Phase | Count | Total Processing Time |");
+        sb.line("|------------------------|-------|-----------------------|");
         for (ReferenceStatEntry entry : stats) {
             sb.append("| ").append(entry.type())
                     .append(" | ").append(entry.count())
                     .append(" | ").append(entry.processingTime()).append(" |\n");
         }
         if (overhead != null) {
-            sb.append(String.format("%n**Reference Processing Overhead:** %.1f%% of total GC pause time%n", overhead));
+            sb.appendf("%n**Reference Processing Overhead:** %.1f%% of total GC pause time%n", overhead);
         }
-        sb.append("\n");
+        sb.nl();
     }
 
-    private void appendCauseDistribution(StringBuilder sb, List<GcCauseEntry> causes) {
-        sb.append("### GC Cause Distribution\n");
-        sb.append("| Cause | Count |\n");
-        sb.append("|-------|-------|\n");
+    private void appendCauseDistribution(MarkdownBuffer sb, List<GcCauseEntry> causes) {
+        sb.line("### GC Cause Distribution");
+        sb.line("| Cause | Count |");
+        sb.line("|-------|-------|");
         for (GcCauseEntry entry : causes) {
             sb.append("| ").append(entry.cause()).append(" | ").append(entry.count()).append(" |\n");
         }
-        sb.append("\n");
+        sb.nl();
     }
 
-    private void appendPhaseBreakdown(StringBuilder sb, List<GcPhaseEntry> phases) {
-        sb.append("## Pause Phase Breakdown\n");
-        sb.append("| Phase Name | Count | Avg | P95 | P99 | Max |\n");
-        sb.append("|------------|-------|-----|-----|-----|-----|\n");
+    private void appendPhaseBreakdown(MarkdownBuffer sb, List<GcPhaseEntry> phases) {
+        sb.line("## Pause Phase Breakdown");
+        sb.line("| Phase Name | Count | Avg | P95 | P99 | Max |");
+        sb.line("|------------|-------|-----|-----|-----|-----|");
         for (GcPhaseEntry entry : phases) {
             sb.append("| ").append(entry.name())
                     .append(" | ").append(entry.count())
@@ -131,26 +132,26 @@ public final class GcDetailTool {
                     .append(" | ").append(entry.p99())
                     .append(" | ").append(entry.max()).append(" |\n");
         }
-        sb.append("\n");
+        sb.nl();
     }
 
-    private void appendHeapTrends(StringBuilder sb, HeapTrendSummary trend, List<GcCycleEntry> cycles) {
-        sb.append("## Heap Trends\n");
-        sb.append("- **Min Heap Used:** ").append(trend.minHeapUsed()).append("\n");
-        sb.append("- **Max Heap Used:** ").append(trend.maxHeapUsed()).append("\n");
-        sb.append("- **Avg Heap Used:** ").append(trend.avgHeapUsed()).append("\n");
+    private void appendHeapTrends(MarkdownBuffer sb, HeapTrendSummary trend, List<GcCycleEntry> cycles) {
+        sb.line("## Heap Trends");
+        sb.append("- **Min Heap Used:** ").append(trend.minHeapUsed()).append('\n');
+        sb.append("- **Max Heap Used:** ").append(trend.maxHeapUsed()).append('\n');
+        sb.append("- **Avg Heap Used:** ").append(trend.avgHeapUsed()).append('\n');
         sb.append("- **P95 Heap Used:** ").append(trend.p95HeapUsed()).append("\n\n");
 
         if (cycles != null && !cycles.isEmpty()) {
-            sb.append("### GC Cycle Heap Usage\n");
-            sb.append("| GC ID | Heap Used | Heap Size |\n");
-            sb.append("|-------|-----------|-----------|\n");
+            sb.line("### GC Cycle Heap Usage");
+            sb.line("| GC ID | Heap Used | Heap Size |");
+            sb.line("|-------|-----------|-----------|");
             for (GcCycleEntry entry : cycles) {
                 sb.append("| ").append(entry.gcId())
                         .append(" | ").append(entry.heapUsed())
                         .append(" | ").append(entry.heapSize()).append(" |\n");
             }
-            sb.append("\n");
+            sb.nl();
         }
     }
 }

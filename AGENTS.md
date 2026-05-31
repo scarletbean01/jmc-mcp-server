@@ -1,21 +1,17 @@
-# JMC MCP Server — Java Architect's Guide
-
-This document defines the architectural vision, engineering standards, and structural blueprints for the `jmc-mcp` project. It is the primary context for AI agents working on this codebase.
-
 ---
 
 ## 🏗️ Architectural Vision: Hexagonal (Ports & Adapters)
 
-The project follows a strict **Hexagonal Architecture** (also known as Clean Architecture) to ensure that the core JFR analysis logic remains decoupled from the delivery mechanisms (MCP, CLI) and external frameworks (Quarkus, JMC).
+The project follows a strict **Hexagonal Architecture** (Clean Architecture) to ensure the core JFR analysis logic remains decoupled from delivery mechanisms (MCP, REST) and external frameworks (Quarkus, JMC).
 
 ### Dependency Rule
 **Dependencies point inward.** The Domain layer has zero knowledge of the Application layer, which in turn has zero knowledge of the Adapters.
 
 | Layer | Responsibility | Constraints |
 |:---|:---|:---|
-| **Domain** | Pure business logic, JFR metric computation, models. | **Zero frameworks.** No Quarkus/Jakarta annotations. Lombok is permitted as a compile-only tool. |
-| **Application** | Orchestrates use cases. Defines ports (interfaces) for infrastructure. | CDI-aware (`@ApplicationScoped`). Agnostic of driving protocol (MCP/REST). |
-| **Adapters** | Driving (Inbound): MCP Tools, REST API. Driven (Outbound): JfrProvider, Caches. | Protocol/Framework specific. Uses `@Tool`, `@POST`, etc. |
+| **Domain** | Pure business logic, JFR metric computation, models. | **Zero frameworks.** No Quarkus/Jakarta annotations. |
+| **Application** | Orchestrates use cases. Defines ports (interfaces) for infrastructure. | CDI-aware (`@ApplicationScoped`). Agnostic of protocol. |
+| **Infrastructure** | Driving: MCP Tools, REST API. Driven: JFR Loading, Caching, Metrics. | Protocol/Framework specific. Uses `@Tool`, `@POST`, etc. |
 
 ---
 
@@ -23,129 +19,104 @@ The project follows a strict **Hexagonal Architecture** (also known as Clean Arc
 
 ```
 src/main/java/io/github/deplague/jmcmcp/
-  ├── infrastructure/         # TECHNICAL: The implementation layer
-  │   ├── mcp/                # DRIVING: MCP Adapters (@Tool, @Resource)
-  │   ├── api/                # DRIVING: REST API Adapters (Quarkus REST)
-  │   │   └── model/          # API Request/Response wrappers
-  │   ├── jfr/                # OUTBOUND: Port implementations (JFR Loading, Caching)
-  │   │   └── util/           # Low-level JMC access (AccessorRepo, Aggregators)
-  │   └── security/           # Technical Guards (Access Control)
-  ├── application/
-  │   ├── port/               # Interface definitions for Outbound adapters
-  │   └── service/            # Use case orchestrators (return Domain Records)
-  ├── domain/
+  ├── domain/                 # CORE: Pure logic & models
   │   ├── model/              # Pure Java Records (Result types)
   │   ├── service/            # Core analysis logic (Pure Java + JMC Core)
-  │   └── util/               # Math and logic utilities
-  └── JmcMcpServer.java       # Infrastructure: Quarkus bootstrap & lifecycle
+  │   └── exception/          # Domain-specific exceptions
+  ├── application/            # USE CASES: Orchestration
+  │   ├── port/               # Interface definitions for Outbound adapters (e.g., JfrProvider)
+  │   └── service/            # Use case orchestrators (returning Domain Records)
+  ├── infrastructure/         # TECHNICAL: Implementation layer
+  │   ├── mcp/                # DRIVING: MCP Adapters (@Tool, @McpTool)
+  │   ├── api/                # DRIVING: REST API Adapters (Quarkus REST)
+  │   │   ├── health/         # Observability: Liveness/Readiness checks
+  │   │   ├── metrics/        # Observability: Micrometer metrics
+  │   │   └── model/          # DTOs for REST layer (ApiResponse, etc.)
+  │   ├── jfr/                # OUTBOUND: JFR Loading & Advanced Caching
+  │   └── security/           # Technical Guards (Access Control)
+  └── JmcMcpServer.java       # Bootstrap: Quarkus entry point
 ```
 
 ---
 
-## 🚀 Driving Adapters (MCP & REST)
+## 🚀 REST API Reference
 
-We use Quarkus to expose JFR analysis via multiple protocols. All driving logic reuses the same **Application Services**.
+The server exposes a comprehensive REST API for JFR management and analysis.
 
-### MCP Tools (Declarative)
-All tools are declarative methods within `@ApplicationScoped` adapters in `infrastructure.mcp`.
-- **Annotate with `@Tool`** and **`@HandleToolError`**.
-- **Use `@RunOnVirtualThread`** for all analysis tasks.
-- **Return `ToolResponse`** (Markdown formatted).
+### Recording Management
+- `POST /api/v1/recordings/upload` — Upload a JFR file (multipart/form-data).
+- `GET /api/v1/recordings` — List all uploaded recordings.
+- `GET /api/v1/recordings/{id}` — Get metadata for a recording.
+- `DELETE /api/v1/recordings/{id}` — Delete a recording.
 
-### REST API (Hexagonal Driving Adapter)
-The public REST API lives in `infrastructure.api`. All endpoints use `@RunOnVirtualThread`, return JSON wrapped in `ApiResponse<T>`, and support CORS (`quarkus.http.cors.enabled=true`).
+### Analysis Endpoints
+- `POST /api/v1/recordings/{id}/analyze/{type}` — Synchronous analysis.
+- `POST /api/v1/recordings/{id}/analyze/{type}/async` — Asynchronous analysis (returns `jobId`).
+- `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}` — Poll async job status.
+- `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}/stream` — SSE stream for job updates.
+- `POST /api/v1/recordings/{id}/analyze/call-tree/{treeId}/expand` — Interactive call tree expansion.
 
-#### Recording Management
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/recordings/upload` | Upload | Upload a JFR file via multipart, get `recordingId` |
-| `GET /api/v1/recordings/{id}` | Status | Get recording metadata (filename, size, event count) |
-| `DELETE /api/v1/recordings/{id}` | Cleanup | Remove recording from disk and index |
+### Comparison
+- `POST /api/v1/compare` — Compare two recordings (textual/markdown).
+- `POST /api/v1/compare/structured` — Compare two recordings (JSON model).
 
-#### Analysis (Synchronous)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/recordings/{id}/analyze/{type}` | Analysis | Run analysis synchronously. Body: `AnalysisRequest` |
-
-#### Analysis (Asynchronous)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/recordings/{id}/analyze/{type}/async` | Analysis | Returns `202 Accepted` with `jobId` |
-| `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}` | Poll | Get async job status, result, and error |
-| `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}/stream` | SSE | Stream job progress/completion via Server-Sent Events |
-
-#### Comparison & Health
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/compare` | Comparison | Compare two recordings. Body: `CompareRequest` |
-| `GET /api/v1/health` | Health | JVM uptime, heap/non-heap memory, processor count |
-
-#### Call Tree Expansion
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/recordings/{id}/analyze/call-tree/{treeId}/expand?nodeId={nodeId}` | Expand | Expand a cached call-tree node |
-
-#### Key Patterns
-- **Request Body:** `AnalysisRequest` — optional `startTime`, `endTime`, and a `params` map for analysis-specific filters (`topN`, `packagePrefix`, `threadName`, etc.).
-- **Response Wrapper:** `ApiResponse<T>` — `{ "success": true/false, "data": ..., "error": ..., "timestamp": ... }`.
-- **Persistence:** Recordings are stored in a configurable `storage.path` (default: `uploads/`) and cleaned up by a background `@Scheduled(every = "1h")` task after 24 hours.
-- **SSE:** The stream endpoint sends `job-update` events as JSON. It auto-closes when the job reaches `COMPLETED` or `FAILED`.
+### Observability
+- `GET /metrics` — Prometheus metrics (Micrometer).
+- `GET /health/live` — Liveness probe.
+- `GET /health/ready` — Readiness probe (checks storage and cache sanity).
+- `GET /api/v1/health` — Internal JVM health and memory metrics.
 
 ---
 
-## 🛠️ JFR Infrastructure (The JfrItemUtils Facade)
+## 🛠️ MCP Tools Pattern
 
-Low-level JMC interactions are modularized in `infrastructure.jfr`. Use the **`JfrItemUtils`** facade as your entry point for item processing.
+All tools are methods within `@ApplicationScoped` adapters in `infrastructure.mcp`.
 
-### Component Breakdown
-- **`JfrAccessorRepository`:** High-performance caching of `IMemberAccessor`. Avoids O(N) scans of event attributes.
-- **`JfrQuantityAggregator`:** Batch statistics (sum, avg, max, min, percentiles). Efficiently processes `IItemCollection`.
-- **`JfrStackTraceService`:** Regex-aware frame matching and optimized formatting (identity-based caching).
-- **`JfrValueConverter`:** Safe conversion between JMC `IQuantity`, numbers, and Markdown-friendly display strings.
-- **`RecordingStorageService`:** Manages persistent JFR storage and lifecycle (24h retention policy).
+- **Declarative Tools:** Annotate methods with `@Tool` and specify parameters using `@RequestParam`.
+- **Error Handling:** Use `@HandleToolError` to map domain exceptions to MCP-compatible errors.
+- **Specification:** Each tool implements the `McpTool` interface to expose its `SyncToolSpecification`.
+- **Backpressure:** Long-running tools should check for cancellation where possible.
+
+---
+
+## ⚡ JFR Infrastructure & Performance
+
+The server is optimized for high-volume JFR analysis using advanced caching and concurrency models.
+
+### Advanced Caching (Caffeine)
+- **`JfrRecordingCache`:** Weight-based cache for parsed `IItemCollection` objects. Estimates heap impact using a multiplier (default 3.5x file size) to prevent OOM.
+- **`AnalysisResultCache`:** Caches expensive domain-level analysis results with TTL (15m default).
+- **`CallTreeCache`:** Specialized cache for `StacktraceTreeModel` instances to support UI/Tool pagination.
+
+### Concurrency & Virtual Threads
+- **Virtual Threads:** All entry points (REST/MCP) use `@RunOnVirtualThread`.
+- **Pinning Avoidance:** CPU-heavy JFR parsing in `JfrRecordingCache` is offloaded to a dedicated **Platform Thread Pool** (`WorkStealingPool`) via `CompletableFuture` to avoid pinning VT carriers during native code execution or intensive JMC parsing.
+
+---
+
+## 📊 Observability
+
+- **Metrics:** `AnalysisMetrics` tracks active analyses, cache hit/miss/eviction rates, upload sizes, and job queue depth.
+- **Health:** `/health/ready` validates that the `uploads` directory is writable and the Caffeine caches are operational.
+- **Tracing:** OpenTelemetry integration. `AnalysisDispatcher.dispatch` is annotated with `@WithSpan` to track the full lifecycle of analysis requests.
 
 ---
 
 ## 💎 Engineering Standards & Style
 
-- **Modern Java:** Use **Java 25** features (Records, Pattern Matching).
-- **Lombok (Mandatory):** Use `@Slf4j`, `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
-- **Logging:** All diagnostic output MUST go to **stderr** via SLF4J. stdout is reserved for MCP JSON-RPC. REST API logs are also stderr.
-- **Markdown:** MCP tool responses must be well-formatted Markdown. REST API responses are raw JSON domain records.
+- **Modern Java:** **Java 25** (Records, Pattern Matching, Sealed Classes).
+- **Lombok:** Use `@Slf4j` and `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+- **Validation:** Use Jakarta Validation (`@NotBlank`, `@Min`, etc.) on model records.
+- **Logging:** Log exclusively to **stderr** via SLF4J (Quarkus configuration). Reserve stdout for the MCP protocol.
+- **Error Handling:** Use `domain.exception` hierarchy. `ToolErrorInterceptor` or `@HandleToolError` handles the mapping.
 
 ---
 
-## 🧪 Testing Strategy
+## 📋 AI Agent Guidelines
 
-- **Architectural Integrity:** `ArchTest` ensures no dependency leaks into the Domain layer.
-- **Tool Integration:** Every tool must have a corresponding test class using real JFR fixtures.
-- **REST Integration:** Use `@QuarkusTest` and RestAssured to verify API endpoints.
-
-```bash
-# Run the full suite including integration tests
-mvn test
-```
-
----
-
-## 📋 Tool & API Decision Matrix
-
-| If you need to... | Use this |
-|:---|:---|
-| Discover file contents | `intellij-mcpserver:get_file_text_by_path` |
-| Execute IDE logic | `mcp-steroid:steroid_execute_code` |
-| **Analyze JFR (MCP)** | **Use `jmc-mcp` tools** |
-| **Analyze JFR (REST)** | **Use `POST /api/v1/recordings/{id}/analyze/{type}`** |
-| Check Server Health | `GET /api/v1/health` or `HealthCheckTool` |
-| Compare Recordings | `POST /api/v1/compare` or `CompareRecordingsTool` |
-
-
----
-
-## 🏁 How to Contribute a Feature
-
-1.  **Domain:** Define the result Record and the `DomainService` (logic). Annotate the service with `@ApplicationScoped` for auto-discovery.
-2.  **Application:** Define the `Port` (if infrastructure needed) and the `ApplicationService` (orchestration).
-3.  **Adapter:** Create the `@HandleToolError` `@ApplicationScoped` tool class with `@Tool` and `@RunOnVirtualThread`.
-4.  **Infra:** Implement any new ports in `adapters.infrastructure`.
-5.  **Docs:** Update `README.md` and this guide if architectural patterns shift.
+1.  **Strict Layering:** Never import `infrastructure` classes into `domain` or `application`.
+2.  **Virtual Threads:** Always use `@RunOnVirtualThread` for entry points.
+3.  **Cache Awareness:** When adding new analysis types, ensure they are registered in `AnalysisDispatcher` and results are cached in `AnalysisResultCache`.
+4.  **Resource Safety:** Always use try-with-resources for I/O and JFR streams.
+5.  **Tests:** Add tool integration tests in `src/test/java/.../mcp` using real JFR fixtures located in `src/test/resources`.
+6.  **Performance:** Prefer `IItemCollection` filtering over manual iteration where possible. Use `JfrQuantityAggregator` for efficient data reduction.

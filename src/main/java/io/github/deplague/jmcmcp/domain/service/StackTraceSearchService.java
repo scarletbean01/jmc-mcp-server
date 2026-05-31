@@ -75,27 +75,24 @@ public final class StackTraceSearchService {
 
             long typeMatchCount = 0;
             for (IItemIterable iterable : typeEvents) {
-                IType<?> type2 = iterable.getType();
+                IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        getAccessor(type2, "stackTrace");
+                        getAccessor(type, "stackTrace");
                 if (stackAccessor == null) {
                     continue;
                 }
 
-                IType<?> type1 = iterable.getType();
                 IMemberAccessor<Object, IItem> threadAccessor =
-                        getAccessor(type1, "eventThread");
+                        getAccessor(type, "eventThread");
                 if (threadAccessor == null) {
-                    IType<?> type = iterable.getType();
                     threadAccessor = getAccessor(type, "sampledThread");
                 }
                 IMemberAccessor<IQuantity, IItem> startTimeAccessor =
-                        START_TIME.getAccessor(iterable.getType());
+                        START_TIME.getAccessor((IType<IItem>) type);
 
                 List<String> detailFields = EVENT_DETAIL_FIELDS.getOrDefault(typeId, of());
                 Map<String, IMemberAccessor<Object, IItem>> detailAccessors = new HashMap<>();
                 for (String field : detailFields) {
-                    IType<?> type = iterable.getType();
                     IMemberAccessor<Object, IItem> acc =
                             getAccessor(type, field);
                     if (acc != null) {

@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * REST resource for JFR analysis operations.
@@ -32,6 +33,7 @@ public class AnalysisResource {
     private final AnalysisDispatcher dispatcher;
     private final RecordingStorageService storageService;
     private final AsyncJobService jobService;
+    private final Executor managedExecutor;
 
     @RunOnVirtualThread
     @POST
@@ -81,7 +83,7 @@ public class AnalysisResource {
 
         AsyncJob job = jobService.createJob(recordingId, analysisType);
 
-        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+        CompletableFuture<Void> future = jobService.submitAsync(() -> {
             try {
                 jobService.updateJobStatus(job.jobId(), "RUNNING", 10);
                 Object result = dispatcher.dispatch(analysisType, filePath, request);
@@ -89,7 +91,7 @@ public class AnalysisResource {
             } catch (Exception e) {
                 jobService.failJob(job.jobId(), e.getMessage());
             }
-        });
+        }, managedExecutor);
 
         jobService.setJobFuture(job.jobId(), future);
 

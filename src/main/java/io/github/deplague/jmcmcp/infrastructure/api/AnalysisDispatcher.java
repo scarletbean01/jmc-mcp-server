@@ -3,7 +3,9 @@ package io.github.deplague.jmcmcp.infrastructure.api;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.application.service.*;
 import io.github.deplague.jmcmcp.domain.service.RecordingSettingsService;
+import io.github.deplague.jmcmcp.infrastructure.api.metrics.AnalysisMetrics;
 import io.github.deplague.jmcmcp.infrastructure.api.model.AnalysisRequest;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -73,8 +75,22 @@ public class AnalysisDispatcher {
     private final ThreadPoolAnalysisApplicationService threadPoolService;
     private final TimeSeriesApplicationService timeSeriesService;
     private final JfrProvider jfrProvider;
+    private final AnalysisMetrics metrics;
 
+    @WithSpan("analysis.dispatch")
     public Object dispatch(String analysisType, String filePath, AnalysisRequest request) throws Exception {
+        return metrics.timeAnalysis(analysisType, () -> {
+            try {
+                return doDispatch(analysisType, filePath, request);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private Object doDispatch(String analysisType, String filePath, AnalysisRequest request) throws Exception {
         String startTime = request.startTime();
         String endTime = request.endTime();
         Map<String, Object> p = request.params();
@@ -172,11 +188,27 @@ public class AnalysisDispatcher {
     }
 
     public Object compareRecordings(String baselinePath, String comparisonPath) throws Exception {
-        return compareService.analyze(baselinePath, comparisonPath);
+        return metrics.timeAnalysis("compare", () -> {
+            try {
+                return compareService.analyze(baselinePath, comparisonPath);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public Object compareRecordingsStructured(String baselinePath, String comparisonPath) throws Exception {
-        return compareService.analyzeStructured(baselinePath, comparisonPath);
+        return metrics.timeAnalysis("compare-structured", () -> {
+            try {
+                return compareService.analyzeStructured(baselinePath, comparisonPath);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private int intParam(Map<String, Object> params, String key, int defaultValue) {

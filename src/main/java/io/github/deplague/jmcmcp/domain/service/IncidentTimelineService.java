@@ -88,9 +88,9 @@ public final class IncidentTimelineService {
                 continue;
             }
 
-            var timeAcc = START_TIME.getAccessor(iterable.getType());
-            var durAcc = DURATION.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
+            var timeAcc = START_TIME.getAccessor((IType<IItem>) type);
+            var durAcc = DURATION.getAccessor((IType<IItem>) type);
             var threadAcc = getAccessor(type, "eventThread");
 
             if (timeAcc != null) {

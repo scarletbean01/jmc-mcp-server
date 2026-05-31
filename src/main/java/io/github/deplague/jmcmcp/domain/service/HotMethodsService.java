@@ -6,9 +6,7 @@ import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.item.*;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTraceFocusingOn;
@@ -19,6 +17,7 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
 /**
  * Pure domain service for identifying hot methods from execution samples.
  * Contains no MCP-specific or UI formatting logic.
+ * Uses a PriorityQueue for efficient top-N selection without sorting the entire map.
  */
 @ApplicationScoped
 public final class HotMethodsService {
@@ -66,11 +65,7 @@ public final class HotMethodsService {
             }
         }
 
-        List<HotMethodEntry> entries = traceCounts.entrySet().stream()
-                .sorted(Entry.<StackTraceKey, Long>comparingByValue().reversed())
-                .limit(topN)
-                .map(e -> new HotMethodEntry(formatStackTraceFocusingOn(e.getKey().getStackTraceObj(), 5, packagePrefix), e.getValue()))
-                .toList();
+        List<HotMethodEntry> entries = selectTopN(traceCounts, topN, packagePrefix);
 
         String topMethod = entries.stream()
                 .findFirst()
@@ -80,5 +75,44 @@ public final class HotMethodsService {
                 .orElse(null);
 
         return new HotMethodsResult(entries, topMethod);
+    }
+
+    /**
+     * Select top-N entries using a min-heap PriorityQueue for O(m log n) complexity
+     * where m = total entries and n = topN. Avoids O(m log m) full sort.
+     */
+    private List<HotMethodEntry> selectTopN(
+            Map<StackTraceKey, Long> traceCounts,
+            int topN,
+            String packagePrefix) {
+
+        if (traceCounts.isEmpty()) {
+            return List.of();
+        }
+
+        // Min-heap ordered by count ascending; keeps the largest n elements
+        PriorityQueue<Map.Entry<StackTraceKey, Long>> minHeap =
+                new PriorityQueue<>(topN, Entry.comparingByValue());
+
+        for (Map.Entry<StackTraceKey, Long> e : traceCounts.entrySet()) {
+            if (minHeap.size() < topN) {
+                minHeap.offer(e);
+            } else if (e.getValue() > minHeap.peek().getValue()) {
+                minHeap.poll();
+                minHeap.offer(e);
+            }
+        }
+
+        // Extract from heap and reverse to get descending order
+        List<HotMethodEntry> result = new ArrayList<>(minHeap.size());
+        while (!minHeap.isEmpty()) {
+            Map.Entry<StackTraceKey, Long> e = minHeap.poll();
+            result.add(new HotMethodEntry(
+                    formatStackTraceFocusingOn(e.getKey().getStackTraceObj(), 5, packagePrefix),
+                    e.getValue()
+            ));
+        }
+        Collections.reverse(result);
+        return result;
     }
 }

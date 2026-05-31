@@ -93,7 +93,7 @@ class JfrRecordingCacheTest {
 
     @Test
     void ttlEvictionRemovesExpiredEntries() throws Exception {
-        JfrRecordingCache cache = new JfrRecordingCache(0); // 0 minute TTL = immediate expiry
+        JfrRecordingCache cache = new JfrRecordingCache(0, null); // 0 minute TTL = immediate expiry
         File file = resolveJfr("before.jfr");
 
         cache.load(file.getAbsolutePath());

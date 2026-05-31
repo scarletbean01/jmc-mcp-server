@@ -4,6 +4,7 @@ import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.ItemFilters;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -37,12 +38,14 @@ public class JfrProviderImpl implements JfrProvider {
         this.accessController = accessController;
     }
 
+    @WithSpan("jfr.load-recording")
     @Override
     public IItemCollection loadRecording(String filePath) throws IOException {
         accessController.validate(filePath);
         return cache.load(filePath);
     }
 
+    @WithSpan("jfr.filter-time-range")
     @Override
     public IItemCollection filterByTimeRange(
             IItemCollection events,

@@ -1,38 +1,40 @@
 # Package: io.github.deplague.jmcmcp.infrastructure.mcp
 
-This package contains the MCP driving adapters. Each class represents a set of MCP tools or resources and is automatically discovered via CDI.
+This package contains the MCP driving adapters using the Quarkus MCP server extension.
+
+## Key Classes
+- **`*Tool`**: Dozens of specialized MCP tool classes (e.g., `AllocationFlameTool`, `GcDetailTool`, `ThreadCpuTool`).
+- **`ToolErrorInterceptor`**: A CDI interceptor that provides global error handling and MDC logging (tool name and file name) for all tools.
+- **`HandleToolError`**: The binding annotation for the error interceptor.
 
 ## Responsibilities
-- **Tool & Resource Definition:** Use `@Tool` and `@Resource` annotations to define metadata.
-- **Concurrency Management:** Every tool method MUST be annotated with `@RunOnVirtualThread` to leverage Java's lightweight concurrency for heavy JFR analysis.
-- **Request Delegation:** Tool methods delegate execution to the appropriate application service.
-- **Output Formatting:** Format domain results into Markdown and wrap them in a `ToolResponse` or return a plain string for resources.
+- **Tool Definition:** Using `@Tool` and `@ToolArg` to define the MCP schema.
+- **Result Formatting:** Formatting domain records into human-readable Markdown.
+- **Context Injection:** Leveraging MDC to provide better logging context during analysis.
 
 ## Declarative Pattern
-The server uses the Quarkus MCP server extension. Tools and resources are defined as simple methods within `@ApplicationScoped` beans:
+Tools are defined as `@ApplicationScoped` beans. Each tool method delegates to an application service:
 
 ```java
 @HandleToolError
 @ApplicationScoped
 public final class ExampleTool {
-
     @RunOnVirtualThread
-    @Tool(description = "Analyze something in JFR")
-    public ToolResponse analyzeSomething(
-            @ToolArg(name = "jfr_file_path", description = "Path to recording") String path,
-            @ToolArg(name = "limit", required = false) Integer limit
-    ) {
-        var result = appService.execute(path, limit != null ? limit : 10);
+    @Tool(description = "Description")
+    public ToolResponse execute(@ToolArg(name = "jfr_file_path") String path) {
+        var result = service.analyze(path);
         return ToolResponse.success(formatMarkdown(result));
-    }
-
-    @Resource(uri = "mcp-jmc://example", name = "Example Resource")
-    public String getExample() {
-        return "Resource content";
     }
 }
 ```
 
+## Patterns Used
+- **AOP Error Handling:** `@HandleToolError` centralizes the conversion of exceptions to `ToolResponse.error()`.
+- **Markdown Templates:** Most tools implement a private `formatMarkdown` method for presentation logic.
+- **MDC Logging:** `ToolErrorInterceptor` automatically populates logging context.
+
 ## Guidelines for Agents
-- **CDI Discovery:** Tools and resources MUST be annotated with `@ApplicationScoped`.
-- **Error Handling:** Tools MUST be annotated with `@HandleToolError`. This global CDI interceptor automatically handles exceptions, logs them with MDC context (`tool` and `file`), and returns a `ToolResponse.error()`. Do not use boilerplate `try-catch` blocks in tool methods.
+- **Metadata:** Provide clear, detailed descriptions in `@Tool` and `@ToolArg` annotations to help the LLM understand how to use the tool.
+- **Virtual Threads:** **ALWAYS** use `@RunOnVirtualThread` on tool methods.
+- **Discovery:** Ensure the class is `@ApplicationScoped` and annotated with `@HandleToolError`.
+- **Brevity:** Tools should return concise but informative Markdown summaries.

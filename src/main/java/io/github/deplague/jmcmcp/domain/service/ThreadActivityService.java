@@ -95,9 +95,8 @@ public final class ThreadActivityService {
 
         Map<StackTraceKey, SleepStats> sleepMap = new HashMap<>();
         for (IItemIterable iterable : sleeps) {
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type1, DURATION.getIdentifier());
             IType<?> type = iterable.getType();
+            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
             IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
             if (durationAccessor != null && stackAccessor != null) {
                 for (IItem item : iterable) {

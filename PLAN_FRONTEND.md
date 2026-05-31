@@ -1,6 +1,5 @@
 # Frontend Implementation Plan — JMC MCP Dashboard
 
-> **Status:** Phase 0 & Phase 1 scaffolding in progress.
 > **Stack:** ClojureScript, re-frame, reagent, re-com, shadow-cljs, reitit.
 > **Location:** `frontend/` subdirectory in this monorepo.
 
@@ -44,6 +43,7 @@ The frontend consumes the existing Quarkus REST API. All responses are wrapped i
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `POST /api/v1/recordings/upload` | Upload | Multipart file upload. Returns `UploadResponse` |
+| `GET /api/v1/recordings` | List | Returns list of `RecordingInfo` |
 | `GET /api/v1/recordings/{id}` | Status | Returns `RecordingInfo` |
 | `DELETE /api/v1/recordings/{id}` | Cleanup | No content on success |
 | `POST /api/v1/recordings/{id}/analyze/{type}` | Sync Analysis | Body: `AnalysisRequest`. Returns analysis result |
@@ -54,6 +54,17 @@ The frontend consumes the existing Quarkus REST API. All responses are wrapped i
 | `GET /api/v1/health` | Health | JVM metrics |
 
 ### Key DTO Shapes
+
+**CompareRequest**
+```json
+{
+  "baselineRecordingId": "uuid",
+  "comparisonRecordingId": "uuid",
+  "analysisType": "cpu-hotspots",
+  "startTime": null,
+  "endTime": null
+}
+```
 
 **AnalysisRequest**
 ```json
@@ -348,6 +359,7 @@ frontend/
 - [x] Add `analyzeStructured()` to `CompareRecordingsApplicationService`
 - [x] Add `compareRecordingsStructured()` to `AnalysisDispatcher`
 - [x] Add `POST /api/v1/compare/structured` endpoint to `ComparisonResource`
+- [x] Add `GET /api/v1/recordings` endpoint to `RecordingUploadResource`
 - [x] Verify compilation succeeds
 - [x] Verify existing `CompareRecordingsToolTest` still passes
 

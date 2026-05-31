@@ -2,11 +2,17 @@
 
 This package contains declarative MCP resource definitions.
 
+## Key Classes
+- **`JdkBugDatabaseResource`**: Exposes the JDK bug reference database as an MCP resource.
+
 ## Responsibilities
-- **Data Exposure:** Provide read-only access to reference data (e.g., JDK bug database) or dynamic JFR-derived data.
-- **URI Mapping:** Define unique URIs using the `mcp-jmc://` scheme.
+- **Static Data Exposure:** Providing reference datasets to the LLM.
+- **Dynamic Content:** Exposing JFR-derived data as read-only resources when appropriate.
+
+## Patterns Used
+- **Declarative Resources:** Using `@Resource` from the Quarkus MCP extension.
 
 ## Guidelines for Agents
-- **Annotations:** Use `@Resource` from `io.quarkiverse.mcp.server`.
-- **Return Types:** Resources typically return a `String` (Markdown) or `ResourceResponse`.
+- **URI Scheme:** Use `mcp-jmc://` for all resource URIs.
 - **Scope:** Classes MUST be `@ApplicationScoped`.
+- **Read-Only:** Resources should be used for data that is "read-only" in nature; use tools for operations that require parameters or computation.

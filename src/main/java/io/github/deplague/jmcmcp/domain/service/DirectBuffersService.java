@@ -56,9 +56,8 @@ public final class DirectBuffersService {
         long maxDirectMemorySize = -1;
         IItemCollection props = events.apply(type("jdk.InitialSystemProperty"));
         for (IItemIterable iterable : props) {
-            IType<?> type1 = iterable.getType();
-            var keyAcc = getAccessor(type1, "key");
             IType<?> type = iterable.getType();
+            var keyAcc = getAccessor(type, "key");
             var valueAcc = getAccessor(type, "value");
             if (keyAcc != null && valueAcc != null) {
                 for (IItem item : iterable) {
@@ -85,11 +84,9 @@ public final class DirectBuffersService {
         List<BufferSample> trend = new ArrayList<>();
         for (IItemIterable iterable : dbEvents) {
             var timeAcc = START_TIME.getAccessor(iterable.getType());
-            IType<?> type2 = iterable.getType();
-            var countAcc = getAccessor(type2, "directBufferCount");
-            IType<?> type1 = iterable.getType();
-            var capAcc = getAccessor(type1, "directTotalCapacity");
             IType<?> type = iterable.getType();
+            var countAcc = getAccessor(type, "directBufferCount");
+            var capAcc = getAccessor(type, "directTotalCapacity");
             var usedAcc = getAccessor(type, "directMemoryUsed");
 
             if (timeAcc != null) {

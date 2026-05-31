@@ -65,11 +65,9 @@ public final class AllocationHotspotsService {
 
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type2, "objectClass");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> sizeAccessor = getAccessor(type1, sizeAttr);
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type, "objectClass");
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = getAccessor(type, sizeAttr);
             IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
 
             if (classAccessor != null && sizeAccessor != null && stackAccessor != null) {

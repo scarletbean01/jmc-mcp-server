@@ -32,13 +32,10 @@ public final class MemoryLeaksService {
         Map<String, LeakStats> siteStats = new HashMap<>();
 
         for (IItemIterable iterable : samples) {
-            IType<?> type3 = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = JfrAccessorRepository.getAccessor(type3, "objectClass");
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrAccessorRepository.getAccessor(type2, "allocationSize");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAccessor = JfrAccessorRepository.getAccessor(type1, "stackTrace");
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = JfrAccessorRepository.getAccessor(type, "objectClass");
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = JfrAccessorRepository.getAccessor(type, "allocationSize");
+            IMemberAccessor<Object, IItem> stackAccessor = JfrAccessorRepository.getAccessor(type, "stackTrace");
             IMemberAccessor<Object, IItem> objAccessor = JfrAccessorRepository.getAccessor(type, "object");
 
             for (IItem item : iterable) {

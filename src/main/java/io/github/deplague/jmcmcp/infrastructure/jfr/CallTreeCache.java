@@ -2,6 +2,7 @@ package io.github.deplague.jmcmcp.infrastructure.jfr;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Weigher;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.openjdk.jmc.common.IMCMethod;
 import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
@@ -9,6 +10,7 @@ import org.openjdk.jmc.flightrecorder.stacktrace.tree.StacktraceTreeModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.SoftReference;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,8 +29,12 @@ public final class CallTreeCache {
 
     private static final Logger LOG = LoggerFactory.getLogger(CallTreeCache.class);
 
-    private static final long DEFAULT_TTL_MINUTES = 60;
-    private static final int MAX_ENTRIES = 50;
+    private static final long DEFAULT_TTL_MINUTES =
+            Long.getLong("jmc.calltree.ttl.minutes", 60);
+    private static final int MAX_ENTRIES =
+            Integer.getInteger("jmc.calltree.max-entries", 50);
+    private static final long MAX_WEIGHT =
+            Long.getLong("jmc.calltree.max-weight", 2L * 1024 * 1024 * 1024);
 
     private final Cache<String, CachedTree> trees;
     private final Cache<String, CachedDiffTree> diffTrees;
@@ -40,15 +46,24 @@ public final class CallTreeCache {
     public CallTreeCache(long ttlMinutes) {
         this.trees = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
-                .maximumSize(MAX_ENTRIES)
+                .maximumWeight(MAX_WEIGHT)
+                .weigher((Weigher<String, CachedTree>) (key, value) -> estimateTreeWeight(value))
+                .removalListener((key, value, cause) -> {
+                    LOG.info("Evicted call tree: {} (cause: {})", key, cause);
+                })
                 .build();
 
         this.diffTrees = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
-                .maximumSize(MAX_ENTRIES)
+                .maximumWeight(MAX_WEIGHT)
+                .weigher((Weigher<String, CachedDiffTree>) (key, value) -> estimateDiffTreeWeight(value))
+                .removalListener((key, value, cause) -> {
+                    LOG.info("Evicted diff tree: {} (cause: {})", key, cause);
+                })
                 .build();
 
-        LOG.info("CallTreeCache initialized: TTL={}min, MaxSize={}", ttlMinutes, MAX_ENTRIES);
+        LOG.info("CallTreeCache initialized: TTL={}min, MaxEntries={}, MaxWeight={}",
+                ttlMinutes, MAX_ENTRIES, formatBytes(MAX_WEIGHT));
     }
 
     /**
@@ -237,6 +252,24 @@ public final class CallTreeCache {
     }
 
     /**
+     * Evaluate SoftReference suitability for call tree caching.
+     *
+     * <p>Call trees are NOT good candidates for SoftReference caching because:
+     * <ul>
+     *   <li>They are expensive to rebuild (require full JFR re-parse + tree construction)</li>
+     *   <li>They are relatively small compared to {@code IItemCollection} (~KB to low-MB)</li>
+     *   <li>SoftReferences get cleared aggressively under memory pressure, defeating the cache</li>
+     *   <li>Caffeine's weight/size eviction is deterministic and preferable</li>
+     * </ul>
+     *
+     * <p>SoftReferences are better suited for large, easily-recomputable objects
+     * like intermediate aggregation buffers or rendered images.</p>
+     */
+    public static boolean isSoftReferenceAppropriate() {
+        return false;
+    }
+
+    /**
      * Get the visible children of a node, applying package-filter tree folding.
      * Non-matching nodes are bypassed and their matching descendants are surfaced.
      */
@@ -311,6 +344,46 @@ public final class CallTreeCache {
     public int getDiffTreeCount() {
         diffTrees.cleanUp();
         return (int) diffTrees.estimatedSize();
+    }
+
+    // ------------------------------------------------------------------
+    // Weight estimation (heuristic)
+    // ------------------------------------------------------------------
+
+    private static int estimateTreeWeight(CachedTree cached) {
+        if (cached == null || cached.tree == null) return 0;
+        // Rough estimate: each node ~ 256 bytes; cap at Integer.MAX_VALUE
+        long weight = nodeCount(cached.tree.getRoot()) * 256L;
+        return (int) Math.min(Integer.MAX_VALUE, weight);
+    }
+
+    private static int estimateDiffTreeWeight(CachedDiffTree cached) {
+        if (cached == null || cached.root == null) return 0;
+        long weight = diffNodeCount(cached.root) * 256L;
+        return (int) Math.min(Integer.MAX_VALUE, weight);
+    }
+
+    private static long nodeCount(Node root) {
+        long count = 1;
+        for (Node child : root.getChildren()) {
+            count += nodeCount(child);
+        }
+        return count;
+    }
+
+    private static long diffNodeCount(DiffTreeNode root) {
+        long count = 1;
+        for (DiffTreeNode child : root.children()) {
+            count += diffNodeCount(child);
+        }
+        return count;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp - 1) + "";
+        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
     // ------------------------------------------------------------------

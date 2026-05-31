@@ -37,11 +37,10 @@ public final class ThreadAllocationService {
         Map<String, ThreadAllocStats> threadStatsMap = new HashMap<>();
 
         for (IItemIterable iterable : allocStats) {
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type1, "eventThread");
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "eventThread");
             IMemberAccessor<IQuantity, IItem> allocatedAccessor = getAccessor(type, "allocated");
-            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
+            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor((IType<IItem>) type);
 
             if (threadAccessor != null && allocatedAccessor != null) {
                 for (IItem item : iterable) {

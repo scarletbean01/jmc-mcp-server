@@ -36,11 +36,9 @@ public final class ErrorAnalysisService {
 
         Map<ErrorKey, Long> counts = new HashMap<>();
         for (IItemIterable iterable : errorEvents) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type2, "thrownClass");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type1, "message");
             IType<?> type = iterable.getType();
+            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type, "thrownClass");
+            IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type, "message");
             IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
 
             if (classAccessor != null) {

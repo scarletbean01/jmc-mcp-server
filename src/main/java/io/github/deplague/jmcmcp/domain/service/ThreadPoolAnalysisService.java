@@ -152,7 +152,7 @@ public final class ThreadPoolAnalysisService {
         for (IItemIterable iterable : events) {
             IType<?> type = iterable.getType();
             IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "eventThread");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor((IType<IItem>) type);
 
             if (threadAccessor != null) {
                 for (IItem item : iterable) {

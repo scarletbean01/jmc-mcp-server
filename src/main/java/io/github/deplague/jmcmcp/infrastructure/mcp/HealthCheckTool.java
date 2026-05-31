@@ -3,6 +3,7 @@ package io.github.deplague.jmcmcp.infrastructure.mcp;
 import io.github.deplague.jmcmcp.application.service.FormatUtil;
 import io.github.deplague.jmcmcp.application.service.HealthCheckApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HealthCheckReport;
+import io.github.deplague.jmcmcp.infrastructure.mcp.util.MarkdownBuffer;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolResponse;
 import io.smallrye.common.annotation.RunOnVirtualThread;
@@ -36,92 +37,84 @@ public final class HealthCheckTool {
     }
 
     private String formatMarkdown(HealthCheckReport report) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# Server Health Check\n\n");
+        MarkdownBuffer sb = MarkdownBuffer.get();
+        sb.line("# Server Health Check").nl();
 
-        sb.append("## Status\n\n");
+        sb.line("## Status").nl();
         sb.append("- **Overall:** `").append(report.status()).append("`\n");
-        sb.append("- **Uptime:** ").append(report.uptime()).append("\n");
-        sb.append("- **Server Start:** ").append(report.serverStart()).append("\n");
+        sb.append("- **Uptime:** ").append(report.uptime()).append('\n');
+        sb.append("- **Server Start:** ").append(report.serverStart()).append('\n');
         sb.append("- **JVM:** ")
                 .append(report.jvmName())
                 .append(" ")
                 .append(report.javaVersion())
-                .append("\n");
-        sb.append("\n");
+                .append('\n');
+        sb.nl();
 
-        sb.append("## JVM Memory\n\n");
-        sb.append("| Region | Used | Committed | Max | Utilization |\n");
-        sb.append("|--------|------|-----------|-----|-------------|\n");
-        sb.append(
-                String.format(
-                        "| Heap | %s | %s | %s | %.1f%% |\n",
-                        FormatUtil.formatBytes(report.jvmMemory().heapUsed()),
-                        FormatUtil.formatBytes(report.jvmMemory().heapCommitted()),
-                        report.jvmMemory().heapMax() > 0
-                                ? FormatUtil.formatBytes(report.jvmMemory().heapMax())
-                                : "unlimited",
-                        report.heapUsedPct()
-                )
+        sb.line("## JVM Memory").nl();
+        sb.line("| Region | Used | Committed | Max | Utilization |");
+        sb.line("|--------|------|-----------|-----|-------------|");
+        sb.appendf(
+                "| Heap | %s | %s | %s | %.1f%% |\n",
+                FormatUtil.formatBytes(report.jvmMemory().heapUsed()),
+                FormatUtil.formatBytes(report.jvmMemory().heapCommitted()),
+                report.jvmMemory().heapMax() > 0
+                        ? FormatUtil.formatBytes(report.jvmMemory().heapMax())
+                        : "unlimited",
+                report.heapUsedPct()
         );
-        sb.append(
-                String.format(
-                        "| Non-Heap | %s | %s | %s | — |\n",
-                        FormatUtil.formatBytes(report.jvmMemory().nonHeapUsed()),
-                        FormatUtil.formatBytes(report.jvmMemory().nonHeapCommitted()),
-                        report.jvmMemory().nonHeapMax() > 0
-                                ? FormatUtil.formatBytes(report.jvmMemory().nonHeapMax())
-                                : "unlimited"
-                )
+        sb.appendf(
+                "| Non-Heap | %s | %s | %s | — |\n",
+                FormatUtil.formatBytes(report.jvmMemory().nonHeapUsed()),
+                FormatUtil.formatBytes(report.jvmMemory().nonHeapCommitted()),
+                report.jvmMemory().nonHeapMax() > 0
+                        ? FormatUtil.formatBytes(report.jvmMemory().nonHeapMax())
+                        : "unlimited"
         );
-        sb.append(
-                String.format(
-                        "| Total Available | — | — | %s | — |\n",
-                        FormatUtil.formatBytes(report.jvmMemory().totalMaxMemory())
-                )
+        sb.appendf(
+                "| Total Available | — | — | %s | — |\n",
+                FormatUtil.formatBytes(report.jvmMemory().totalMaxMemory())
         );
-        sb.append(
-                String.format(
-                        "| Free (within committed) | %s | — | — | — |\n",
-                        FormatUtil.formatBytes(report.jvmMemory().freeMemory())
-                )
+        sb.appendf(
+                "| Free (within committed) | %s | — | — | — |\n",
+                FormatUtil.formatBytes(report.jvmMemory().freeMemory())
         );
-        sb.append("\n");
+        sb.nl();
 
-        sb.append("## JVM Threads\n\n");
+        sb.line("## JVM Threads").nl();
         sb.append("- **Active threads:** ")
                 .append(report.jvmThreads().threadCount())
-                .append("\n");
+                .append('\n');
         sb.append("- **Peak threads:** ")
                 .append(report.jvmThreads().peakThreadCount())
-                .append("\n");
+                .append('\n');
         sb.append("- **Daemon threads:** ")
                 .append(report.jvmThreads().daemonThreadCount())
-                .append("\n");
-        sb.append("\n");
+                .append('\n');
+        sb.nl();
 
-        sb.append("## Recording Cache\n\n");
+        sb.line("## Recording Cache").nl();
         sb.append("- **Cached recordings:** ")
                 .append(report.recordingCache().size())
-                .append("\n");
+                .append('\n');
         sb.append("- **Cache hits:** ")
                 .append(report.recordingCache().hitCount())
-                .append("\n");
+                .append('\n');
         sb.append("- **Cache misses:** ")
                 .append(report.recordingCache().missCount())
-                .append("\n");
+                .append('\n');
         sb.append("- **Evictions:** ")
                 .append(report.recordingCache().evictionCount())
-                .append("\n");
+                .append('\n');
         sb.append("- **Total cached bytes:** ")
                 .append(FormatUtil.formatBytes(report.recordingCache().totalCachedBytes()))
-                .append("\n");
-        sb.append("\n");
+                .append('\n');
+        sb.nl();
 
         sb.append(
                 "<agent_hint>Server health check complete. Use `jfr_overview` to analyze a recording, or `quick_analysis` for a full diagnostic dashboard.</agent_hint>\n"
         );
 
-        return sb.toString();
+        return sb.toStringAndReset();
     }
 }

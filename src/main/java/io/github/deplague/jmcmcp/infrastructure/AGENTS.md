@@ -1,25 +1,26 @@
 # Package: io.github.deplague.jmcmcp.infrastructure
 
-This is the technical implementation layer of the hexagonal architecture. It contains both **Driving** (Inbound) and **Driven** (Outbound) adapters, as well as technical guards.
-
-## Responsibilities
-
-- **Inbound Adapters (mcp):** Declarative MCP tool and resource definitions.
-- **Inbound Adapters (api):** Public REST API implementation for external integration.
-- **Outbound Adapters (jfr):** Implementation of application ports for JFR loading, parsing, and caching.
-- **Security:** Technical guards for path validation and access control.
+This is the technical implementation layer, containing adapters for external protocols, monitoring, and JFR parsing.
 
 ## Sub-packages
+- **`mcp`**: DRIVING: Model Context Protocol adapters (Tools and Resources).
+- **`api`**: DRIVING: REST API, Metrics (`AnalysisMetrics`), and Health Checks (`JmcReadinessCheck`).
+- **`jfr`**: DRIVEN: JMC-based parsing, high-performance caches, and stack trace utilities.
+- **`security`**: Technical guards (`RecordingAccessController`) for path validation.
 
-- **`mcp`**: Model Context Protocol delivery.
-- **`api`**: Public REST API (Quarkus REST, SSE).
-- **`jfr`**: Technical JFR infrastructure and persistence.
-- **`security`**: Access control logic.
+## Key Responsibilities
+- **Protocol Translation:** Converting MCP/REST requests to domain calls and formatting responses.
+- **Persistence & Caching:** Implementing the `JfrProvider` port and managing heavy object lifecycles with Caffeine.
+- **Observability:** Providing Prometheus metrics via Micrometer and health status via SmallRye.
+- **System Safety:** Validating file paths and access permissions.
 
+## Patterns Used
+- **Adapter Pattern:** Implementing domain ports for specific technical providers.
+- **Interceptors:** Using CDI Interceptors (e.g., `ToolErrorInterceptor`) for cross-cutting concerns like error handling and MDC logging.
+- **Caching:** Multi-layered caching (Recordings, Analysis Results, Call Trees) using Caffeine.
 
 ## Guidelines for Agents
-
-- **Separation of Concerns:** Keep technical details (JMC internal classes, MCP protocol specifics) strictly within this package. They must never leak into the `domain`.
-- **Resource Management:** Use `JfrRecordingCache` and `CallTreeCache` to manage heavy JFR objects and prevent memory leaks.
-- **Concurrency:** Most inbound methods must be annotated with `@RunOnVirtualThread`. Outbound components should be thread-safe for concurrent access.
-- **Exception Mapping:** Map low-level technical exceptions (I/O, JMC parsing errors) into domain exceptions before propagating them.
+- **Separation:** Ensure technical details (JMC internals, JSON-RPC, Caffeine configs) do not leak into the domain layer.
+- **Concurrency:** Use `@RunOnVirtualThread` for all entry points to leverage Java 25's lightweight concurrency.
+- **Tracing & Metrics:** Use `@WithSpan` (OpenTelemetry) and `AnalysisMetrics` to ensure operations are observable.
+- **Security:** Always invoke `RecordingAccessController.validate()` before reading user-provided file paths.
