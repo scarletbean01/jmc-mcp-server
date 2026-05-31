@@ -76,21 +76,22 @@
          [:span {:class "text-xl font-black text-slate-800"} (str metrics)]])])])
 
 (defn table-renderer [data columns]
-  [:div {:class "bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"}
-   [:div {:class "overflow-x-auto"}
-    [:table {:class "w-full text-left border-collapse"}
-     [:thead {:class "bg-slate-50 border-bottom border-slate-200"}
-      [:tr
-       (for [col columns]
-         ^{:key (:key col)}
-         [:th {:class "px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider"} (:label col)])]]
-     [:tbody
-      (for [row data]
-        ^{:key (str row)}
-        [:tr {:class "border-t border-slate-100 hover:bg-slate-50/50 transition-colors"}
+  (let [rows (if (and (map? data) (:entries data)) (:entries data) data)]
+    [:div {:class "bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"}
+     [:div {:class "overflow-x-auto"}
+      [:table {:class "w-full text-left border-collapse"}
+       [:thead {:class "bg-slate-50 border-bottom border-slate-200"}
+        [:tr
          (for [col columns]
            ^{:key (:key col)}
-           [:td {:class "px-6 py-4 text-sm text-slate-700 font-medium"} (str (get row (:key col)))])])]]]])
+           [:th {:class "px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider"} (:label col)])]]
+       [:tbody
+        (for [row rows]
+          ^{:key (str row)}
+          [:tr {:class "border-t border-slate-100 hover:bg-slate-50/50 transition-colors"}
+           (for [col columns]
+             ^{:key (:key col)}
+             [:td {:class "px-6 py-4 text-sm text-slate-700 font-medium truncate max-w-2xl"} (str (get row (:key col)))])])]]]]))
 
 (defn result-panel []
   (let [active-type (rf/subscribe [:recording-detail/active-analysis])
@@ -104,13 +105,13 @@
           [:span "Running analysis..."]]
          (if-let [data (:data @result)]
            (let [config (get analysis-config @active-type)]
-             [(case (:shape config)
-                :metrics [metrics-renderer data]
-                :table [table-renderer data (:columns config)]
-                :timeline [timeline-renderer data (:x-key config) (:y-key config)]
-                :flame-graph [flame-graph-renderer data]
-                [:div {:class "p-12 text-center text-slate-400 italic"}
-                 (str "Renderer for " (:shape config) " not implemented")])])
+             (case (:shape config)
+               :metrics [metrics-renderer data]
+               :table [table-renderer data (:columns config)]
+               :timeline [timeline-renderer data (:x-key config) (:y-key config)]
+               :flame-graph [flame-graph-renderer data]
+               [:div {:class "p-12 text-center text-slate-400 italic"}
+                (str "Renderer for " (:shape config) " not implemented")]))
            [:div {:class "h-full flex flex-col items-center justify-center gap-2 text-slate-300"}
             [:i {:class "zmdi zmdi-search-for text-4xl"}]
             [:span {:class "text-lg font-medium"} "No data available for this analysis"]]))])))

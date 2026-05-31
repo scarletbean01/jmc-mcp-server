@@ -59,6 +59,7 @@
  (fn [{:keys [db]} [_ recording-id]]
    {:http-xhrio {:method          :delete
                :uri             (api/url "/recordings/" recording-id)
+               :format          (ajax/json-request-format)
                :response-format (ajax/json-response-format {:keywords? true})
                :on-success      [:library/recording-deleted recording-id]
                :on-failure      [:notification/add {:type :error :message "Failed to delete recording"}]}}))
@@ -150,10 +151,40 @@
        (assoc-in [:comparison :loading?] false)
        (assoc-in [:comparison :result] (:data response)))))
 
+(defn- find-path-to-method [nodes target-method]
+  (some (fn [node]
+          (if (clojure.string/includes? (:methodName node) target-method)
+            [(:nodeId node)]
+            (when-let [path (find-path-to-method (:children node) target-method)]
+              (cons (:nodeId node) path))))
+        nodes))
+
 (rf/reg-event-db
  :comparison/set-tab
  (fn [db [_ tab]]
    (assoc-in db [:comparison :active-tab] tab)))
+
+(rf/reg-event-fx
+ :comparison/navigate-to-method
+ (fn [{:keys [db]} [_ method-name]]
+   (let [tree-id (get-in db [:comparison :diff-call-tree :data :treeId])
+         nodes (get-in db [:comparison :diff-call-tree :data :nodes])]
+     (if (and tree-id (seq nodes))
+       ;; If tree is already loaded, try to find the path immediately
+       (let [path (find-path-to-method nodes method-name)]
+         (if path
+           {:db (-> db
+                    (assoc-in [:comparison :active-tab] :call-tree)
+                    (update-in [:comparison :diff-call-tree :expanded] into path)
+                    (assoc-in [:comparison :diff-call-tree :target-method] method-name))}
+           {:db (-> db
+                    (assoc-in [:comparison :active-tab] :call-tree)
+                    (assoc-in [:comparison :diff-call-tree :target-method] method-name))
+            :dispatch [:comparison/expand-all tree-id]})) ; Fallback to expand all if path not found locally
+       ;; Tree not loaded yet, just switch tab and set target
+       {:db (-> db
+                (assoc-in [:comparison :active-tab] :call-tree)
+                (assoc-in [:comparison :diff-call-tree :target-method] method-name))}))))
 
 (rf/reg-event-db
  :comparison/toggle-section
@@ -232,14 +263,27 @@
           []
           nodes))
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :comparison/node-expanded
- (fn [db [_ node-id response]]
-   (let [children (get-in response [:data :children])]
-     (-> db
-         (update-in [:comparison :diff-call-tree :loading-nodes] disj node-id)
-         (update-in [:comparison :diff-call-tree :expanded] conj node-id)
-         (update-in [:comparison :diff-call-tree :data :nodes] assoc-children node-id children)))))
+ (fn [{:keys [db]} [_ node-id response]]
+   (let [children (get-in response [:data :children])
+         target-method (get-in db [:comparison :diff-call-tree :target-method])
+         tree-id (get-in db [:comparison :diff-call-tree :data :treeId])
+         new-db (-> db
+                    (update-in [:comparison :diff-call-tree :loading-nodes] disj node-id)
+                    (update-in [:comparison :diff-call-tree :expanded] conj node-id)
+                    (update-in [:comparison :diff-call-tree :data :nodes] assoc-children node-id children))]
+     (if (and target-method tree-id)
+       ;; Still searching for target method, let's see if we found it in the new children
+       (let [nodes (get-in new-db [:comparison :diff-call-tree :data :nodes])
+             path (find-path-to-method nodes target-method)]
+         (if path
+           ;; Found it! Stop searching and just highlight/expand the path
+           {:db (update-in new-db [:comparison :diff-call-tree :expanded] into path)}
+           ;; Not found yet, keep expanding all available nodes
+           {:db new-db
+            :dispatch [:comparison/expand-all tree-id]}))
+       {:db new-db}))))
 
 (defn- find-expandable-ids [nodes expanded]
   (reduce (fn [acc node]

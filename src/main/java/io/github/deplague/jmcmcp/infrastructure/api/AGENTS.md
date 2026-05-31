@@ -9,6 +9,7 @@ This package contains the REST API driving adapter, built with Quarkus REST.
 
 ## Key Classes
 - **`AnalysisResource`**: Main endpoint for JFR analysis and async job status. Supports SSE for job progress.
+- **`ComparisonResource`**: Endpoints for A/B testing recordings. Supports structured overview metrics, diff call trees, and method-level hotspot deep dives.
 - **`AnalysisDispatcher`**: Central hub that maps analysis types (Strings) to specific application services.
 - **`RecordingUploadResource`**: Handles multipart JFR file uploads.
 - **`AnalysisMetrics`**: Centralizes metrics for duration, cache hits, errors, and queue depth.

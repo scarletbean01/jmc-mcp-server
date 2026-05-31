@@ -280,15 +280,23 @@
      [delta-table :cpu-hotspots "CPU Hotspots" "zmdi-cpu" (:cpuDeltas result) "text-blue-500" true]
      [delta-table :allocation-hotspots "Allocations" "zmdi-memory" (:allocationDeltas result) "text-amber-500" false]
      [delta-table :contention-hotspots "Lock Contention" "zmdi-lock" (:contentionDeltas result) "text-purple-500" true]
-     [delta-table :exception-hotspots "Exceptions" "zmdi-bug" (:exceptionDeltas result) "text-red-500" false]]]])
+     [delta-table :exception-hotspots "Exceptions" "zmdi-bug" (:exceptionDeltas result) "text-red-500" false]
+     [delta-table :file-io-hotspots "File I/O" "zmdi-folder" (:fileIoDeltas result) "text-teal-500" false]
+     [delta-table :network-io-hotspots "Network I/O" "zmdi-globe" (:networkIoDeltas result) "text-indigo-500" false]
+     [delta-table :gc-phase-hotspots "GC Phases" "zmdi-delete" (:gcPhaseDeltas result) "text-orange-500" false]]]])
 
-(defn diff-call-tree-node [tree-id n level expanded-nodes loading-nodes]
+(defn diff-call-tree-node [tree-id n level expanded-nodes loading-nodes target-method]
   (let [node-id (:nodeId n)
         is-expanded? (contains? expanded-nodes node-id)
-        is-loading? (contains? loading-nodes node-id)]
+        is-loading? (contains? loading-nodes node-id)
+        is-target? (and target-method (clojure.string/includes? (:methodName n) target-method))]
     [:<>
-     [:tr {:class (str "border-t border-slate-100 hover:bg-slate-50/50 transition-colors "
-                       (when is-expanded? "bg-slate-50/30"))}
+     [:tr {:id (when is-target? "target-method-node")
+           :class (str "border-t border-slate-100 hover:bg-slate-50/50 transition-colors "
+                       (cond
+                         is-target? "bg-amber-100/50 border-amber-200"
+                         is-expanded? "bg-slate-50/30"
+                         :else ""))}
       [:td {:class "px-6 py-3.5 text-sm font-mono text-slate-700 flex items-center"
             :style {:padding-left (str (+ 24 (* level 20)) "px")}}
        (if (:hasChildren n)
@@ -304,7 +312,11 @@
            [:i {:class "zmdi zmdi-unfold-more text-xs"}]]]
          [:div {:class "w-6 h-6 flex items-center justify-center mr-1"}
           [:i {:class "zmdi zmdi-circle text-[6px] text-slate-300"}]])
-       [:span {:class (str "truncate " (if is-expanded? "font-bold text-slate-900" ""))} (:methodName n)]]
+       [:span {:class (str "truncate " (cond
+                                         is-target? "font-bold text-amber-900"
+                                         is-expanded? "font-bold text-slate-900"
+                                         :else ""))}
+        (:methodName n)]]
       [:td {:class "px-6 py-3.5 text-sm text-slate-500 font-medium"} (str (:baselinePct n) "%")]
       [:td {:class "px-6 py-3.5 text-sm text-slate-500 font-medium"} (str (:targetPct n) "%")]
       [:td {:class (str "px-6 py-3.5 text-sm font-black text-right "
@@ -317,45 +329,60 @@
      (when is-expanded?
        (for [child (:children n)]
          ^{:key (:nodeId child)}
-         [diff-call-tree-node tree-id child (inc level) expanded-nodes loading-nodes]))]))
+         [diff-call-tree-node tree-id child (inc level) expanded-nodes loading-nodes target-method]))]))
 
 (defn diff-call-tree-tab []
   (let [tree (rf/subscribe [:comparison/diff-call-tree])
         expanded (rf/subscribe [:comparison/expanded-nodes])
-        loading (rf/subscribe [:comparison/loading-nodes])]
-    (fn []
-      (if-let [data @tree]
-        [:div {:class "flex flex-col gap-6"}
-         [:div {:class "flex items-center justify-between"}
-          [:div
-           [:h2 {:class "text-xl font-bold text-slate-800"} "Differential Call Tree"]
-           [:p {:class "text-sm text-slate-500"} (str "Comparing execution time flow for " (:subsystem data) " events")]]
-          [:div {:class "flex items-center gap-4"}
-           [:div {:class "flex bg-slate-100 rounded-lg p-1"}
-            [:button {:class "px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm rounded-md transition-all flex items-center gap-1.5"
-                      :on-click #(rf/dispatch [:comparison/expand-all (:treeId data)])}
-             [:i {:class "zmdi zmdi-unfold-more"}] "Expand All"]
-            [:button {:class "px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm rounded-md transition-all flex items-center gap-1.5"
-                      :on-click #(rf/dispatch [:comparison/collapse-all])}
-             [:i {:class "zmdi zmdi-unfold-less"}] "Collapse All"]]
-           [:div {:class "text-right"}
-            [:div {:class "text-xs font-bold text-slate-400 uppercase tracking-widest"} "Package Filter"]
-            [:div {:class "text-sm font-mono text-slate-700"} (or (:packageFilter data) "None")]]]]
+        loading (rf/subscribe [:comparison/loading-nodes])
+        target-method (rf/subscribe [:comparison/diff-call-tree-target])]
+    (r/create-class
+     {:component-did-update
+      (fn [this]
+        (when @target-method
+          (when-let [el (.getElementById js/document "target-method-node")]
+            (.scrollIntoView el #js {:behavior "smooth" :block "center"}))))
+      :reagent-render
+      (fn []
+        (if-let [data @tree]
+          [:div {:class "flex flex-col gap-6"}
+           [:div {:class "flex items-center justify-between"}
+            [:div
+             [:h2 {:class "text-xl font-bold text-slate-800"} "Differential Call Tree"]
+             [:p {:class "text-sm text-slate-500"} (str "Comparing execution time flow for " (:subsystem data) " events")]]
+            [:div {:class "flex items-center gap-4"}
+             [:div {:class "flex bg-slate-100 rounded-lg p-1"}
+              [:button {:class "px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm rounded-md transition-all flex items-center gap-1.5"
+                        :on-click #(rf/dispatch [:comparison/expand-all (:treeId data)])}
+               [:i {:class "zmdi zmdi-unfold-more"}] "Expand All"]
+              [:button {:class "px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm rounded-md transition-all flex items-center gap-1.5"
+                        :on-click #(rf/dispatch [:comparison/collapse-all])}
+               [:i {:class "zmdi zmdi-unfold-less"}] "Collapse All"]]
+             [:div {:class "text-right"}
+              [:div {:class "text-xs font-bold text-slate-400 uppercase tracking-widest"} "Package Filter"]
+              [:div {:class "text-sm font-mono text-slate-700"} (or (:packageFilter data) "None")]]]]
 
-         [:div {:class "card"}
-          [:div {:class "overflow-x-auto"}
-           [:table {:class "w-full text-left border-collapse"}
-            [:thead {:class "bg-slate-50 border-b border-slate-200"}
-             [:tr
-              [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Method"]
-              [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Baseline %"]
-              [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Target %"]
-              [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right"} "Delta"]]]
-            [:tbody
-             (for [n (:nodes data)]
-               ^{:key (:nodeId n)}
-               [diff-call-tree-node (:treeId data) n 0 @expanded @loading])]]]]]
-        [:div {:class "py-32 text-center text-slate-400 italic"} "Run comparison to see call tree data"]))))
+           [:div {:class "card"}
+            (when @target-method
+              [:div {:class "px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between"}
+               [:div {:class "flex items-center gap-2 text-amber-800 text-sm font-bold"}
+                [:i {:class "zmdi zmdi-search"}]
+                (str "Locating target method...")]
+               [:button {:class "text-amber-600 hover:text-amber-800 text-xs font-bold uppercase tracking-wider"
+                         :on-click #(rf/dispatch [:comparison/navigate-to-method nil])} "Clear Search"]])
+            [:div {:class "overflow-x-auto"}
+             [:table {:class "w-full text-left border-collapse"}
+              [:thead {:class "bg-slate-50 border-b border-slate-200"}
+               [:tr
+                [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Method"]
+                [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Baseline %"]
+                [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Target %"]
+                [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right"} "Delta"]]]
+              [:tbody
+               (for [n (:nodes data)]
+                 ^{:key (:nodeId n)}
+                 [diff-call-tree-node (:treeId data) n 0 @expanded @loading @target-method])]]]]]
+          [:div {:class "py-32 text-center text-slate-400 italic"} "Run comparison to see call tree data"]))})))
 
 (defn method-diff-table [id title icon description methods]
   (when (seq methods)
@@ -369,7 +396,8 @@
         [:thead {:class "bg-slate-50/30 border-b border-slate-100"}
          [:tr
           [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Method"]
-          [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right"} "Delta %"]]]
+          [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right"} "Delta %"]
+          [:th {:class "px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest"} "Action"]]]
         [:tbody
          (for [m methods]
            ^{:key (:methodName m)}
@@ -377,7 +405,12 @@
             [:td {:class "px-6 py-3 text-xs font-mono text-slate-700 truncate max-w-xl"} (:methodName m)]
             [:td {:class (str "px-6 py-3 text-xs font-bold text-right "
                               (if (pos? (:pctChange m)) "text-red-500" "text-emerald-500"))}
-             (str (if (pos? (:pctChange m)) "+" "") (js/Math.round (:pctChange m)) "%")]])]]]]]))
+             (str (if (pos? (:pctChange m)) "+" "") (js/Math.round (:pctChange m)) "%")]
+            [:td {:class "px-6 py-3 text-sm"}
+             [:button {:class "text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-tight flex items-center gap-1 group/btn"
+                       :on-click #(rf/dispatch [:comparison/navigate-to-method (:methodName m)])}
+              [:i {:class "zmdi zmdi-device-hub text-sm transition-transform group-hover/btn:scale-110"}]
+              "View in Call Tree"]]])]]]]]))
 
 (defn diff-stack-traces-tab []
   (let [traces (rf/subscribe [:comparison/diff-stack-traces])]

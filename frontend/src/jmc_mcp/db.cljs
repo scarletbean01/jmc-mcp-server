@@ -29,7 +29,7 @@
                 :active-tab :overview
                 :collapsed-sections #{}
                 :trace-modal nil
-                :diff-call-tree {:data nil :expanded #{} :loading-nodes #{}}
+                :diff-call-tree {:data nil :expanded #{} :loading-nodes #{} :target-method nil}
                 :diff-stack-traces nil
                 :loading? false
                 :error nil}

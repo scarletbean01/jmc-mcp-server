@@ -30,6 +30,9 @@
 /*.swo
 /.nrepl-port
 /.shadow-cljs/*.port
+/.playwright-mcp/
+/.clj-kondo/.cache/
+/uploads/
 
 # Environment variables
 .env

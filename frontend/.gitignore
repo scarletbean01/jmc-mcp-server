@@ -8,8 +8,19 @@
 /.lein-*
 /.nrepl-port
 
-# Node.js dependencies
+# Node.js dependencies & Maven-installed Node
 /node_modules/
+/node/
 
 # shadow-cljs cache, port files
 /.shadow-cljs/
+
+# Linter & Clojure CLI caches
+/.clj-kondo/.cache/
+/.clj-kondo/imports/
+/.cpcache/
+
+# IDE
+/.idea/
+/*.iml
+

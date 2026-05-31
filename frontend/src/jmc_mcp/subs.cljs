@@ -77,6 +77,11 @@
    (get-in db [:comparison :diff-call-tree :loading-nodes])))
 
 (rf/reg-sub
+ :comparison/diff-call-tree-target
+ (fn [db _]
+   (get-in db [:comparison :diff-call-tree :target-method])))
+
+(rf/reg-sub
  :comparison/diff-stack-traces
  (fn [db _]
    (get-in db [:comparison :diff-stack-traces])))

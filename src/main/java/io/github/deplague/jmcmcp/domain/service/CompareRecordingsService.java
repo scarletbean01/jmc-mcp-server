@@ -684,6 +684,42 @@ public final class CompareRecordingsService {
                         )
                 );
 
+        CompletableFuture<List<RecordingComparisonDelta>> fileIoDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{"jdk.FileRead", "jdk.FileWrite"},
+                                "path",
+                                "bytesRead", // Note: This will only aggregate bytesRead. For a combined view, we might need a custom aggregator, but for now, we'll track read.
+                                "Bytes/sec"
+                        )
+                );
+
+        CompletableFuture<List<RecordingComparisonDelta>> networkIoDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{"jdk.SocketRead", "jdk.SocketWrite"},
+                                "host",
+                                "bytesRead",
+                                "Bytes/sec"
+                        )
+                );
+
+        CompletableFuture<List<RecordingComparisonDelta>> gcPhaseDeltasTask =
+                supplyAsync(() ->
+                        calculateEventDeltas(
+                                bCtx,
+                                tCtx,
+                                new String[]{"jdk.GCPhasePause", "jdk.GCPhaseConcurrent"},
+                                "name",
+                                DURATION.getIdentifier(),
+                                "Nanos/sec"
+                        )
+                );
+
         try {
             allOf(
                     metricsTask,
@@ -692,7 +728,10 @@ public final class CompareRecordingsService {
                     cpuDeltasTask,
                     allocDeltasTask,
                     contentionDeltasTask,
-                    exceptionDeltasTask
+                    exceptionDeltasTask,
+                    fileIoDeltasTask,
+                    networkIoDeltasTask,
+                    gcPhaseDeltasTask
             ).join();
         } catch (CompletionException e) {
             throw new AnalysisFailedException(
@@ -737,7 +776,10 @@ public final class CompareRecordingsService {
                 cpuDeltasTask.join(),
                 allocDeltasTask.join(),
                 contentionDeltasTask.join(),
-                exceptionDeltasTask.join()
+                exceptionDeltasTask.join(),
+                fileIoDeltasTask.join(),
+                networkIoDeltasTask.join(),
+                gcPhaseDeltasTask.join()
         );
     }
 

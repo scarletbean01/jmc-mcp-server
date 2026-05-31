@@ -17,6 +17,9 @@ public record RecordingComparisonResult(
         List<RecordingComparisonDelta> cpuDeltas,
         List<RecordingComparisonDelta> allocationDeltas,
         List<RecordingComparisonDelta> contentionDeltas,
-        List<RecordingComparisonDelta> exceptionDeltas
+        List<RecordingComparisonDelta> exceptionDeltas,
+        List<RecordingComparisonDelta> fileIoDeltas,
+        List<RecordingComparisonDelta> networkIoDeltas,
+        List<RecordingComparisonDelta> gcPhaseDeltas
 ) {
 }

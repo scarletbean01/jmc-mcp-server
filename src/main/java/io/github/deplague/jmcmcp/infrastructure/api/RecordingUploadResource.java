@@ -116,6 +116,6 @@ public class RecordingUploadResource {
                     .entity(ApiResponse.error("Recording not found: " + recordingId))
                     .build();
         }
-        return Response.noContent().build();
+        return Response.ok(ApiResponse.ok(null)).build();
     }
 }

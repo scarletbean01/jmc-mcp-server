@@ -3,7 +3,7 @@
 This package contains the MCP driving adapters using the Quarkus MCP server extension.
 
 ## Key Classes
-- **`*Tool`**: Dozens of specialized MCP tool classes (e.g., `AllocationFlameTool`, `GcDetailTool`, `ThreadCpuTool`).
+- **`*Tool`**: Dozens of specialized MCP tool classes (e.g., `AllocationFlameTool`, `GcDetailTool`, `ThreadCpuTool`, `CompareRecordingsStructuredTool`, `ExpandDiffCallTreeTool`).
 - **`ToolErrorInterceptor`**: A CDI interceptor that provides global error handling and MDC logging (tool name and file name) for all tools.
 - **`HandleToolError`**: The binding annotation for the error interceptor.
 

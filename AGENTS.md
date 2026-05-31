@@ -54,11 +54,13 @@ The server exposes a comprehensive REST API for JFR management and analysis.
 - `POST /api/v1/recordings/{id}/analyze/{type}/async` — Asynchronous analysis (returns `jobId`).
 - `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}` — Poll async job status.
 - `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}/stream` — SSE stream for job updates.
-- `POST /api/v1/recordings/{id}/analyze/call-tree/{treeId}/expand` — Interactive call tree expansion.
+- `POST /api/v1/compare/call-tree/{treeId}/expand` — Interactive differential call tree expansion.
 
-### Comparison
+### Comparison (A/B Deep-Dive)
 - `POST /api/v1/compare` — Compare two recordings (textual/markdown).
-- `POST /api/v1/compare/structured` — Compare two recordings (JSON model).
+- `POST /api/v1/compare/structured` — Compare two recordings (JSON model) encompassing KPIs, Rule changes, and top hotspots.
+- `POST /api/v1/compare/call-tree` — Generate a differential call tree.
+- `POST /api/v1/compare/stack-traces` — Generate a flattened method-level performance shift analysis.
 
 ### Observability
 - `GET /metrics` — Prometheus metrics (Micrometer).
