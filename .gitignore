@@ -32,6 +32,7 @@
 /.shadow-cljs/*.port
 /.playwright-mcp/
 /.clj-kondo/.cache/
+.clj-kondo/.cache/
 /uploads/
 
 # Environment variables
