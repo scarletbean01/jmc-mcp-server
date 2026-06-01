@@ -1,6 +1,6 @@
-# Package: io.github.deplague.jmcmcp.application
+# Module: 02-application (jmc-mcp-application)
 
-This package coordinates the application's use cases and defines the ports for infrastructure.
+This module coordinates the application's use cases and defines the ports (SPIs) for infrastructure. It depends on `01-domain`.
 
 ## Sub-packages
 - **`port`**: Outbound interfaces (SPIs) that the infrastructure must implement.

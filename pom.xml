@@ -14,32 +14,34 @@
     <description>Model Context Protocol server for Java Mission Control / JFR analysis</description>
 
     <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <mcp.sdk.version>1.1.2</mcp.sdk.version>
-        <jmc.version>9.1.1</jmc.version>
-        <jackson.version>2.18.3</jackson.version>
-        <slf4j.version>2.0.17</slf4j.version>
-        <logback.version>1.5.18</logback.version>
-        <junit.version>5.12.1</junit.version>
-        <assertj.version>3.27.3</assertj.version>
-        <lombok.version>1.18.46</lombok.version>
-
-        <compiler-plugin.version>3.15.0</compiler-plugin.version>
-        <maven.compiler.release>26</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
     </properties>
 
     <modules>
+        <module>00-bom</module>
         <module>01-domain</module>
         <module>02-application</module>
         <module>03-infrastructure</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.github.deplague</groupId>
+                <artifactId>jmc-mcp-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <build>
         <plugins>
             <plugin>

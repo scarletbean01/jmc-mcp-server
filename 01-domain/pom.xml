@@ -8,68 +8,30 @@
     <artifactId>jmc-mcp-domain</artifactId>
     <packaging>jar</packaging>
 
-    <name>JMC MCP Server</name>
+    <name>JMC MCP Server :: Domain</name>
     <parent>
         <groupId>io.github.deplague</groupId>
         <artifactId>jmc-mcp</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <mcp.sdk.version>1.1.2</mcp.sdk.version>
-        <jmc.version>9.1.1</jmc.version>
-        <jackson.version>2.18.3</jackson.version>
-        <slf4j.version>2.0.17</slf4j.version>
-        <logback.version>1.5.18</logback.version>
-        <junit.version>5.12.1</junit.version>
-        <assertj.version>3.27.3</assertj.version>
-        <lombok.version>1.18.46</lombok.version>
-
-        <compiler-plugin.version>3.15.0</compiler-plugin.version>
-        <maven.compiler.release>26</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.4</surefire-plugin.version>
-    </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>io.modelcontextprotocol.sdk</groupId>
-                <artifactId>mcp-bom</artifactId>
-                <version>${mcp.sdk.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
 
         <dependency>
             <groupId>jakarta.inject</groupId>
             <artifactId>jakarta.inject-api</artifactId>
-            <version>2.0.1</version>
         </dependency>
         <dependency>
             <groupId>jakarta.enterprise</groupId>
             <artifactId>jakarta.enterprise.cdi-api</artifactId>
-            <version>4.1.0</version>
         </dependency>
         <dependency>
             <groupId>jakarta.interceptor</groupId>
             <artifactId>jakarta.interceptor-api</artifactId>
-            <version>2.2.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-            <version>3.2.4</version>
         </dependency>
 
         <!-- MCP SDK -->
@@ -82,41 +44,34 @@
         <dependency>
             <groupId>org.openjdk.jmc</groupId>
             <artifactId>common</artifactId>
-            <version>${jmc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjdk.jmc</groupId>
             <artifactId>flightrecorder</artifactId>
-            <version>${jmc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjdk.jmc</groupId>
             <artifactId>flightrecorder.rules</artifactId>
-            <version>${jmc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjdk.jmc</groupId>
             <artifactId>flightrecorder.rules.jdk</artifactId>
-            <version>${jmc.version}</version>
         </dependency>
 
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>${logback.version}</version>
         </dependency>
 
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -124,13 +79,11 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>${assertj.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -140,7 +93,6 @@
             <plugin>
                 <groupId>io.smallrye</groupId>
                 <artifactId>jandex-maven-plugin</artifactId>
-                <version>3.5.3</version>
                 <executions>
                     <execution>
                         <id>make-index</id>
@@ -152,21 +104,18 @@
             </plugin>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>${compiler-plugin.version}</version>
                 <configuration>
                     <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
                 <configuration>
                     <argLine>@{argLine}</argLine>
                     <systemPropertyVariables>
@@ -177,7 +126,6 @@
             </plugin>
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
                 <executions>
                     <execution>
                         <goals>

@@ -1,6 +1,6 @@
-# Package: io.github.deplague.jmcmcp.infrastructure
+# Module: 03-infrastructure (jmc-mcp-infrastructure)
 
-This is the technical implementation layer, containing adapters for external protocols, monitoring, and JFR parsing.
+This is the technical implementation layer, containing adapters for external protocols (MCP, REST), monitoring, and JFR parsing. It depends on `02-application`.
 
 ## Sub-packages
 - **`mcp`**: DRIVING: Model Context Protocol adapters (Tools and Resources).

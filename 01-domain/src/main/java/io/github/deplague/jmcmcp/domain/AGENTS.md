@@ -1,6 +1,6 @@
-# Package: io.github.deplague.jmcmcp.domain
+# Module: 01-domain (jmc-mcp-domain)
 
-This package contains the core domain logic, analysis heuristics, and performance models.
+This module contains the core domain logic, analysis heuristics, and performance models. It is the innermost layer of the hexagonal architecture.
 
 ## Sub-packages
 - **`model`**: Pure Java Records representing analysis results (e.g., `AllocationFlameResult`, `GcAnalysisResult`).

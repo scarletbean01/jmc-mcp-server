@@ -2,39 +2,41 @@
 
 ## 🏗️ Architectural Vision: Hexagonal (Ports & Adapters)
 
-The project follows a strict **Hexagonal Architecture** (Clean Architecture) to ensure the core JFR analysis logic remains decoupled from delivery mechanisms (MCP, REST) and external frameworks (Quarkus, JMC).
+The project follows a strict **Hexagonal Architecture** (Clean Architecture) distributed across a **Maven multi-module** setup. This ensures the core JFR analysis logic remains decoupled from delivery mechanisms (MCP, REST) and external frameworks (Quarkus).
 
 ### Dependency Rule
-**Dependencies point inward.** The Domain layer has zero knowledge of the Application layer, which in turn has zero knowledge of the Adapters.
+**Dependencies point inward.** Domain has zero knowledge of Application, and both have zero knowledge of Infrastructure.
 
-| Layer | Responsibility | Constraints |
-|:---|:---|:---|
-| **Domain** | Pure business logic, JFR metric computation, models. | **Zero frameworks.** No Quarkus/Jakarta annotations. |
-| **Application** | Orchestrates use cases. Defines ports (interfaces) for infrastructure. | CDI-aware (`@ApplicationScoped`). Agnostic of protocol. |
-| **Infrastructure** | Driving: MCP Tools, REST API. Driven: JFR Loading, Caching, Metrics. | Protocol/Framework specific. Uses `@Tool`, `@POST`, etc. |
+| Module | Layer | Responsibility | Constraints |
+|:---|:---|:---|:---|
+| **`01-domain`** | **Domain** | Pure business logic, JFR heuristics, models. | **Zero frameworks.** No Quarkus/CDI. |
+| **`02-application`** | **Application** | Use case orchestration, Port definitions. | CDI-aware (`@ApplicationScoped`). Protocol agnostic. |
+| **`03-infrastructure`** | **Infrastructure** | Driving Adapters (MCP, REST) & Driven (JFR Cache). | Framework specific (Quarkus, Caffeine, OTEL). |
+| **`00-bom`** | **BOM** | Centralized Dependency Management. | No code. POM only. |
 
 ---
 
 ## 📦 Project Structure
 
 ```
-src/main/java/io/github/deplague/jmcmcp/
-  ├── domain/                 # CORE: Pure logic & models
-  │   ├── model/              # Pure Java Records (Result types)
-  │   ├── service/            # Core analysis logic (Pure Java + JMC Core)
-  │   └── exception/          # Domain-specific exceptions
-  ├── application/            # USE CASES: Orchestration
-  │   ├── port/               # Interface definitions for Outbound adapters (e.g., JfrProvider)
-  │   └── service/            # Use case orchestrators (returning Domain Records)
-  ├── infrastructure/         # TECHNICAL: Implementation layer
-  │   ├── mcp/                # DRIVING: MCP Adapters (@Tool, @McpTool)
-  │   ├── api/                # DRIVING: REST API Adapters (Quarkus REST)
-  │   │   ├── health/         # Observability: Liveness/Readiness checks
-  │   │   ├── metrics/        # Observability: Micrometer metrics
-  │   │   └── model/          # DTOs for REST layer (ApiResponse, etc.)
-  │   ├── jfr/                # OUTBOUND: JFR Loading & Advanced Caching
-  │   └── security/           # Technical Guards (Access Control)
-  └── JmcMcpServer.java       # Bootstrap: Quarkus entry point
+.
+├── 00-bom/                   # Centralized versions (Bill of Materials)
+├── 01-domain/                # CORE: Pure logic & JMC heuristics
+│   └── src/main/java/.../domain/
+│       ├── model/            # Pure Java Records (Result types)
+│       ├── service/          # Core analysis logic (Pure Java + JMC)
+│       └── exception/        # Domain-specific exceptions
+├── 02-application/           # USE CASES: Orchestration
+│   └── src/main/java/.../application/
+│       ├── port/             # SPIs (e.g., JfrProvider)
+│       └── service/          # Orchestrators (Async jobs, Storage)
+└── 03-infrastructure/        # TECHNICAL: Adapters & Frameworks
+    └── src/main/java/.../infrastructure/
+        ├── mcp/              # DRIVING: MCP Tools (@Tool)
+        ├── api/              # DRIVING: REST API (Quarkus REST)
+        ├── jfr/              # DRIVEN: JMC Parsing & Caffeine Cache
+        ├── security/         # Technical Guards (Access Control)
+        └── observability/    # Metrics (Micrometer) & Tracing (OTEL)
 ```
 
 ---
