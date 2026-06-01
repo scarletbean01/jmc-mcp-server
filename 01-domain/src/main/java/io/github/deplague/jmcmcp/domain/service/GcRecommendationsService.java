@@ -1,7 +1,12 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -10,8 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
 import static java.lang.String.format;
 import static java.util.Map.Entry;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
@@ -22,8 +25,12 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 /**
  * Pure domain service that analyzes GC patterns and generates tuning recommendations.
  */
+@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GcRecommendationsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public GcRecommendationsResult analyze(IItemCollection events) {
         IItemCollection pauseEvents = events.apply(type("jdk.GCPhasePause"));
@@ -38,17 +45,17 @@ public final class GcRecommendationsService {
         List<String> warnings = new ArrayList<>();
         List<String> recommendations = new ArrayList<>();
 
-        long pauseCount = count(pauseEvents);
+        long pauseCount = jfrQuantityAggregator.count(pauseEvents);
         PauseDistribution pauseDistribution = null;
         if (pauseCount > 0) {
             String identifier2 = DURATION.getIdentifier();
-            IQuantity p50 = percentileQuantity(pauseEvents, identifier2, 50);
+            IQuantity p50 = jfrQuantityAggregator.percentileQuantity(pauseEvents, identifier2, 50);
             String identifier1 = DURATION.getIdentifier();
-            IQuantity p95 = percentileQuantity(pauseEvents, identifier1, 95);
+            IQuantity p95 = jfrQuantityAggregator.percentileQuantity(pauseEvents, identifier1, 95);
             String identifier = DURATION.getIdentifier();
-            IQuantity p99 = percentileQuantity(pauseEvents, identifier, 99);
-            IQuantity maxPause = maxQuantity(pauseEvents, DURATION.getIdentifier());
-            IQuantity avgPause = avgQuantity(pauseEvents, DURATION.getIdentifier());
+            IQuantity p99 = jfrQuantityAggregator.percentileQuantity(pauseEvents, identifier, 99);
+            IQuantity maxPause = jfrQuantityAggregator.maxQuantity(pauseEvents, DURATION.getIdentifier());
+            IQuantity avgPause = jfrQuantityAggregator.avgQuantity(pauseEvents, DURATION.getIdentifier());
 
             pauseDistribution = new PauseDistribution(
                     pauseCount,
@@ -104,9 +111,9 @@ public final class GcRecommendationsService {
 
         HeapUtilization heapUtilization = null;
         if (heapSummary.hasItems()) {
-            IQuantity minHeapUsed = minQuantity(heapSummary, "heapUsed");
-            IQuantity maxHeapUsed = maxQuantity(heapSummary, "heapUsed");
-            IQuantity avgHeapUsed = avgQuantity(heapSummary, "heapUsed");
+            IQuantity minHeapUsed = jfrQuantityAggregator.minQuantity(heapSummary, "heapUsed");
+            IQuantity maxHeapUsed = jfrQuantityAggregator.maxQuantity(heapSummary, "heapUsed");
+            IQuantity avgHeapUsed = jfrQuantityAggregator.avgQuantity(heapSummary, "heapUsed");
 
             if (maxHeapUsed != null && minHeapUsed != null) {
                 double maxMB = maxHeapUsed.longValue() / (1024.0 * 1024.0);
@@ -129,8 +136,8 @@ public final class GcRecommendationsService {
 
         MetaspaceUtilization metaspaceUtilization = null;
         if (metaspaceSummary.hasItems()) {
-            IQuantity maxMetaUsed = maxQuantity(metaspaceSummary, "metaspace.used");
-            IQuantity maxMetaCommitted = maxQuantity(metaspaceSummary, "metaspace.committed");
+            IQuantity maxMetaUsed = jfrQuantityAggregator.maxQuantity(metaspaceSummary, "metaspace.used");
+            IQuantity maxMetaCommitted = jfrQuantityAggregator.maxQuantity(metaspaceSummary, "metaspace.committed");
 
             if (maxMetaUsed != null && maxMetaCommitted != null) {
                 double metaUsedMB = maxMetaUsed.longValue() / (1024.0 * 1024.0);
@@ -168,7 +175,7 @@ public final class GcRecommendationsService {
     private String extractGcAlgorithm(IItemCollection gcConfig) {
         for (IItemIterable iterable : gcConfig) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> nameAccessor = getAccessor(type, "name");
+            IMemberAccessor<Object, IItem> nameAccessor = jfrAccessorRepository.getAccessor(type, "name");
             if (nameAccessor != null) {
                 for (IItem item : iterable) {
                     Object name = nameAccessor.getMember(item);
@@ -183,7 +190,7 @@ public final class GcRecommendationsService {
         Map<String, Long> causes = new HashMap<>();
         for (IItemIterable iterable : gcEvents) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> causeAccessor = getAccessor(type, "cause");
+            IMemberAccessor<Object, IItem> causeAccessor = jfrAccessorRepository.getAccessor(type, "cause");
             if (causeAccessor != null) {
                 for (IItem item : iterable) {
                     Object cause = causeAccessor.getMember(item);
@@ -191,7 +198,7 @@ public final class GcRecommendationsService {
                     causes.merge(causeStr, 1L, Long::sum);
                 }
             } else {
-                causes.merge("(cause not available)", count(gcEvents), Long::sum);
+                causes.merge("(cause not available)", jfrQuantityAggregator.count(gcEvents), Long::sum);
                 break;
             }
         }

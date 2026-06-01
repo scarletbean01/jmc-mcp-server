@@ -1,7 +1,10 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -9,8 +12,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrValueConverter.toLong;
+import static io.github.deplague.jmcmcp.domain.service.JfrValueConverter.toLong;
 import static java.lang.Long.parseLong;
 import static java.lang.Math.*;
 import static java.time.Duration.*;
@@ -25,7 +27,9 @@ import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getLatestEn
  * Pure domain service for heap, metaspace and thread trend analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class HeapTrendsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public HeapTrendsResult analyze(IItemCollection events, String bucketSizeStr) {
         IQuantity startQ = getEarliestStartTime(events);
@@ -109,7 +113,7 @@ public final class HeapTrendsService {
         for (IItemIterable iterable : heapEvents) {
             IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type, "heapUsed");
+            IMemberAccessor<IQuantity, IItem> usedAccessor = jfrAccessorRepository.getAccessor(type, "heapUsed");
             if (timeAccessor != null && usedAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity timeQ = timeAccessor.getMember(item);
@@ -136,9 +140,9 @@ public final class HeapTrendsService {
         for (IItemIterable iterable : metaEvents) {
             IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type1, "metaspace.used");
+            IMemberAccessor<IQuantity, IItem> usedAccessor = jfrAccessorRepository.getAccessor(type1, "metaspace.used");
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> committedAccessor = getAccessor(type, "metaspace.committed");
+            IMemberAccessor<IQuantity, IItem> committedAccessor = jfrAccessorRepository.getAccessor(type, "metaspace.committed");
             if (timeAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity timeQ = timeAccessor.getMember(item);
@@ -176,7 +180,7 @@ public final class HeapTrendsService {
         for (IItemIterable iterable : threadEvents) {
             IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> activeAccessor = getAccessor(type, "activeCount");
+            IMemberAccessor<Object, IItem> activeAccessor = jfrAccessorRepository.getAccessor(type, "activeCount");
             if (timeAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity timeQ = timeAccessor.getMember(item);
@@ -211,7 +215,7 @@ public final class HeapTrendsService {
         long count = 0;
         for (IItemIterable iterable : items) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> accessor = getAccessor(type, attribute);
+            IMemberAccessor<Object, IItem> accessor = jfrAccessorRepository.getAccessor(type, attribute);
             if (accessor != null) {
                 for (IItem item : iterable) {
                     Object raw = accessor.getMember(item);

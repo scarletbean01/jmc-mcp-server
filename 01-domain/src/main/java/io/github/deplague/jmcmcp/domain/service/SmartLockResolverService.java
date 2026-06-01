@@ -4,7 +4,10 @@ import io.github.deplague.jmcmcp.domain.model.BlockedTraceEntry;
 import io.github.deplague.jmcmcp.domain.model.HolderActivity;
 import io.github.deplague.jmcmcp.domain.model.LockHolderIssue;
 import io.github.deplague.jmcmcp.domain.model.SmartLockResolverResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -12,9 +15,8 @@ import org.openjdk.jmc.common.unit.IQuantity;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.lang.Long.compare;
 import static java.util.List.of;
 import static java.util.Map.Entry;
@@ -24,11 +26,11 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
 import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
-/**
- * Pure domain service for smart lock resolver analysis.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SmartLockResolverService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final Pattern IO_PATTERN = compile(
             "java\\.net\\.Socket|java\\.io\\.File|java\\.nio\\.channels|sun\\.nio\\.ch");
@@ -44,16 +46,12 @@ public final class SmartLockResolverService {
         Map<LockHolderKey, LockHolderStats> holderStats = new HashMap<>();
         Map<IMCStackTrace, String> traceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : monitorEnters) {
-            IType<?> type4 = iterable.getType();
-            IMemberAccessor<Object, IItem> monitorClassAcc = getAccessor(type4, "monitorClass");
-            IType<?> type3 = iterable.getType();
-            IMemberAccessor<Object, IItem> prevOwnerAcc = getAccessor(type3, "previousOwner");
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type2, DURATION.getIdentifier());
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> monitorClassAcc = jfrAccessorRepository.getAccessor(type, "monitorClass");
+            IMemberAccessor<Object, IItem> prevOwnerAcc = jfrAccessorRepository.getAccessor(type, "previousOwner");
+            IMemberAccessor<IQuantity, IItem> durationAcc = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<Object, IItem> stackAcc = jfrAccessorRepository.getAccessor(type, "stackTrace");
 
             if (monitorClassAcc == null || prevOwnerAcc == null || durationAcc == null) {
                 continue;
@@ -143,7 +141,7 @@ public final class SmartLockResolverService {
     }
 
     private Map<String, ActivityAccumulator> analyzeHolderActivities(IItemCollection execSamples,
-                                                                     List<Entry<LockHolderKey, LockHolderStats>> holders) {
+                                                                      List<Entry<LockHolderKey, LockHolderStats>> holders) {
         Map<String, ActivityAccumulator> result = new HashMap<>();
         Set<String> holderNames = new HashSet<>();
         for (var entry : holders) {
@@ -152,10 +150,9 @@ public final class SmartLockResolverService {
 
         Map<IMCStackTrace, String> fullTraceCache = new IdentityHashMap<>();
         for (IItemIterable iterable : execSamples) {
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<Object, IItem> stackAcc = jfrAccessorRepository.getAccessor(type, "stackTrace");
             if (threadAcc == null || stackAcc == null) {
                 continue;
             }

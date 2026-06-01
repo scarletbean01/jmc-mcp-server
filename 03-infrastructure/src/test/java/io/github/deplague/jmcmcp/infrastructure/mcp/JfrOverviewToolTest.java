@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.JfrOverviewTool;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
@@ -39,7 +41,7 @@ class JfrOverviewToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        JfrOverviewService domainService = new JfrOverviewService();
+        JfrOverviewService domainService = new JfrOverviewService(new JfrQuantityAggregatorImpl(new JfrAccessorRepositoryImpl()));
         appService = new JfrOverviewApplicationService(jfrProvider, domainService);
         tool = new JfrOverviewTool(appService);
     }

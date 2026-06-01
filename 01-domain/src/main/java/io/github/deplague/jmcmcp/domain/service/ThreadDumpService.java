@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ThreadDumpEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadDumpResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -10,7 +13,6 @@ import org.openjdk.jmc.common.unit.IQuantity;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.util.List.of;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
@@ -20,7 +22,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadDumpService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public ThreadDumpResult analyze(IItemCollection events, int maxDumps) {
         IItemCollection threadDumps = events.apply(type("jdk.ThreadDump"));
@@ -32,7 +36,7 @@ public final class ThreadDumpService {
         int count = 0;
         for (IItemIterable itemIterable : threadDumps) {
             IType<?> type = itemIterable.getType();
-            IMemberAccessor<Object, IItem> resultAccessor = getAccessor(type, "result");
+            IMemberAccessor<Object, IItem> resultAccessor = jfrAccessorRepository.getAccessor(type, "result");
             IMemberAccessor<IQuantity, IItem> startTimeAccessor = START_TIME.getAccessor(itemIterable.getType());
 
             if (resultAccessor != null && startTimeAccessor != null) {

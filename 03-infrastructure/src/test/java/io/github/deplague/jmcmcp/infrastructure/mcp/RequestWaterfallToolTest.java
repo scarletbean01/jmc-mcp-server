@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.RequestWaterfallTool;
@@ -44,7 +45,7 @@ class RequestWaterfallToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        RequestWaterfallService domainService = new RequestWaterfallService();
+        RequestWaterfallService domainService = new RequestWaterfallService(new JfrAccessorRepositoryImpl());
         RequestWaterfallApplicationService appService = new RequestWaterfallApplicationService(jfrProvider, domainService);
         tool = new RequestWaterfallTool(appService);
     }

@@ -3,15 +3,16 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.BugMatch;
 import io.github.deplague.jmcmcp.domain.model.BugSignature;
 import io.github.deplague.jmcmcp.domain.model.JdkBugReferenceResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
 import static java.lang.Math.min;
 import static java.util.List.of;
 import static java.util.Optional.ofNullable;
@@ -22,9 +23,11 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
 /**
  * Pure domain service for JDK bug cross-reference analysis.
  */
-@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class JdkBugReferenceService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     private static final List<BugSignature> BUG_DATABASE = of(
             new BugSignature("JDK-8214231", "C2 compiler crash.*PhaseIdealLoop", of("11.", "17.0.0", "17.0.1", "17.0.2"),
@@ -67,9 +70,9 @@ public final class JdkBugReferenceService {
         IItemCollection compilerFailures = events.apply(type("jdk.CompilerFailure"));
         for (IItemIterable iterable : compilerFailures) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type1, "failureMessage");
+            IMemberAccessor<Object, IItem> msgAccessor = jfrAccessorRepository.getAccessor(type1, "failureMessage");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> methodAccessor = getAccessor(type, "method");
+            IMemberAccessor<Object, IItem> methodAccessor = jfrAccessorRepository.getAccessor(type, "method");
             if (msgAccessor != null) {
                 for (IItem item : iterable) {
                     Object msg = msgAccessor.getMember(item);
@@ -83,9 +86,9 @@ public final class JdkBugReferenceService {
         IItemCollection errorEvents = events.apply(type("jdk.JavaErrorThrow"));
         for (IItemIterable iterable : errorEvents) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type1, "thrownClass");
+            IMemberAccessor<Object, IItem> classAccessor = jfrAccessorRepository.getAccessor(type1, "thrownClass");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type, "message");
+            IMemberAccessor<Object, IItem> msgAccessor = jfrAccessorRepository.getAccessor(type, "message");
             if (classAccessor != null) {
                 for (IItem item : iterable) {
                     Object thrownClass = classAccessor.getMember(item);
@@ -100,7 +103,7 @@ public final class JdkBugReferenceService {
         }
 
         IItemCollection biasedRevocations = events.apply(type("jdk.BiasedLockRevocation"));
-        long revocationCount = count(biasedRevocations);
+        long revocationCount = jfrQuantityAggregator.count(biasedRevocations);
         if (revocationCount > 100) {
             BugSignature biasedBug = BUG_DATABASE.stream()
                     .filter(b -> b.id().equals("JDK-8159193"))
@@ -114,8 +117,8 @@ public final class JdkBugReferenceService {
         return new JdkBugReferenceResult(
                 ofNullable(jvmVersion),
                 matches,
-                count(compilerFailures),
-                count(errorEvents),
+                jfrQuantityAggregator.count(compilerFailures),
+                jfrQuantityAggregator.count(errorEvents),
                 revocationCount,
                 true
         );
@@ -125,9 +128,9 @@ public final class JdkBugReferenceService {
         IItemCollection propEvents = events.apply(type("jdk.InitialSystemProperty"));
         for (IItemIterable iterable : propEvents) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> keyAccessor = getAccessor(type1, "key");
+            IMemberAccessor<Object, IItem> keyAccessor = jfrAccessorRepository.getAccessor(type1, "key");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> valueAccessor = getAccessor(type, "value");
+            IMemberAccessor<Object, IItem> valueAccessor = jfrAccessorRepository.getAccessor(type, "value");
             if (keyAccessor != null && valueAccessor != null) {
                 for (IItem item : iterable) {
                     Object key = keyAccessor.getMember(item);
@@ -142,7 +145,7 @@ public final class JdkBugReferenceService {
         IItemCollection osEvents = events.apply(type("jdk.OSInformation"));
         for (IItemIterable iterable : osEvents) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> versionAccessor = getAccessor(type, "osVersion");
+            IMemberAccessor<Object, IItem> versionAccessor = jfrAccessorRepository.getAccessor(type, "osVersion");
             if (versionAccessor != null) {
                 for (IItem item : iterable) {
                     Object version = versionAccessor.getMember(item);

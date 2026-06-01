@@ -3,7 +3,10 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.LeakSuspectEntry;
 import io.github.deplague.jmcmcp.domain.model.OomProjection;
 import io.github.deplague.jmcmcp.domain.model.PredictiveLeakResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -12,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.lang.Long.compare;
 import static java.lang.Long.parseLong;
 import static java.util.List.of;
@@ -24,7 +26,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
  * Pure domain service for predictive leak analysis using linear regression on post-GC heap usage.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class PredictiveLeakAnalysisService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public PredictiveLeakResult analyze(IItemCollection events, double rSquaredThreshold) {
         IItemCollection heapEvents = events.apply(type("jdk.GCHeapSummary"));
@@ -104,9 +108,9 @@ public final class PredictiveLeakAnalysisService {
         for (IItemIterable iterable : heapEvents) {
             IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(iterable.getType());
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type1, "heapUsed");
+            IMemberAccessor<IQuantity, IItem> usedAccessor = jfrAccessorRepository.getAccessor(type1, "heapUsed");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> whenAccessor = getAccessor(type, "when");
+            IMemberAccessor<Object, IItem> whenAccessor = jfrAccessorRepository.getAccessor(type, "when");
 
             if (timeAccessor != null && usedAccessor != null) {
                 for (IItem item : iterable) {
@@ -135,7 +139,7 @@ public final class PredictiveLeakAnalysisService {
     private long extractMaxHeapSize(IItemCollection heapConfigEvents, IItemCollection allEvents) {
         for (IItemIterable iterable : heapConfigEvents) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> maxSizeAccessor = getAccessor(type, "maxSize");
+            IMemberAccessor<IQuantity, IItem> maxSizeAccessor = jfrAccessorRepository.getAccessor(type, "maxSize");
             if (maxSizeAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity maxSize = maxSizeAccessor.getMember(item);
@@ -147,9 +151,9 @@ public final class PredictiveLeakAnalysisService {
         IItemCollection propEvents = allEvents.apply(type("jdk.InitialSystemProperty"));
         for (IItemIterable iterable : propEvents) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> keyAccessor = getAccessor(type1, "key");
+            IMemberAccessor<Object, IItem> keyAccessor = jfrAccessorRepository.getAccessor(type1, "key");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> valueAccessor = getAccessor(type, "value");
+            IMemberAccessor<Object, IItem> valueAccessor = jfrAccessorRepository.getAccessor(type, "value");
             if (keyAccessor != null && valueAccessor != null) {
                 for (IItem item : iterable) {
                     Object key = keyAccessor.getMember(item);
@@ -174,7 +178,7 @@ public final class PredictiveLeakAnalysisService {
 
         for (IItemIterable iterable : oldObjectSamples) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type, "objectClass");
+            IMemberAccessor<Object, IItem> classAccessor = jfrAccessorRepository.getAccessor(type, "objectClass");
             if (classAccessor != null) {
                 for (IItem item : iterable) {
                     Object clazz = classAccessor.getMember(item);

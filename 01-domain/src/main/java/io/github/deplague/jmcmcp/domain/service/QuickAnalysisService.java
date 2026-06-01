@@ -1,26 +1,26 @@
 package io.github.deplague.jmcmcp.domain.service;
 
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
 import static java.lang.String.format;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 import static org.openjdk.jmc.common.unit.UnitLookup.MILLISECOND;
 import static org.openjdk.jmc.common.unit.UnitLookup.SECOND;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
-/**
- * Pure domain service for quick analysis.
- * Computes shared metrics, classifies severity, detects dominant bottleneck,
- * and generates recommendations without any framework dependencies.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class QuickAnalysisService {
+
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public record SharedMetrics(
             long totalEvents,
@@ -60,23 +60,23 @@ public final class QuickAnalysisService {
     }
 
     private SharedMetrics computeSharedMetrics(IItemCollection events) {
-        IItemCollection items2 = events.apply(type("jdk.CPULoad"));
-        var cpuStats = batchStats(items2, "machineTotal");
+        IItemCollection cpuItems = events.apply(type("jdk.CPULoad"));
+        var cpuStats = jfrQuantityAggregator.batchStats(cpuItems, "machineTotal");
         IItemCollection gcPauses = events.apply(type("jdk.GCPhasePause"));
-        long gcPauseCount = count(gcPauses);
+        long gcPauseCount = jfrQuantityAggregator.count(gcPauses);
         String identifier = DURATION.getIdentifier();
-        var gcPauseStats = batchStats(gcPauses, identifier, 99);
-        long exceptionCount = count(events.apply(type("jdk.JavaExceptionThrow")));
-        long errorCount = count(events.apply(type("jdk.JavaErrorThrow")));
-        IItemCollection items = events.apply(type("jdk.JavaMonitorEnter"));
-        IQuantity totalLockDuration = sumQuantity(items, DURATION.getIdentifier());
-        IItemCollection items1 = events.apply(type("jdk.SocketRead"));
-        var socketReadStats = batchStats(items1, DURATION.getIdentifier());
+        var gcPauseStats = jfrQuantityAggregator.batchStats(gcPauses, identifier, 99);
+        long exceptionCount = jfrQuantityAggregator.count(events.apply(type("jdk.JavaExceptionThrow")));
+        long errorCount = jfrQuantityAggregator.count(events.apply(type("jdk.JavaErrorThrow")));
+        IItemCollection monitorEnters = events.apply(type("jdk.JavaMonitorEnter"));
+        IQuantity totalLockDuration = jfrQuantityAggregator.sumQuantity(monitorEnters, DURATION.getIdentifier());
+        IItemCollection socketReads = events.apply(type("jdk.SocketRead"));
+        var socketReadStats = jfrQuantityAggregator.batchStats(socketReads, DURATION.getIdentifier());
         IItemCollection heapSummary = events.apply(type("jdk.GCHeapSummary"));
-        var heapStats = batchStats(heapSummary, "heapUsed");
-        IQuantity maxHeapSize = maxQuantity(heapSummary, "heapSize");
-        long jitCount = count(events.apply(type("jdk.Compilation")));
-        long totalEvents = count(events);
+        var heapStats = jfrQuantityAggregator.batchStats(heapSummary, "heapUsed");
+        IQuantity maxHeapSize = jfrQuantityAggregator.maxQuantity(heapSummary, "heapSize");
+        long jitCount = jfrQuantityAggregator.count(events.apply(type("jdk.Compilation")));
+        long totalEvents = jfrQuantityAggregator.count(events);
         return new SharedMetrics(
                 totalEvents, cpuStats.get("avg"), gcPauseCount, gcPauseStats.get("p99"),
                 exceptionCount, errorCount, totalLockDuration,
@@ -90,15 +90,15 @@ public final class QuickAnalysisService {
             double cpuPct = metrics.avgCpu.doubleValue() * 100;
             if (cpuPct > 90) {
                 findings.add(
-                        new Finding("CRITICAL", "🔴",
+                        new Finding("CRITICAL", "\uD83D\uDD34",
                                 format("CPU utilization %.1f%% (machine total)", cpuPct)));
             } else if (cpuPct > 75) {
                 findings.add(
-                        new Finding("HIGH", "🟠",
+                        new Finding("HIGH", "\uD83D\uDFE0",
                                 format("CPU utilization %.1f%%", cpuPct)));
             } else if (cpuPct > 60) {
                 findings.add(
-                        new Finding("MEDIUM", "🟡",
+                        new Finding("MEDIUM", "\uD83D\uDFE1",
                                 format("CPU utilization %.1f%%", cpuPct)));
             }
         }
@@ -107,15 +107,15 @@ public final class QuickAnalysisService {
             double lockSec = metrics.totalLockDuration.doubleValueIn(SECOND);
             if (lockSec > 30) {
                 findings.add(
-                        new Finding("CRITICAL", "🔴",
+                        new Finding("CRITICAL", "\uD83D\uDD34",
                                 format("Lock contention total %.1fs across all monitors", lockSec)));
             } else if (lockSec > 10) {
                 findings.add(
-                        new Finding("HIGH", "🟠",
+                        new Finding("HIGH", "\uD83D\uDFE0",
                                 format("Lock contention total %.1fs", lockSec)));
             } else if (lockSec > 5) {
                 findings.add(
-                        new Finding("MEDIUM", "🟡",
+                        new Finding("MEDIUM", "\uD83D\uDFE1",
                                 format("Lock contention total %.1fs", lockSec)));
             }
         }
@@ -124,15 +124,15 @@ public final class QuickAnalysisService {
             double p99Ms = metrics.p99GcPause.doubleValueIn(MILLISECOND);
             if (p99Ms > 500) {
                 findings.add(
-                        new Finding("CRITICAL", "🔴",
+                        new Finding("CRITICAL", "\uD83D\uDD34",
                                 format("GC P99 pause %.1fms", p99Ms)));
             } else if (p99Ms > 200) {
                 findings.add(
-                        new Finding("HIGH", "🟠",
+                        new Finding("HIGH", "\uD83D\uDFE0",
                                 format("GC P99 pause %.1fms (%d pauses)", p99Ms, metrics.gcPauseCount)));
             } else if (p99Ms > 100) {
                 findings.add(
-                        new Finding("MEDIUM", "🟡",
+                        new Finding("MEDIUM", "\uD83D\uDFE1",
                                 format("GC P99 pause %.1fms", p99Ms)));
             }
         }
@@ -141,15 +141,15 @@ public final class QuickAnalysisService {
             double avgMs = metrics.avgSocketRead.doubleValueIn(MILLISECOND);
             if (avgMs > 500) {
                 findings.add(
-                        new Finding("CRITICAL", "🔴",
+                        new Finding("CRITICAL", "\uD83D\uDD34",
                                 format("Socket read latency %.1fms avg", avgMs)));
             } else if (avgMs > 100) {
                 findings.add(
-                        new Finding("HIGH", "🟠",
+                        new Finding("HIGH", "\uD83D\uDFE0",
                                 format("Socket read latency %.1fms avg", avgMs)));
             } else if (avgMs > 50) {
                 findings.add(
-                        new Finding("MEDIUM", "🟡",
+                        new Finding("MEDIUM", "\uD83D\uDFE1",
                                 format("Socket read latency %.1fms avg", avgMs)));
             }
         }
@@ -159,28 +159,28 @@ public final class QuickAnalysisService {
             double heapPct = (metrics.maxHeapUsed.doubleValue() / metrics.maxHeapSize.doubleValue()) * 100;
             if (heapPct > 90) {
                 findings.add(
-                        new Finding("CRITICAL", "🔴",
+                        new Finding("CRITICAL", "\uD83D\uDD34",
                                 format("Heap usage %.1f%% of max", heapPct)));
             } else if (heapPct > 75) {
                 findings.add(
-                        new Finding("HIGH", "🟠",
+                        new Finding("HIGH", "\uD83D\uDFE0",
                                 format("Heap usage %.1f%% of max", heapPct)));
             } else if (heapPct > 60) {
                 findings.add(
-                        new Finding("MEDIUM", "🟡",
+                        new Finding("MEDIUM", "\uD83D\uDFE1",
                                 format("Heap usage %.1f%% of max", heapPct)));
             }
         }
 
         if (metrics.errorCount > 0) {
             findings.add(
-                    new Finding("HIGH", "🟠",
+                    new Finding("HIGH", "\uD83D\uDFE0",
                             format("%d Java errors thrown", metrics.errorCount)));
         }
 
         if (metrics.jitCount > 500) {
             findings.add(
-                    new Finding("MEDIUM", "🟡",
+                    new Finding("MEDIUM", "\uD83D\uDFE1",
                             format("JIT compilation storm (%d compilations)", metrics.jitCount)));
         }
 
@@ -231,7 +231,7 @@ public final class QuickAnalysisService {
                     .append(f.message()).append("\n");
         }
         if (findings.isEmpty()) {
-            sb.append("🟢 **LOW:** No significant issues detected.\n");
+            sb.append("\uD83D\uDFE2 **LOW:** No significant issues detected.\n");
         }
         sb.append("\n");
         return sb.toString();
@@ -243,7 +243,7 @@ public final class QuickAnalysisService {
         boolean hasHigh = findings.stream().anyMatch(f -> "HIGH".equals(f.severity()));
 
         if (hasCritical) {
-            sb.append("⚠️ **Critical issues detected.** Prioritize: ");
+            sb.append("\u26A0\uFE0F **Critical issues detected.** Prioritize: ");
             findings.stream()
                     .filter(f -> "CRITICAL".equals(f.severity()))
                     .forEach(f -> sb.append(f.message()).append("; "));

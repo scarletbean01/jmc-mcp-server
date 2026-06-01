@@ -1,7 +1,7 @@
 package io.github.deplague.jmcmcp.application.service;
 
+import io.github.deplague.jmcmcp.application.model.JobStatusResponse;
 import io.github.deplague.jmcmcp.domain.model.AsyncJob;
-import io.github.deplague.jmcmcp.infrastructure.api.model.JobStatusResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 

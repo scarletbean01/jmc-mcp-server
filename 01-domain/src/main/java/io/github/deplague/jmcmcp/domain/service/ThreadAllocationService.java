@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ThreadAllocEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadAllocationResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -12,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.lang.Long.*;
 import static java.lang.String.format;
 import static java.util.List.of;
@@ -26,7 +28,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadAllocationService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public ThreadAllocationResult analyze(IItemCollection events, int topN) {
         IItemCollection allocStats = events.apply(type("jdk.ThreadAllocationStatistics"));
@@ -37,10 +41,10 @@ public final class ThreadAllocationService {
         Map<String, ThreadAllocStats> threadStatsMap = new HashMap<>();
 
         for (IItemIterable iterable : allocStats) {
-            IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "eventThread");
-            IMemberAccessor<IQuantity, IItem> allocatedAccessor = getAccessor(type, "allocated");
-            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor((IType<IItem>) type);
+            IType<IItem> type = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAccessor = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<IQuantity, IItem> allocatedAccessor = jfrAccessorRepository.getAccessor(type, "allocated");
+            IMemberAccessor<IQuantity, IItem> timeAccessor = START_TIME.getAccessor(type);
 
             if (threadAccessor != null && allocatedAccessor != null) {
                 for (IItem item : iterable) {
@@ -53,7 +57,7 @@ public final class ThreadAllocationService {
                         long allocated = allocatedQ.clampedLongValueIn(BYTE);
                         long timeNanos = timeQ != null ? timeQ.clampedLongValueIn(NANOSECOND) : 0;
 
-                        ThreadAllocStats stats = threadStatsMap.computeIfAbsent(threadName, k -> new ThreadAllocStats());
+                        ThreadAllocStats stats = threadStatsMap.computeIfAbsent(threadName, _ -> new ThreadAllocStats());
                         stats.update(allocated, timeNanos);
                     }
                 }

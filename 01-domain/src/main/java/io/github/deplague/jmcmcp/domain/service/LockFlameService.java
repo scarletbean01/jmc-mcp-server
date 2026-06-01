@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.LockFlameEntry;
 import io.github.deplague.jmcmcp.domain.model.LockFlameResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -10,8 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
 import static java.util.List.of;
 import static java.util.Map.Entry;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
@@ -23,11 +24,13 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Contains no MCP-specific or UI formatting logic.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class LockFlameService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public LockFlameResult analyze(IItemCollection events, int topN) {
         Map<String, Long> pathDist = new HashMap<>();
-        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        JfrStackTraceService.StackTraceFormatCache stCache = new JfrStackTraceService.StackTraceFormatCache();
         long totalNanos = 0;
 
         for (String typeId : new String[]{
@@ -39,7 +42,7 @@ public final class LockFlameService {
             for (IItemIterable iterable : locks) {
                 IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        getAccessor(type, "stackTrace");
+                        jfrAccessorRepository.getAccessor(type, "stackTrace");
                 IMemberAccessor<IQuantity, IItem> durAccessor =
                         DURATION.getAccessor(iterable.getType());
 

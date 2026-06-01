@@ -2,7 +2,6 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeChildEntry;
 import io.github.deplague.jmcmcp.domain.model.ExpandDiffCallTreeResult;
-import io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;

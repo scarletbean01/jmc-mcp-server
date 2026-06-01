@@ -1,7 +1,11 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -10,9 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
 import static java.lang.Long.compare;
 import static java.lang.Math.*;
 import static java.lang.String.format;
@@ -28,16 +29,19 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Pure domain service for analyzing socket network events.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class NetworkAnalysisService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public NetworkAnalysisResult analyze(IItemCollection events, int topN) {
         IItemCollection connectEvents = events.apply(type("jdk.SocketConnect"));
         IItemCollection readEvents = events.apply(type("jdk.SocketRead"));
         IItemCollection writeEvents = events.apply(type("jdk.SocketWrite"));
 
-        long connectCount = count(connectEvents);
-        long readCount = count(readEvents);
-        long writeCount = count(writeEvents);
+        long connectCount = jfrQuantityAggregator.count(connectEvents);
+        long readCount = jfrQuantityAggregator.count(readEvents);
+        long writeCount = jfrQuantityAggregator.count(writeEvents);
 
         if (connectCount == 0 && readCount == 0 && writeCount == 0) {
             return new NetworkAnalysisResult(
@@ -52,7 +56,7 @@ public final class NetworkAnalysisService {
         Optional<String> p95ConnectDuration = empty();
 
         if (connectCount > 0) {
-            var stats = batchStats(connectEvents, DURATION.getIdentifier(), 95);
+            var stats = jfrQuantityAggregator.batchStats(connectEvents, DURATION.getIdentifier(), 95);
             avgConnectDuration = ofNullable(stats.get("avg")).map(q -> q.displayUsing(AUTO));
             maxConnectDuration = ofNullable(stats.get("max")).map(q -> q.displayUsing(AUTO));
             p95ConnectDuration = ofNullable(stats.get("p95")).map(q -> q.displayUsing(AUTO));
@@ -129,9 +133,9 @@ public final class NetworkAnalysisService {
         Map<HostPortKey, ConnectStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type1, "host");
+            IMemberAccessor<Object, IItem> hostAccessor = jfrAccessorRepository.getAccessor(type1, "host");
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type, "port");
+            IMemberAccessor<IQuantity, IItem> portAccessor = jfrAccessorRepository.getAccessor(type, "port");
             IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
 
             if (hostAccessor != null) {
@@ -170,12 +174,12 @@ public final class NetworkAnalysisService {
         Map<HostPortKey, ReadStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
             IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type2, "host");
+            IMemberAccessor<Object, IItem> hostAccessor = jfrAccessorRepository.getAccessor(type2, "host");
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type1, "port");
+            IMemberAccessor<IQuantity, IItem> portAccessor = jfrAccessorRepository.getAccessor(type1, "port");
             IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type, "bytesRead");
+            IMemberAccessor<IQuantity, IItem> bytesAccessor = jfrAccessorRepository.getAccessor(type, "bytesRead");
 
             if (hostAccessor != null) {
                 for (IItem item : iterable) {
@@ -217,12 +221,12 @@ public final class NetworkAnalysisService {
         Map<HostPortKey, WriteStats> stats = new HashMap<>();
         for (IItemIterable iterable : events) {
             IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> hostAccessor = getAccessor(type2, "host");
+            IMemberAccessor<Object, IItem> hostAccessor = jfrAccessorRepository.getAccessor(type2, "host");
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> portAccessor = getAccessor(type1, "port");
+            IMemberAccessor<IQuantity, IItem> portAccessor = jfrAccessorRepository.getAccessor(type1, "port");
             IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type, "bytesWritten");
+            IMemberAccessor<IQuantity, IItem> bytesAccessor = jfrAccessorRepository.getAccessor(type, "bytesWritten");
 
             if (hostAccessor != null) {
                 for (IItem item : iterable) {
@@ -264,7 +268,7 @@ public final class NetworkAnalysisService {
         if (!events.hasItems()) {
             return new NetworkLatencyPercentile(name, "N/A", "N/A", "N/A", "N/A");
         }
-        var stats = batchStats(events, DURATION.getIdentifier(), 50, 95, 99);
+        var stats = jfrQuantityAggregator.batchStats(events, DURATION.getIdentifier(), 50, 95, 99);
         return new NetworkLatencyPercentile(
                 name, display(stats.get("p50")), display(stats.get("p95")), display(stats.get("p99")), display(stats.get("max"))
         );

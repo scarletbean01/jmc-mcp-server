@@ -28,7 +28,6 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  */
 @ApplicationScoped
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-
 public final class CorrelateService {
     private final JfrAccessorRepository jfrAccessorRepository;
     private final JfrQuantityAggregator jfrQuantityAggregator;

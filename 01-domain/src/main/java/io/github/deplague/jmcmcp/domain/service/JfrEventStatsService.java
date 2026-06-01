@@ -3,8 +3,11 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.EventCategoricalField;
 import io.github.deplague.jmcmcp.domain.model.EventFieldStats;
 import io.github.deplague.jmcmcp.domain.model.JfrEventStatsResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -14,8 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.github.deplague.jmcmcp.domain.model.EventCategoricalField.EventFieldValue;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
 import static java.util.List.of;
 import static java.util.Map.Entry;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
@@ -24,13 +25,15 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
 /**
  * Pure domain service for JFR event statistical summaries.
  */
-@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class JfrEventStatsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public JfrEventStatsResult analyze(IItemCollection events, String eventType) {
         IItemCollection targetEvents = events.apply(type(eventType));
-        long count = count(targetEvents);
+        long count = jfrQuantityAggregator.count(targetEvents);
 
         if (count == 0) {
             return new JfrEventStatsResult(eventType, 0, of(), of(), false);
@@ -47,11 +50,11 @@ public final class JfrEventStatsService {
 
         for (IAccessorKey<?> key : type.getAccessorKeys().keySet()) {
             String identifier = key.getIdentifier();
-            IQuantity max = maxQuantity(targetEvents, identifier);
+            IQuantity max = jfrQuantityAggregator.maxQuantity(targetEvents, identifier);
             if (max != null) {
-                IQuantity min = minQuantity(targetEvents, identifier);
-                IQuantity avg = avgQuantity(targetEvents, identifier);
-                IQuantity p95 = percentileQuantity(targetEvents, identifier, 95);
+                IQuantity min = jfrQuantityAggregator.minQuantity(targetEvents, identifier);
+                IQuantity avg = jfrQuantityAggregator.avgQuantity(targetEvents, identifier);
+                IQuantity p95 = jfrQuantityAggregator.percentileQuantity(targetEvents, identifier, 95);
                 numericFields.add(new EventFieldStats(
                         identifier,
                         display(min),
@@ -73,7 +76,7 @@ public final class JfrEventStatsService {
             Map<String, Long> dist = new HashMap<>();
             for (IItemIterable iterable : targetEvents) {
                 IType<?> type1 = iterable.getType();
-                IMemberAccessor<Object, IItem> acc = getAccessor(type1, identifier);
+                IMemberAccessor<Object, IItem> acc = jfrAccessorRepository.getAccessor(type1, identifier);
                 if (acc != null) {
                     for (IItem item : iterable) {
                         Object val = acc.getMember(item);

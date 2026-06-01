@@ -2,14 +2,16 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JvmFlagEntry;
 import io.github.deplague.jmcmcp.domain.model.JvmFlagsResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.util.Comparator.comparing;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 
@@ -18,7 +20,9 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class JvmFlagsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public JvmFlagsResult analyze(IItemCollection events, String filter) {
         List<JvmFlagEntry> flags = new ArrayList<>();
@@ -43,9 +47,9 @@ public final class JvmFlagsService {
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> nameAcc = getAccessor(type1, "name");
+            IMemberAccessor<Object, IItem> nameAcc = jfrAccessorRepository.getAccessor(type1, "name");
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> valueAcc = getAccessor(type, "value");
+            IMemberAccessor<Object, IItem> valueAcc = jfrAccessorRepository.getAccessor(type, "value");
             if (nameAcc != null && valueAcc != null) {
                 for (IItem item : iterable) {
                     Object name = nameAcc.getMember(item);

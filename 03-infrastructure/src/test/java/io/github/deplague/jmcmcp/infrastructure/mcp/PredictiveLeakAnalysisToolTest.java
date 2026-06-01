@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.PredictiveLeakAnalysisTool;
@@ -44,7 +45,7 @@ class PredictiveLeakAnalysisToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        PredictiveLeakAnalysisService domainService = new PredictiveLeakAnalysisService();
+        PredictiveLeakAnalysisService domainService = new PredictiveLeakAnalysisService(new JfrAccessorRepositoryImpl());
         PredictiveLeakAnalysisApplicationService appService = new PredictiveLeakAnalysisApplicationService(jfrProvider, domainService);
         tool = new PredictiveLeakAnalysisTool(appService);
     }

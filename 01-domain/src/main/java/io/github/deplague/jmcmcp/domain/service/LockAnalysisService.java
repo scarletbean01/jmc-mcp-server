@@ -1,8 +1,13 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
+import io.github.deplague.jmcmcp.domain.service.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -11,10 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.lang.Long.compare;
 import static java.lang.Math.max;
 import static java.util.Map.Entry;
@@ -29,7 +31,10 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Pure domain service for advanced lock analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class LockAnalysisService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public LockAnalysisResult analyze(IItemCollection events, int topN) {
         Optional<ThreadParkSummary> parkSummary = analyzeThreadPark(events, topN);
@@ -41,17 +46,17 @@ public final class LockAnalysisService {
 
     private Optional<ThreadParkSummary> analyzeThreadPark(IItemCollection events, int topN) {
         IItemCollection parks = events.apply(type("jdk.ThreadPark"));
-        long parkCount = count(parks);
+        long parkCount = jfrQuantityAggregator.count(parks);
         if (parkCount == 0) {
             return empty();
         }
 
-        var stats = batchStats(parks, DURATION.getIdentifier());
+        var stats = jfrQuantityAggregator.batchStats(parks, DURATION.getIdentifier());
 
         Map<StackTraceKey, ParkStats> parkSites = new HashMap<>();
         for (IItemIterable iterable : parks) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
             IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(iterable.getType());
             if (stackAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {
@@ -96,9 +101,9 @@ public final class LockAnalysisService {
         IItemCollection classRevocs = events.apply(type("jdk.BiasedLockClassRevocation"));
         IItemCollection selfRevocs = events.apply(type("jdk.BiasedLockSelfRevocation"));
 
-        long rCount = count(revocs);
-        long crCount = count(classRevocs);
-        long srCount = count(selfRevocs);
+        long rCount = jfrQuantityAggregator.count(revocs);
+        long crCount = jfrQuantityAggregator.count(classRevocs);
+        long srCount = jfrQuantityAggregator.count(selfRevocs);
 
         if (rCount == 0 && crCount == 0 && srCount == 0) {
             return empty();
@@ -108,10 +113,10 @@ public final class LockAnalysisService {
         for (IItemCollection c : new IItemCollection[]{revocs, classRevocs, selfRevocs}) {
             for (IItemIterable iterable : c) {
                 IType<?> type1 = iterable.getType();
-                IMemberAccessor<Object, IItem> lockClassAcc = getAccessor(type1, "lockClass");
+                IMemberAccessor<Object, IItem> lockClassAcc = jfrAccessorRepository.getAccessor(type1, "lockClass");
                 if (lockClassAcc == null) {
                     IType<?> type = iterable.getType();
-                    lockClassAcc = getAccessor(type, "revokedClass");
+                    lockClassAcc = jfrAccessorRepository.getAccessor(type, "revokedClass");
                 }
                 if (lockClassAcc != null) {
                     for (IItem item : iterable) {

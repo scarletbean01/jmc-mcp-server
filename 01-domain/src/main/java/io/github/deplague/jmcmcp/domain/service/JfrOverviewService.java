@@ -1,8 +1,10 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JfrOverviewResult;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -15,7 +17,9 @@ import java.util.Map;
  * Domain service for JFR recording overview analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class JfrOverviewService {
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public JfrOverviewResult analyze(
             String filePath,
@@ -47,7 +51,7 @@ public final class JfrOverviewService {
         }
 
         Long filteredEventsCount;
-        filteredEventsCount = hasTimeFilter ? JfrQuantityAggregator.count(filteredEvents) : null;
+        filteredEventsCount = hasTimeFilter ? jfrQuantityAggregator.count(filteredEvents) : null;
 
         return new JfrOverviewResult(
                 filePath,

@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.application.service.SmartLockResolverApplicationService;
 import io.github.deplague.jmcmcp.domain.service.SmartLockResolverService;
@@ -44,7 +45,7 @@ class SmartLockResolverToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        SmartLockResolverService domainService = new SmartLockResolverService();
+        SmartLockResolverService domainService = new SmartLockResolverService(new JfrAccessorRepositoryImpl());
         SmartLockResolverApplicationService appService = new SmartLockResolverApplicationService(jfrProvider, domainService);
         tool = new SmartLockResolverTool(appService);
     }

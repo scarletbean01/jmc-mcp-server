@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.IncidentTimelineResult;
 import io.github.deplague.jmcmcp.domain.model.TimelineEventEntry;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
@@ -13,8 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
 import static java.time.Instant.ofEpochMilli;
 import static java.time.Instant.parse;
 import static java.util.Comparator.comparingLong;
@@ -30,7 +31,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
  * Domain service for incident timeline analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class IncidentTimelineService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final Set<String> SIGNIFICANT_EVENTS = of(
             "jdk.GCPhasePause",
@@ -91,7 +94,7 @@ public final class IncidentTimelineService {
             IType<?> type = iterable.getType();
             var timeAcc = START_TIME.getAccessor((IType<IItem>) type);
             var durAcc = DURATION.getAccessor((IType<IItem>) type);
-            var threadAcc = getAccessor(type, "eventThread");
+            var threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
 
             if (timeAcc != null) {
                 for (IItem item : iterable) {
@@ -179,21 +182,21 @@ public final class IncidentTimelineService {
 
     private String extractContext(IItem item, String typeId) {
         if (typeId.contains("Exception") || typeId.contains("Error")) {
-            return getMember(item, "thrownClass").map(Object::toString).orElse("");
+            return jfrAccessorRepository.getMember(item, "thrownClass").map(Object::toString).orElse("");
         }
         if (typeId.contains("MonitorEnter") || typeId.contains("ThreadPark")) {
-            return getMember(item, "monitorClass").map(Object::toString).orElse("");
+            return jfrAccessorRepository.getMember(item, "monitorClass").map(Object::toString).orElse("");
         }
         if (typeId.contains("File") || typeId.contains("Socket")) {
-            String path = getMember(item, "path").map(Object::toString).orElse("");
+            String path = jfrAccessorRepository.getMember(item, "path").map(Object::toString).orElse("");
             if (!path.isEmpty()) {
                 return path;
             }
-            return getMember(item, "host").map(Object::toString).orElse("");
+            return jfrAccessorRepository.getMember(item, "host").map(Object::toString).orElse("");
         }
         if (typeId.contains("PhasePause") || typeId.contains("ExecuteVMOperation") || typeId.contains("Safepoint")) {
-            return getMember(item, "name").map(Object::toString).orElse(
-                    getMember(item, "operation").map(Object::toString).orElse("")
+            return jfrAccessorRepository.getMember(item, "name").map(Object::toString).orElse(
+                    jfrAccessorRepository.getMember(item, "operation").map(Object::toString).orElse("")
             );
         }
         return "";

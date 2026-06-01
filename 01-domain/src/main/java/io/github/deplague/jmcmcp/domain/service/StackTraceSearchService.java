@@ -3,7 +3,10 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.model.StackTraceMatchEntry;
 import io.github.deplague.jmcmcp.domain.model.StackTraceSearchResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.IMCStackTrace;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -11,20 +14,19 @@ import org.openjdk.jmc.common.unit.IQuantity;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.stackTraceMatches;
 import static java.util.List.of;
 import static java.util.regex.Pattern.compile;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
-/**
- * Pure domain service for full-text stack-trace search across all JFR event types.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class StackTraceSearchService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final List<String> SEARCHABLE_EVENT_TYPES = of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",
@@ -77,15 +79,15 @@ public final class StackTraceSearchService {
             for (IItemIterable iterable : typeEvents) {
                 IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        getAccessor(type, "stackTrace");
+                        jfrAccessorRepository.getAccessor(type, "stackTrace");
                 if (stackAccessor == null) {
                     continue;
                 }
 
                 IMemberAccessor<Object, IItem> threadAccessor =
-                        getAccessor(type, "eventThread");
+                        jfrAccessorRepository.getAccessor(type, "eventThread");
                 if (threadAccessor == null) {
-                    threadAccessor = getAccessor(type, "sampledThread");
+                    threadAccessor = jfrAccessorRepository.getAccessor(type, "sampledThread");
                 }
                 IMemberAccessor<IQuantity, IItem> startTimeAccessor =
                         START_TIME.getAccessor((IType<IItem>) type);
@@ -94,7 +96,7 @@ public final class StackTraceSearchService {
                 Map<String, IMemberAccessor<Object, IItem>> detailAccessors = new HashMap<>();
                 for (String field : detailFields) {
                     IMemberAccessor<Object, IItem> acc =
-                            getAccessor(type, field);
+                            jfrAccessorRepository.getAccessor(type, field);
                     if (acc != null) {
                         detailAccessors.put(field, acc);
                     }

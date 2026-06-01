@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.application.service.GcDetailApplicationService;
 import io.github.deplague.jmcmcp.domain.service.GcDetailService;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
@@ -44,7 +46,9 @@ class GcDetailToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        GcDetailService domainService = new GcDetailService();
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        JfrQuantityAggregatorImpl quantityAgg = new JfrQuantityAggregatorImpl(accessorRepo);
+        GcDetailService domainService = new GcDetailService(accessorRepo, quantityAgg);
         GcDetailApplicationService appService = new GcDetailApplicationService(jfrProvider, domainService);
         tool = new GcDetailTool(appService);
     }

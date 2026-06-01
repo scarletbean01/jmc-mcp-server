@@ -1,8 +1,11 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
@@ -10,9 +13,6 @@ import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.maxQuantity;
 import static java.lang.Double.parseDouble;
 import static java.lang.String.format;
 import static java.util.Optional.empty;
@@ -20,11 +20,12 @@ import static java.util.Optional.of;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 
-/**
- * Pure domain service for system health analysis.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SystemHealthService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public SystemHealthResult analyze(IItemCollection events) {
         Optional<CpuLoad> cpuLoad = analyzeCpuLoad(events);
@@ -45,9 +46,9 @@ public final class SystemHealthService {
             return empty();
         }
 
-        var machineStats = batchStats(cpuLoad, "machineTotal");
-        var userStats = batchStats(cpuLoad, "jvmUser");
-        var sysStats = batchStats(cpuLoad, "jvmSystem");
+        var machineStats = jfrQuantityAggregator.batchStats(cpuLoad, "machineTotal");
+        var userStats = jfrQuantityAggregator.batchStats(cpuLoad, "jvmUser");
+        var sysStats = jfrQuantityAggregator.batchStats(cpuLoad, "jvmSystem");
 
         return of(new CpuLoad(
                 formatPercent(machineStats.get("avg")),
@@ -63,8 +64,8 @@ public final class SystemHealthService {
             return empty();
         }
 
-        IQuantity totalSize = maxQuantity(physicalMem, "totalSize");
-        var usedStats = batchStats(physicalMem, "usedSize");
+        IQuantity totalSize = jfrQuantityAggregator.maxQuantity(physicalMem, "totalSize");
+        var usedStats = jfrQuantityAggregator.batchStats(physicalMem, "usedSize");
 
         return of(new PhysicalMemory(
                 display(totalSize),
@@ -81,9 +82,9 @@ public final class SystemHealthService {
         }
 
         Optional<IItem> firstItem = cpuInfo.stream().flatMap(IItemIterable::stream).findFirst();
-        String cpu = firstItem.flatMap(item -> getMember(item, "cpu").map(Object::toString)).orElse(null);
-        IQuantity cores = maxQuantity(cpuInfo, "cores");
-        IQuantity sockets = maxQuantity(cpuInfo, "sockets");
+        String cpu = firstItem.flatMap(item -> jfrAccessorRepository.getMember(item, "cpu").map(Object::toString)).orElse(null);
+        IQuantity cores = jfrQuantityAggregator.maxQuantity(cpuInfo, "cores");
+        IQuantity sockets = jfrQuantityAggregator.maxQuantity(cpuInfo, "sockets");
 
         return of(new CpuInfo(
                 cpu,
@@ -105,11 +106,11 @@ public final class SystemHealthService {
 
         IItem item = itemOpt.get();
         return of(new SystemContainerConfig(
-                getMember(item, "cpuShares").map(Object::toString).orElse("N/A"),
-                display(JfrAccessorRepository.<IQuantity>getQuantity(item, "cpuPeriod").orElse(null)),
-                display(JfrAccessorRepository.<IQuantity>getQuantity(item, "cpuQuota").orElse(null)),
-                display(JfrAccessorRepository.<IQuantity>getQuantity(item, "memoryLimit").orElse(null)),
-                display(JfrAccessorRepository.<IQuantity>getQuantity(item, "swapLimit").orElse(null))
+                jfrAccessorRepository.getMember(item, "cpuShares").map(Object::toString).orElse("N/A"),
+                display(jfrAccessorRepository.<IQuantity>getQuantity(item, "cpuPeriod").orElse(null)),
+                display(jfrAccessorRepository.<IQuantity>getQuantity(item, "cpuQuota").orElse(null)),
+                display(jfrAccessorRepository.<IQuantity>getQuantity(item, "memoryLimit").orElse(null)),
+                display(jfrAccessorRepository.<IQuantity>getQuantity(item, "swapLimit").orElse(null))
         ));
     }
 

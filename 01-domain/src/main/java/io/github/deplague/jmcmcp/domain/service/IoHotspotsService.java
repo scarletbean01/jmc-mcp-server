@@ -3,7 +3,12 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.IoEndpointEntry;
 import io.github.deplague.jmcmcp.domain.model.IoHotspotsResult;
 import io.github.deplague.jmcmcp.domain.model.IoLatencyPercentile;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -11,11 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.maxQuantity;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.percentileQuantity;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
 import static java.lang.Long.compare;
 import static java.lang.Math.log;
 import static java.lang.Math.pow;
@@ -30,8 +30,12 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 /**
  * Pure domain service for I/O hotspots analysis.
  */
+@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class IoHotspotsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public IoHotspotsResult analyze(IItemCollection events, String endpointFilter, int topN) {
         boolean showFile = "all".equals(endpointFilter) || "file".equals(endpointFilter);
@@ -63,7 +67,7 @@ public final class IoHotspotsService {
     private List<IoEndpointEntry> analyzeIoSection(IItemCollection events, List<String> types,
                                                    String targetAttr, String readAttr, String writeAttr, int topN) {
         Map<IoKey, IoStats> statsMap = new HashMap<>();
-        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        JfrStackTraceService.StackTraceFormatCache stCache = new JfrStackTraceService.StackTraceFormatCache();
         boolean isSocket = types.getFirst().contains("Socket");
 
         for (String typeId : types) {
@@ -73,13 +77,13 @@ public final class IoHotspotsService {
 
             for (IItemIterable iterable : typeEvents) {
                 IType<?> type3 = iterable.getType();
-                IMemberAccessor<Object, IItem> targetAccessor = getAccessor(type3, targetAttr);
+                IMemberAccessor<Object, IItem> targetAccessor = jfrAccessorRepository.getAccessor(type3, targetAttr);
                 IType<?> type2 = iterable.getType();
-                IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type2, DURATION.getIdentifier());
+                IMemberAccessor<IQuantity, IItem> durationAccessor = jfrAccessorRepository.getAccessor(type2, DURATION.getIdentifier());
                 IType<?> type1 = iterable.getType();
-                IMemberAccessor<IQuantity, IItem> bytesAccessor = getAccessor(type1, bytesAttr);
+                IMemberAccessor<IQuantity, IItem> bytesAccessor = jfrAccessorRepository.getAccessor(type1, bytesAttr);
                 IType<?> type = iterable.getType();
-                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+                IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
 
                 if (targetAccessor != null && durationAccessor != null) {
                     for (IItem item : iterable) {
@@ -88,7 +92,7 @@ public final class IoHotspotsService {
 
                         String target = targetObj.toString();
                         if (isSocket) {
-                            Object port = getMember(item, "port").orElse("");
+                            Object port = jfrAccessorRepository.getMember(item, "port").orElse("");
                             target = target + ":" + port;
                         }
 
@@ -137,12 +141,12 @@ public final class IoHotspotsService {
             return new IoLatencyPercentile(name, "N/A", "N/A", "N/A", "N/A");
         }
         String identifier2 = DURATION.getIdentifier();
-        IQuantity p50 = percentileQuantity(filtered, identifier2, 50);
+        IQuantity p50 = jfrQuantityAggregator.percentileQuantity(filtered, identifier2, 50);
         String identifier1 = DURATION.getIdentifier();
-        IQuantity p95 = percentileQuantity(filtered, identifier1, 95);
+        IQuantity p95 = jfrQuantityAggregator.percentileQuantity(filtered, identifier1, 95);
         String identifier = DURATION.getIdentifier();
-        IQuantity p99 = percentileQuantity(filtered, identifier, 99);
-        IQuantity max = maxQuantity(filtered, DURATION.getIdentifier());
+        IQuantity p99 = jfrQuantityAggregator.percentileQuantity(filtered, identifier, 99);
+        IQuantity max = jfrQuantityAggregator.maxQuantity(filtered, DURATION.getIdentifier());
         return new IoLatencyPercentile(name, display(p50), display(p95), display(p99), display(max));
     }
 

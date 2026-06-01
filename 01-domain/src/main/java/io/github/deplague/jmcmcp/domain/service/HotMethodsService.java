@@ -2,14 +2,15 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.HotMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 
 import java.util.*;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTraceFocusingOn;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTraceFocusingOn;
 import static java.util.List.of;
 import static java.util.Map.Entry;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
@@ -20,7 +21,9 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
  * Uses a PriorityQueue for efficient top-N selection without sorting the entire map.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class HotMethodsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public HotMethodsResult analyze(
             IItemCollection events,
@@ -41,10 +44,10 @@ public final class HotMethodsService {
         for (IItemIterable iterable : samples) {
             IType<?> type1 = iterable.getType();
             IMemberAccessor<Object, IItem> stackAccessor =
-                    getAccessor(type1, "stackTrace");
+                    jfrAccessorRepository.getAccessor(type1, "stackTrace");
             IType<?> type = iterable.getType();
             IMemberAccessor<Object, IItem> threadAccessor =
-                    getAccessor(type, "sampledThread");
+                    jfrAccessorRepository.getAccessor(type, "sampledThread");
 
             if (stackAccessor != null) {
                 for (IItem item : iterable) {

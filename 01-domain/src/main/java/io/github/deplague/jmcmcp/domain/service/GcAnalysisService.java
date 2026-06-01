@@ -4,14 +4,16 @@ import io.github.deplague.jmcmcp.domain.model.GcAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.GcFrequencies;
 import io.github.deplague.jmcmcp.domain.model.GcHeapSummary;
 import io.github.deplague.jmcmcp.domain.model.GcPauseTimes;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.batchStats;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.sumQuantity;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
@@ -22,8 +24,11 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 /**
  * Pure domain service for GC analysis.
  */
+@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GcAnalysisService {
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public GcAnalysisResult analyze(IItemCollection events, String detailLevel) {
         var gcPauses = events.apply(type("jdk.GCPhasePause"));
@@ -35,8 +40,8 @@ public final class GcAnalysisService {
 
         Optional<GcPauseTimes> pauseTimes = empty();
         if (gcPauses.hasItems() && ("all".equals(detailLevel) || "pause_times".equals(detailLevel))) {
-            var stats = batchStats(gcPauses, DURATION.getIdentifier());
-            IQuantity totalPause = sumQuantity(gcPauses, DURATION.getIdentifier());
+            var stats = jfrQuantityAggregator.batchStats(gcPauses, DURATION.getIdentifier());
+            IQuantity totalPause = jfrQuantityAggregator.sumQuantity(gcPauses, DURATION.getIdentifier());
             pauseTimes = of(new GcPauseTimes(display(stats.get("avg")), display(stats.get("max")), display(totalPause)));
         }
 
@@ -49,7 +54,7 @@ public final class GcAnalysisService {
 
         Optional<GcHeapSummary> heap = empty();
         if (("all".equals(detailLevel) || "heap_summary".equals(detailLevel)) && heapSummary.hasItems()) {
-            var stats = batchStats(heapSummary, "heapUsed");
+            var stats = jfrQuantityAggregator.batchStats(heapSummary, "heapUsed");
             heap = of(new GcHeapSummary(display(stats.get("max")), display(stats.get("min")), display(stats.get("avg"))));
         }
 

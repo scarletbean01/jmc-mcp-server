@@ -3,7 +3,11 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadFailure;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadPinningSite;
 import io.github.deplague.jmcmcp.domain.model.VirtualThreadsResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 
@@ -12,9 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.util.List.of;
 import static java.util.Map.Entry;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
@@ -24,16 +26,19 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class VirtualThreadsService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public VirtualThreadsResult analyze(IItemCollection events, int topN) {
         IItemCollection pinned = events.apply(type("jdk.VirtualThreadPinned"));
         IItemCollection submitFailed = events.apply(type("jdk.VirtualThreadSubmitFailed"));
         IItemCollection sleepFailed = events.apply(type("jdk.VirtualThreadSleepFailed"));
 
-        long pinnedCount = count(pinned);
-        long submitFailedCount = count(submitFailed);
-        long sleepFailedCount = count(sleepFailed);
+        long pinnedCount = jfrQuantityAggregator.count(pinned);
+        long submitFailedCount = jfrQuantityAggregator.count(submitFailed);
+        long sleepFailedCount = jfrQuantityAggregator.count(sleepFailed);
 
         if (pinnedCount == 0 && submitFailedCount == 0 && sleepFailedCount == 0) {
             return new VirtualThreadsResult(0, 0, 0, of(), of(), of(), false);
@@ -44,7 +49,7 @@ public final class VirtualThreadsService {
             Map<String, Long> pinningMap = new HashMap<>();
             for (IItemIterable iterable : pinned) {
                 IType<?> type = iterable.getType();
-                IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+                IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
                 if (stackAccessor != null) {
                     for (IItem item : iterable) {
                         Object stack = stackAccessor.getMember(item);
@@ -85,7 +90,7 @@ public final class VirtualThreadsService {
         Map<String, Long> exceptions = new HashMap<>();
         for (IItemIterable iterable : events) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> msgAccessor = getAccessor(type, "exception");
+            IMemberAccessor<String, IItem> msgAccessor = jfrAccessorRepository.getAccessor(type, "exception");
             if (msgAccessor != null) {
                 for (IItem item : iterable) {
                     String msg = msgAccessor.getMember(item);

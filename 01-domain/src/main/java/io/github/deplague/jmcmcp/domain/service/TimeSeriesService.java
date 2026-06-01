@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.TimeSeriesBucketEntry;
 import io.github.deplague.jmcmcp.domain.model.TimeSeriesResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -12,7 +15,6 @@ import java.util.List;
 
 import static io.github.deplague.jmcmcp.domain.service.TimeSeriesService.MetricType.AVERAGE;
 import static io.github.deplague.jmcmcp.domain.service.TimeSeriesService.MetricType.SUM;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.lang.Long.parseLong;
 import static java.lang.Math.ceil;
 import static java.lang.String.format;
@@ -30,7 +32,9 @@ import static org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getLatestEn
  * Contains no MCP-specific or UI formatting logic.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class TimeSeriesService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public TimeSeriesResult analyze(
             IItemCollection events,
@@ -170,7 +174,7 @@ public final class TimeSeriesService {
                     START_TIME.getAccessor(itemIterable.getType());
             IType<?> type = itemIterable.getType();
             IMemberAccessor<IQuantity, IItem> valAccessor =
-                    getAccessor(type, attrId);
+                    jfrAccessorRepository.getAccessor(type, attrId);
 
             if (timeAccessor != null && valAccessor != null) {
                 for (IItem item : itemIterable) {

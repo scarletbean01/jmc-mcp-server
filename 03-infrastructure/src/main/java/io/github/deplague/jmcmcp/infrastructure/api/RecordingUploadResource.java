@@ -1,9 +1,9 @@
 package io.github.deplague.jmcmcp.infrastructure.api;
 
-import io.github.deplague.jmcmcp.application.service.RecordingStorageService;
-import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
 import io.github.deplague.jmcmcp.infrastructure.api.model.RecordingInfo;
 import io.github.deplague.jmcmcp.infrastructure.api.model.UploadResponse;
+import io.github.deplague.jmcmcp.infrastructure.jfr.RecordingStorageService;
+import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;

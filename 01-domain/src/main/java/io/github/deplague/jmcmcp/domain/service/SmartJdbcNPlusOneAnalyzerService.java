@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.JdbcNPlusOnePattern;
 import io.github.deplague.jmcmcp.domain.model.JdbcNPlusOneResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -12,9 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.stackTraceMatches;
 import static java.lang.Double.compare;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -29,20 +31,19 @@ import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
-/**
- * Pure domain service that detects JDBC N+1 query patterns by analyzing
- * sequential short-duration socket I/O events correlated with SQL/ORM stack traces.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SmartJdbcNPlusOneAnalyzerService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final Pattern JDBC_PATTERN = compile(
             "java\\.sql\\.|javax\\.sql\\.|oracle\\.jdbc|org\\.postgresql|com\\.mysql|org\\.h2|com\\.microsoft\\.sqlserver|com\\.ibm\\.db2");
     private static final Pattern ORM_PATTERN = compile(
             "org\\.hibernate|org\\.eclipse\\.linkage|org\\.apache\\.openjpa|com\\.ibatis|org\\.mybatis|org\\.springframework\\.orm");
-    private static final long SHORT_DURATION_NS = 1_000_000; // < 1ms
+    private static final long SHORT_DURATION_NS = 1_000_000;
     private static final int MIN_BURST_SIZE = 5;
-    private static final long MAX_BURST_GAP_NS = 10_000_000; // 10ms gap between events in a burst
+    private static final long MAX_BURST_GAP_NS = 10_000_000;
 
     public JdbcNPlusOneResult analyze(IItemCollection events, int topN) {
         List<SocketEvent> socketEvents = new ArrayList<>();
@@ -80,14 +81,11 @@ public final class SmartJdbcNPlusOneAnalyzerService {
     private void collectSocketEvents(IItemCollection events, String typeId, List<SocketEvent> result) {
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IType<?> type3 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type3, "eventThread");
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> startAcc = getAccessor(type2, START_TIME.getIdentifier());
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type1, DURATION.getIdentifier());
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<IQuantity, IItem> startAcc = jfrAccessorRepository.getAccessor(type, START_TIME.getIdentifier());
+            IMemberAccessor<IQuantity, IItem> durationAcc = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> stackAcc = jfrAccessorRepository.getAccessor(type, "stackTrace");
 
             if (threadAcc == null || startAcc == null) {
                 continue;

@@ -2,8 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.SystemPropertiesResult;
 import io.github.deplague.jmcmcp.domain.model.SystemPropertyEntry;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.IItem;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
@@ -11,17 +13,15 @@ import org.openjdk.jmc.common.item.IItemIterable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
 import static java.util.Comparator.comparing;
 import static java.util.List.of;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
 
-/**
- * Pure domain service for extracting system properties from JFR recordings.
- */
-@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SystemPropertiesService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public SystemPropertiesResult analyze(IItemCollection events, String filter) {
         IItemCollection props = events.apply(type("jdk.InitialSystemProperty"));
@@ -32,8 +32,8 @@ public final class SystemPropertiesService {
         List<SystemPropertyEntry> entries = new ArrayList<>();
         for (IItemIterable iterable : props) {
             for (IItem item : iterable) {
-                Object key = getMember(item, "key").orElse(null);
-                Object val = getMember(item, "value").orElse(null);
+                Object key = jfrAccessorRepository.getMember(item, "key").orElse(null);
+                Object val = jfrAccessorRepository.getMember(item, "value").orElse(null);
                 if (key != null) {
                     String keyStr = key.toString();
                     if (filter == null || keyStr.contains(filter)) {

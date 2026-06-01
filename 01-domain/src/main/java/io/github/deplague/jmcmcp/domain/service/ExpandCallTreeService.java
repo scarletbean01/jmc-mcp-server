@@ -9,7 +9,8 @@ import org.openjdk.jmc.flightrecorder.stacktrace.tree.Node;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.CallTreeCache.*;
+import static io.github.deplague.jmcmcp.domain.service.CallTreeCache.*;
+
 
 /**
  * Pure domain service for expanding a specific node in a call tree.

@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.application.service.VirtualThreadsApplicationService;
 import io.github.deplague.jmcmcp.domain.service.VirtualThreadsService;
@@ -45,7 +47,9 @@ class VirtualThreadsToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProvider jfrProvider = new JfrProviderImpl(cache, accessController);
-        VirtualThreadsService domainService = new VirtualThreadsService();
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        JfrQuantityAggregatorImpl quantityAgg = new JfrQuantityAggregatorImpl(accessorRepo);
+        VirtualThreadsService domainService = new VirtualThreadsService(accessorRepo, quantityAgg);
         VirtualThreadsApplicationService appService = new VirtualThreadsApplicationService(jfrProvider, domainService);
         tool = new VirtualThreadsTool(appService);
     }

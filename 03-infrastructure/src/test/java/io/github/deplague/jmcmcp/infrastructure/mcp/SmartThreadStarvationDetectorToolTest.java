@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.application.service.SmartThreadStarvationDetectorApplicationService;
 import io.github.deplague.jmcmcp.domain.service.SmartThreadStarvationDetectorService;
@@ -44,7 +45,7 @@ class SmartThreadStarvationDetectorToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        SmartThreadStarvationDetectorService domainService = new SmartThreadStarvationDetectorService();
+        SmartThreadStarvationDetectorService domainService = new SmartThreadStarvationDetectorService(new JfrAccessorRepositoryImpl());
         SmartThreadStarvationDetectorApplicationService appService = new SmartThreadStarvationDetectorApplicationService(jfrProvider, domainService);
         tool = new SmartThreadStarvationDetectorTool(appService);
     }

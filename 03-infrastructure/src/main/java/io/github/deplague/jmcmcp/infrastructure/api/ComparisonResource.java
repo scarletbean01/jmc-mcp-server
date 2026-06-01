@@ -1,6 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.api;
 
-import io.github.deplague.jmcmcp.application.service.RecordingStorageService;
+import io.github.deplague.jmcmcp.infrastructure.jfr.RecordingStorageService;
 import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
 import io.github.deplague.jmcmcp.infrastructure.api.model.CompareRequest;
 import io.smallrye.common.annotation.RunOnVirtualThread;

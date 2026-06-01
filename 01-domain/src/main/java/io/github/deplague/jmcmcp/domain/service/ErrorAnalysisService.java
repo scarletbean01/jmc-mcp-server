@@ -2,16 +2,19 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ErrorAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.ErrorEntry;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import org.openjdk.jmc.common.item.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.count;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.lang.String.valueOf;
 import static java.util.List.of;
 import static java.util.Map.Entry;
@@ -21,14 +24,17 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
  * Pure domain service for error analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ErrorAnalysisService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public ErrorAnalysisResult analyze(IItemCollection events, int topN) {
         IItemCollection errorEvents = events.apply(type("jdk.JavaErrorThrow"));
         IItemCollection exceptionEvents = events.apply(type("jdk.JavaExceptionThrow"));
 
-        long errorCount = count(errorEvents);
-        long exceptionCount = count(exceptionEvents);
+        long errorCount = jfrQuantityAggregator.count(errorEvents);
+        long exceptionCount = jfrQuantityAggregator.count(exceptionEvents);
 
         if (errorCount == 0) {
             return new ErrorAnalysisResult(0, exceptionCount, of(), false);
@@ -37,9 +43,9 @@ public final class ErrorAnalysisService {
         Map<ErrorKey, Long> counts = new HashMap<>();
         for (IItemIterable iterable : errorEvents) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> classAccessor = getAccessor(type, "thrownClass");
-            IMemberAccessor<Object, IItem> msgAccessor = getAccessor(type, "message");
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> classAccessor = jfrAccessorRepository.getAccessor(type, "thrownClass");
+            IMemberAccessor<Object, IItem> msgAccessor = jfrAccessorRepository.getAccessor(type, "message");
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
 
             if (classAccessor != null) {
                 for (IItem item : iterable) {

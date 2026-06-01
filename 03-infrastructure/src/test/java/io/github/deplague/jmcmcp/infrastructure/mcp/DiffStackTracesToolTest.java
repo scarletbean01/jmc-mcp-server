@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.DiffStackTracesTool;
@@ -44,7 +45,8 @@ class DiffStackTracesToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        DiffStackTracesService domainService = new DiffStackTracesService();
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        DiffStackTracesService domainService = new DiffStackTracesService(accessorRepo);
         DiffStackTracesApplicationService appService = new DiffStackTracesApplicationService(jfrProvider, domainService);
         tool = new DiffStackTracesTool(appService);
     }

@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.DeadlockDetectionTool;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
@@ -44,7 +46,9 @@ class DeadlockDetectionToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        DeadlockDetectionService domainService = new DeadlockDetectionService();
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        JfrQuantityAggregatorImpl quantityAgg = new JfrQuantityAggregatorImpl(accessorRepo);
+        DeadlockDetectionService domainService = new DeadlockDetectionService(accessorRepo, quantityAgg);
         DeadlockDetectionApplicationService appService = new DeadlockDetectionApplicationService(jfrProvider, domainService);
         tool = new DeadlockDetectionTool(appService);
     }

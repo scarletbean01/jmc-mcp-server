@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.application.service.SmartJdbcNPlusOneAnalyzerApplicationService;
 import io.github.deplague.jmcmcp.domain.service.SmartJdbcNPlusOneAnalyzerService;
@@ -44,7 +45,7 @@ class SmartJdbcNPlusOneAnalyzerToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        SmartJdbcNPlusOneAnalyzerService domainService = new SmartJdbcNPlusOneAnalyzerService();
+        SmartJdbcNPlusOneAnalyzerService domainService = new SmartJdbcNPlusOneAnalyzerService(new JfrAccessorRepositoryImpl());
         SmartJdbcNPlusOneAnalyzerApplicationService appService = new SmartJdbcNPlusOneAnalyzerApplicationService(jfrProvider, domainService);
         tool = new SmartJdbcNPlusOneAnalyzerTool(appService);
     }

@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.HotMethodsTool;
@@ -43,7 +44,7 @@ class HotMethodsToolTest {
         JfrRecordingCache cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        HotMethodsService hotMethodsService = new HotMethodsService();
+        HotMethodsService hotMethodsService = new HotMethodsService(new JfrAccessorRepositoryImpl());
         HotMethodsApplicationService appService = new HotMethodsApplicationService(
                 jfrProvider, hotMethodsService
         );

@@ -4,15 +4,16 @@ import io.github.deplague.jmcmcp.domain.model.MethodSampleEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadCpuEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadCpuResult;
 import io.github.deplague.jmcmcp.domain.model.ThreadStateEntry;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.StackTraceFormatCache;
 import static java.lang.Long.compare;
 import static java.util.List.of;
 import static java.util.Map.Entry;
@@ -22,7 +23,9 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
  * Pure domain service for thread CPU analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadCpuService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public ThreadCpuResult analyze(IItemCollection events, String packagePrefix, int topN) {
         IItemCollection samples = events.apply(type("jdk.ExecutionSample"));
@@ -33,13 +36,13 @@ public final class ThreadCpuService {
         Map<String, ThreadStats> threadStatsMap = new HashMap<>();
         Map<String, Long> stateCounts = new HashMap<>();
         long totalSamples = 0;
-        StackTraceFormatCache stCache = new StackTraceFormatCache();
+        JfrStackTraceService.StackTraceFormatCache stCache = new JfrStackTraceService.StackTraceFormatCache();
 
         for (IItemIterable iterable : samples) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "sampledThread");
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
-            IMemberAccessor<String, IItem> stateAccessor = getAccessor(type, "state");
+            IMemberAccessor<Object, IItem> threadAccessor = jfrAccessorRepository.getAccessor(type, "sampledThread");
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
+            IMemberAccessor<String, IItem> stateAccessor = jfrAccessorRepository.getAccessor(type, "state");
 
             if (threadAccessor != null) {
                 for (IItem item : iterable) {

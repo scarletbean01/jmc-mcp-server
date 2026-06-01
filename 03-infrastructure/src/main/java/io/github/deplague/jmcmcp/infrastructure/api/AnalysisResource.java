@@ -1,11 +1,11 @@
 package io.github.deplague.jmcmcp.infrastructure.api;
 
+import io.github.deplague.jmcmcp.application.model.JobStatusResponse;
 import io.github.deplague.jmcmcp.application.service.AsyncJobService;
-import io.github.deplague.jmcmcp.application.service.RecordingStorageService;
+import io.github.deplague.jmcmcp.infrastructure.jfr.RecordingStorageService;
 import io.github.deplague.jmcmcp.domain.model.AsyncJob;
 import io.github.deplague.jmcmcp.infrastructure.api.model.AnalysisRequest;
 import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
-import io.github.deplague.jmcmcp.infrastructure.api.model.JobStatusResponse;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;

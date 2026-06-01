@@ -3,11 +3,11 @@ package io.github.deplague.jmcmcp.infrastructure.jfr;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Weigher;
-import io.github.deplague.jmcmcp.infrastructure.api.metrics.AnalysisMetrics;
+import io.github.deplague.jmcmcp.application.port.JfrRecording;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
 import io.github.deplague.jmcmcp.domain.exception.RecordingNotFoundException;
+import io.github.deplague.jmcmcp.infrastructure.api.metrics.AnalysisMetrics;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.item.IItemIterable;
 import org.openjdk.jmc.flightrecorder.JfrLoaderToolkit;
@@ -28,21 +28,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * platform-thread offloading for CPU-bound parsing to avoid Virtual Thread pinning.
  */
 @ApplicationScoped
-public final class JfrRecordingCache {
+public final class JfrRecordingCache implements JfrRecording {
 
     private static final Logger LOG = LoggerFactory.getLogger(JfrRecordingCache.class);
 
     private static final long DEFAULT_TTL_MINUTES =
             Long.getLong("jmc.cache.ttl.minutes", 60);
-    private static final long REFRESH_AFTER_WRITE_MINUTES =
-            Long.getLong("jmc.cache.refresh.minutes", 30);
     private static final double HEAP_MULTIPLIER_ESTIMATE =
             Double.parseDouble(System.getProperty("jmc.cache.heap.multiplier", "3.5"));
     private static final int MAX_WEIGHT_PERCENT =
             Integer.getInteger("jmc.cache.max-weight-percent", 50);
 
     private static final long MAX_CACHE_WEIGHT =
-            Runtime.getRuntime().maxMemory() * Math.max(1, Math.min(100, MAX_WEIGHT_PERCENT)) / 100;
+            Runtime.getRuntime().maxMemory() * Math.clamp(MAX_WEIGHT_PERCENT, 1, 100) / 100;
 
     // Dedicated pool for CPU-bound JFR parsing so we don't pin virtual thread carriers
     private final ExecutorService parsingExecutor = Executors.newWorkStealingPool(
@@ -68,10 +66,10 @@ public final class JfrRecordingCache {
 
     public JfrRecordingCache(long ttlMinutes, AnalysisMetrics metrics) {
         this.metrics = metrics;
-        this.cache = Caffeine.<String, CacheEntry>newBuilder()
+        this.cache = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
                 .maximumWeight(MAX_CACHE_WEIGHT)
-                .weigher((Weigher<String, CacheEntry>) (key, value) -> (int) Math.min(Integer.MAX_VALUE, value.estimatedHeapWeight))
+                .weigher((Weigher<String, CacheEntry>) (_, value) -> (int) Math.min(Integer.MAX_VALUE, value.estimatedHeapWeight))
                 .removalListener((key, value, cause) -> {
                     evictionCount.incrementAndGet();
                     if (metrics != null) {
@@ -89,6 +87,7 @@ public final class JfrRecordingCache {
                 ttlMinutes, formatBytes(MAX_CACHE_WEIGHT));
     }
 
+    @Override
     public IItemCollection load(String filePath) throws IOException {
         File file = new File(filePath).getAbsoluteFile();
         String key = file.getAbsolutePath();
@@ -135,41 +134,49 @@ public final class JfrRecordingCache {
         long eventCount = countEvents(events);
         CacheEntry newEntry = new CacheEntry(events, file.lastModified(), file.length(), eventCount);
         cache.put(key, newEntry);
-        
+
         LOG.info("Loaded recording into cache: {} ({} events, estWeight={})", key, eventCount, formatBytes(newEntry.estimatedHeapWeight));
         return events;
     }
 
+    @Override
     public void evict(String filePath) {
         File file = new File(filePath).getAbsoluteFile();
         cache.invalidate(file.getAbsolutePath());
     }
 
+    @Override
     public void clear() {
         cache.invalidateAll();
     }
 
+    @Override
     public int size() {
         cache.cleanUp();
         return (int) cache.estimatedSize();
     }
 
+    @Override
     public long getHitCount() {
         return hitCount.get();
     }
 
+    @Override
     public long getMissCount() {
         return missCount.get();
     }
 
+    @Override
     public long getEvictionCount() {
         return evictionCount.get();
     }
 
+    @Override
     public long getTotalCachedBytes() {
         return cache.asMap().values().stream().mapToLong(e -> e.fileSize).sum();
     }
 
+    @Override
     public void shutdown() {
         parsingExecutor.shutdown();
         try {

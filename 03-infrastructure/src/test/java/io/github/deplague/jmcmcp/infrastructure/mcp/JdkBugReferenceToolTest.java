@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.JdkBugReferenceTool;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
@@ -44,7 +46,8 @@ class JdkBugReferenceToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        JdkBugReferenceService domainService = new JdkBugReferenceService();
+        var accessorRepo = new JfrAccessorRepositoryImpl();
+        JdkBugReferenceService domainService = new JdkBugReferenceService(accessorRepo, new JfrQuantityAggregatorImpl(accessorRepo));
         JdkBugReferenceApplicationService appService = new JdkBugReferenceApplicationService(jfrProvider, domainService);
         tool = new JdkBugReferenceTool(appService);
     }

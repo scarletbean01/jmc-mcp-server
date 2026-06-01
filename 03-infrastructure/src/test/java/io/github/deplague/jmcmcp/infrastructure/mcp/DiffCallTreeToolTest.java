@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.domain.service.CallTreeCache;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
@@ -47,7 +49,9 @@ class DiffCallTreeToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        DiffCallTreeService domainService = new DiffCallTreeService();
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        JfrQuantityAggregatorImpl quantityAgg = new JfrQuantityAggregatorImpl(accessorRepo);
+        DiffCallTreeService domainService = new DiffCallTreeService(accessorRepo, quantityAgg);
         CallTreeCache callTreeCache = new CallTreeCache();
         appService = new DiffCallTreeApplicationService(jfrProvider, domainService, callTreeCache);
         tool = new DiffCallTreeTool(appService);
@@ -160,7 +164,7 @@ class DiffCallTreeToolTest {
         ToolResponse result = expandTool.expandDiffCallTree("nonexistent-tree-id", "root-0");
 
         assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Diff tree not found or expired");
+        assertThat(extractText(result)).contains("Error: Cached diff tree not found: nonexistent-tree-id");
     }
 
     @Test

@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.application.service.StackTraceSearchApplicationService;
 import io.github.deplague.jmcmcp.domain.service.StackTraceSearchService;
@@ -44,7 +45,7 @@ class StackTraceSearchToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        StackTraceSearchService domainService = new StackTraceSearchService();
+        StackTraceSearchService domainService = new StackTraceSearchService(new JfrAccessorRepositoryImpl());
         StackTraceSearchApplicationService appService = new StackTraceSearchApplicationService(jfrProvider, domainService);
         tool = new StackTraceSearchTool(appService);
     }

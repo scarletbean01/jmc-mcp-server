@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.application.service.ErrorAnalysisApplicationService;
 import io.github.deplague.jmcmcp.application.service.GcAnalysisApplicationService;
 import io.github.deplague.jmcmcp.application.service.HeapTrendsApplicationService;
@@ -62,26 +64,28 @@ class QuickAnalysisToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
+        JfrAccessorRepositoryImpl accessorRepo = new JfrAccessorRepositoryImpl();
+        JfrQuantityAggregatorImpl quantityAgg = new JfrQuantityAggregatorImpl(accessorRepo);
 
-        QuickAnalysisService quickAnalysisService = new QuickAnalysisService();
+        QuickAnalysisService quickAnalysisService = new QuickAnalysisService(quantityAgg);
         SystemHealthApplicationService systemHealthAppService =
-                new SystemHealthApplicationService(jfrProvider, new SystemHealthService());
+                new SystemHealthApplicationService(jfrProvider, new SystemHealthService(accessorRepo, quantityAgg));
         ThreadCpuApplicationService threadCpuAppService =
-                new ThreadCpuApplicationService(jfrProvider, new ThreadCpuService());
+                new ThreadCpuApplicationService(jfrProvider, new ThreadCpuService(accessorRepo));
         HotMethodsApplicationService hotMethodsAppService =
-                new HotMethodsApplicationService(jfrProvider, new HotMethodsService());
+                new HotMethodsApplicationService(jfrProvider, new HotMethodsService(accessorRepo));
         GcAnalysisApplicationService gcAnalysisAppService =
-                new GcAnalysisApplicationService(jfrProvider, new GcAnalysisService());
+                new GcAnalysisApplicationService(jfrProvider, new GcAnalysisService(quantityAgg));
         HeapTrendsApplicationService heapTrendsAppService =
-                new HeapTrendsApplicationService(jfrProvider, new HeapTrendsService());
+                new HeapTrendsApplicationService(jfrProvider, new HeapTrendsService(accessorRepo));
         ThreadContentionApplicationService threadContentionAppService =
-                new ThreadContentionApplicationService(jfrProvider, new ThreadContentionService());
+                new ThreadContentionApplicationService(jfrProvider, new ThreadContentionService(accessorRepo));
         IoHotspotsApplicationService ioHotspotsAppService =
-                new IoHotspotsApplicationService(jfrProvider, new IoHotspotsService());
+                new IoHotspotsApplicationService(jfrProvider, new IoHotspotsService(accessorRepo, quantityAgg));
         LockAnalysisApplicationService lockAnalysisAppService =
-                new LockAnalysisApplicationService(jfrProvider, new LockAnalysisService());
+                new LockAnalysisApplicationService(jfrProvider, new LockAnalysisService(accessorRepo, quantityAgg));
         ErrorAnalysisApplicationService errorAnalysisAppService =
-                new ErrorAnalysisApplicationService(jfrProvider, new ErrorAnalysisService());
+                new ErrorAnalysisApplicationService(jfrProvider, new ErrorAnalysisService(accessorRepo, quantityAgg));
 
         QuickAnalysisApplicationService appService =
                 new QuickAnalysisApplicationService(

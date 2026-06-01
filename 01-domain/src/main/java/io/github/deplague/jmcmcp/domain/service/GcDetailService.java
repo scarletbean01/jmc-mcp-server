@@ -1,15 +1,18 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.*;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.*;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrValueConverter.toLong;
+import static io.github.deplague.jmcmcp.domain.service.JfrValueConverter.toLong;
 import static java.lang.Math.ceil;
 import static java.lang.Math.max;
 import static java.util.Collections.sort;
@@ -24,8 +27,12 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 /**
  * Pure domain service for detailed GC analysis.
  */
+@Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GcDetailService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public GcDetailResult analyze(IItemCollection events, String detailLevel) {
         boolean showAll = "all".equals(detailLevel);
@@ -78,14 +85,14 @@ public final class GcDetailService {
         Optional<IItem> survivorItem = firstItem(survivorConfig);
 
         return new GcConfiguration(
-                configItem.flatMap(i -> getMember(i, "youngCollector")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> getMember(i, "oldCollector")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> getMember(i, "parallelGCThreads")).map(Object::toString).orElse("N/A"),
-                configItem.flatMap(i -> getMember(i, "concurrentGCThreads")).map(Object::toString).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(getQuantity(i, "minSize"))).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(getQuantity(i, "maxSize"))).orElse("N/A"),
-                heapItem.flatMap(i -> displayOpt(getQuantity(i, "initialSize"))).orElse("N/A"),
-                survivorItem.flatMap(i -> getMember(i, "maxTenuringThreshold")).map(Object::toString).orElse("N/A")
+                configItem.flatMap(i -> jfrAccessorRepository.getMember(i, "youngCollector")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> jfrAccessorRepository.getMember(i, "oldCollector")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> jfrAccessorRepository.getMember(i, "parallelGCThreads")).map(Object::toString).orElse("N/A"),
+                configItem.flatMap(i -> jfrAccessorRepository.getMember(i, "concurrentGCThreads")).map(Object::toString).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(jfrAccessorRepository.getQuantity(i, "minSize"))).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(jfrAccessorRepository.getQuantity(i, "maxSize"))).orElse("N/A"),
+                heapItem.flatMap(i -> displayOpt(jfrAccessorRepository.getQuantity(i, "initialSize"))).orElse("N/A"),
+                survivorItem.flatMap(i -> jfrAccessorRepository.getMember(i, "maxTenuringThreshold")).map(Object::toString).orElse("N/A")
         );
     }
 
@@ -93,13 +100,13 @@ public final class GcDetailService {
         IItemCollection young = events.apply(type("jdk.YoungGarbageCollection"));
         IItemCollection old = events.apply(type("jdk.OldGarbageCollection"));
 
-        long youngCount = count(young);
-        IQuantity youngTotal = sumQuantity(young, DURATION.getIdentifier());
-        IQuantity youngAvg = avgQuantity(young, DURATION.getIdentifier());
+        long youngCount = jfrQuantityAggregator.count(young);
+        IQuantity youngTotal = jfrQuantityAggregator.sumQuantity(young, DURATION.getIdentifier());
+        IQuantity youngAvg = jfrQuantityAggregator.avgQuantity(young, DURATION.getIdentifier());
 
-        long oldCount = count(old);
-        IQuantity oldTotal = sumQuantity(old, DURATION.getIdentifier());
-        IQuantity oldAvg = avgQuantity(old, DURATION.getIdentifier());
+        long oldCount = jfrQuantityAggregator.count(old);
+        IQuantity oldTotal = jfrQuantityAggregator.sumQuantity(old, DURATION.getIdentifier());
+        IQuantity oldAvg = jfrQuantityAggregator.avgQuantity(old, DURATION.getIdentifier());
 
         return new GenerationalSummary(
                 youngCount,
@@ -118,9 +125,9 @@ public final class GcDetailService {
         Map<String, Long> refCounts = new HashMap<>();
         for (IItemIterable iterable : refStats) {
             IType<?> type2 = iterable.getType();
-            IMemberAccessor<String, IItem> typeAcc = getAccessor(type2, "type");
+            IMemberAccessor<String, IItem> typeAcc = jfrAccessorRepository.getAccessor(type2, "type");
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> countAcc = getAccessor(type1, "count");
+            IMemberAccessor<Object, IItem> countAcc = jfrAccessorRepository.getAccessor(type1, "count");
             if (typeAcc != null && countAcc != null) {
                 for (IItem item : iterable) {
                     String type = typeAcc.getMember(item);
@@ -135,7 +142,7 @@ public final class GcDetailService {
         Map<String, IQuantity> phaseTimes = new HashMap<>();
         for (IItemIterable iterable : refPhases) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> nameAcc = getAccessor(type, "name");
+            IMemberAccessor<String, IItem> nameAcc = jfrAccessorRepository.getAccessor(type, "name");
             IMemberAccessor<IQuantity, IItem> durationAcc = DURATION.getAccessor(iterable.getType());
             if (nameAcc != null && durationAcc != null) {
                 for (IItem item : iterable) {
@@ -175,12 +182,12 @@ public final class GcDetailService {
 
     private Double computeReferenceOverhead(IItemCollection events) {
         IItemCollection allGcPauses = events.apply(type("jdk.GCPhasePause"));
-        IQuantity totalGcPause = sumQuantity(allGcPauses, DURATION.getIdentifier());
+        IQuantity totalGcPause = jfrQuantityAggregator.sumQuantity(allGcPauses, DURATION.getIdentifier());
 
         Map<String, IQuantity> refPhaseTimes = new HashMap<>();
         for (IItemIterable iterable : allGcPauses) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> nameAcc = getAccessor(type, "name");
+            IMemberAccessor<String, IItem> nameAcc = jfrAccessorRepository.getAccessor(type, "name");
             IMemberAccessor<IQuantity, IItem> durationAcc = DURATION.getAccessor(iterable.getType());
             if (nameAcc != null && durationAcc != null) {
                 for (IItem item : iterable) {
@@ -215,7 +222,7 @@ public final class GcDetailService {
         IItemCollection gcs = events.apply(type("jdk.GarbageCollection"));
         for (IItemIterable iterable : gcs) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> causeAccessor = getAccessor(type, "cause");
+            IMemberAccessor<String, IItem> causeAccessor = jfrAccessorRepository.getAccessor(type, "cause");
             if (causeAccessor != null) {
                 for (IItem item : iterable) {
                     String cause = causeAccessor.getMember(item);
@@ -241,15 +248,15 @@ public final class GcDetailService {
         Map<String, List<IQuantity>> phaseDurations = new HashMap<>();
         for (IItemIterable iterable : phases) {
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<String, IItem> nameAccessor = getAccessor(type1, "name");
+            IMemberAccessor<String, IItem> nameAccessor = jfrAccessorRepository.getAccessor(type1, "name");
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<IQuantity, IItem> durationAccessor = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
             if (nameAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {
                     String name = nameAccessor.getMember(item);
                     IQuantity duration = durationAccessor.getMember(item);
                     if (name != null && duration != null) {
-                        phaseDurations.computeIfAbsent(name, k -> new ArrayList<>()).add(duration);
+                        phaseDurations.computeIfAbsent(name, _ -> new ArrayList<>()).add(duration);
                     }
                 }
             }
@@ -295,10 +302,10 @@ public final class GcDetailService {
             return null;
         }
         return new HeapTrendSummary(
-                display(minQuantity(heapSummary, "heapUsed")),
-                display(maxQuantity(heapSummary, "heapUsed")),
-                display(avgQuantity(heapSummary, "heapUsed")),
-                display(percentileQuantity(heapSummary, "heapUsed", 95))
+                display(jfrQuantityAggregator.minQuantity(heapSummary, "heapUsed")),
+                display(jfrQuantityAggregator.maxQuantity(heapSummary, "heapUsed")),
+                display(jfrQuantityAggregator.avgQuantity(heapSummary, "heapUsed")),
+                display(jfrQuantityAggregator.percentileQuantity(heapSummary, "heapUsed", 95))
         );
     }
 
@@ -311,13 +318,13 @@ public final class GcDetailService {
         Map<Long, Map<String, IQuantity>> cycleMap = new TreeMap<>();
         for (IItemIterable iterable : heapSummary) {
             IType<?> type3 = iterable.getType();
-            IMemberAccessor<Object, IItem> gcIdAccessor = getAccessor(type3, "gcId");
+            IMemberAccessor<Object, IItem> gcIdAccessor = jfrAccessorRepository.getAccessor(type3, "gcId");
             IType<?> type2 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> usedAccessor = getAccessor(type2, "heapUsed");
+            IMemberAccessor<IQuantity, IItem> usedAccessor = jfrAccessorRepository.getAccessor(type2, "heapUsed");
             IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> sizeAccessor = getAccessor(type1, "heapSize");
+            IMemberAccessor<IQuantity, IItem> sizeAccessor = jfrAccessorRepository.getAccessor(type1, "heapSize");
             IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> whenAccessor = getAccessor(type, "when");
+            IMemberAccessor<String, IItem> whenAccessor = jfrAccessorRepository.getAccessor(type, "when");
 
             if (gcIdAccessor != null) {
                 for (IItem item : iterable) {

@@ -1,8 +1,13 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
-import io.github.deplague.jmcmcp.infrastructure.jfr.StackTraceKey;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
+import io.github.deplague.jmcmcp.domain.service.StackTraceKey;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -11,9 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.*;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.lang.Long.compare;
 import static java.util.Map.Entry;
 import static java.util.Optional.empty;
@@ -27,7 +30,10 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Pure domain service for thread activity analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadActivityService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public ThreadActivityResult analyze(IItemCollection events, int topN) {
         Optional<ThreadStats> threadStats = analyzeThreadStats(events);
@@ -42,10 +48,10 @@ public final class ThreadActivityService {
             return empty();
         }
 
-        var activeStats = batchStats(threadStats, "activeCount");
-        IQuantity peak = maxQuantity(threadStats, "peakCount");
-        IQuantity daemon = maxQuantity(threadStats, "daemonCount");
-        IQuantity total = maxQuantity(threadStats, "accumulatedCount");
+        var activeStats = jfrQuantityAggregator.batchStats(threadStats, "activeCount");
+        IQuantity peak = jfrQuantityAggregator.maxQuantity(threadStats, "peakCount");
+        IQuantity daemon = jfrQuantityAggregator.maxQuantity(threadStats, "daemonCount");
+        IQuantity total = jfrQuantityAggregator.maxQuantity(threadStats, "accumulatedCount");
 
         return of(new ThreadStats(
                 display(peak),
@@ -60,13 +66,13 @@ public final class ThreadActivityService {
     private ThreadLifecycle analyzeThreadLifecycle(IItemCollection events, int topN) {
         IItemCollection starts = events.apply(type("jdk.ThreadStart"));
         IItemCollection ends = events.apply(type("jdk.ThreadEnd"));
-        long startedCount = count(starts);
-        long endedCount = count(ends);
+        long startedCount = jfrQuantityAggregator.count(starts);
+        long endedCount = jfrQuantityAggregator.count(ends);
 
         Map<StackTraceKey, Long> startSites = new HashMap<>();
         for (IItemIterable iterable : starts) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
             if (stackAccessor != null) {
                 for (IItem item : iterable) {
                     Object stack = stackAccessor.getMember(item);
@@ -96,8 +102,8 @@ public final class ThreadActivityService {
         Map<StackTraceKey, SleepStats> sleepMap = new HashMap<>();
         for (IItemIterable iterable : sleeps) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
             if (durationAccessor != null && stackAccessor != null) {
                 for (IItem item : iterable) {
                     IQuantity duration = durationAccessor.getMember(item);

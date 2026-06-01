@@ -1,1 +1,0 @@
-{"version":3,"sources":["frontend/config.cljs"],"mappings":";AAEA;;;;0BAAA,AAAAA,YAAA,0BAAA,hEAAaC;AAEb,AAAKC,+BACMC","names":["js/goog.define","frontend.config/api-url","frontend.config/debug?","js/goog.DEBUG"],"sourcesContent":["(ns frontend.config)\n\n(goog-define api-url \"/api/v1\")\n\n(def debug?\n  ^boolean goog.DEBUG)\n"]}

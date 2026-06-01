@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ContentionEntry;
 import io.github.deplague.jmcmcp.domain.model.ThreadContentionResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -10,8 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.util.List.of;
 import static java.util.Map.Entry;
 import static java.util.Map.Entry.comparingByValue;
@@ -24,7 +26,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Pure domain service for thread contention analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadContentionService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     public ThreadContentionResult analyze(IItemCollection events, int topN) {
         Map<ContentionKey, Long> durationMap = new HashMap<>();
@@ -59,9 +63,9 @@ public final class ThreadContentionService {
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> monitorAccessor = getAccessor(type, "monitorClass");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = getAccessor(type, DURATION.getIdentifier());
-            IMemberAccessor<Object, IItem> stackAccessor = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> monitorAccessor = jfrAccessorRepository.getAccessor(type, "monitorClass");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> stackAccessor = jfrAccessorRepository.getAccessor(type, "stackTrace");
 
             if (monitorAccessor != null && durationAccessor != null && stackAccessor != null) {
                 for (IItem item : iterable) {

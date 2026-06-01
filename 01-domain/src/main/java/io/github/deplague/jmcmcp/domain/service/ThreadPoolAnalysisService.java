@@ -2,7 +2,10 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.ThreadPoolAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.ThreadPoolEntry;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -10,7 +13,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.lang.Integer.parseInt;
 import static java.lang.Long.compare;
 import static java.lang.String.format;
@@ -24,7 +26,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  * Pure domain service for thread pool analysis.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ThreadPoolAnalysisService {
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final Pattern THREAD_POOL_PATTERN = compile("^(.+?)-(\\d+)$");
     private static final Set<String> KNOWN_POOL_PREFIXES = of(
@@ -132,14 +136,14 @@ public final class ThreadPoolAnalysisService {
     private void collectCpuSamples(IItemCollection events, Map<String, PoolStats> poolStats) {
         for (IItemIterable iterable : events) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "eventThread");
+            IMemberAccessor<Object, IItem> threadAccessor = jfrAccessorRepository.getAccessor(type, "eventThread");
             if (threadAccessor != null) {
                 for (IItem item : iterable) {
                     Object thread = threadAccessor.getMember(item);
                     if (thread != null) {
                         String threadName = thread.toString();
                         String pool = extractPoolPrefix(threadName);
-                        poolStats.computeIfAbsent(pool, k -> new PoolStats())
+                        poolStats.computeIfAbsent(pool, _ -> new PoolStats())
                                 .cpuSamples++;
                         poolStats.get(pool).threadNames.add(threadName);
                     }
@@ -150,9 +154,9 @@ public final class ThreadPoolAnalysisService {
 
     private void collectBlockingTime(IItemCollection events, String blockType, Map<String, PoolStats> poolStats) {
         for (IItemIterable iterable : events) {
-            IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAccessor = getAccessor(type, "eventThread");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor((IType<IItem>) type);
+            IType<IItem> type = iterable.getType();
+            IMemberAccessor<Object, IItem> threadAccessor = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(type);
 
             if (threadAccessor != null) {
                 for (IItem item : iterable) {
@@ -163,7 +167,7 @@ public final class ThreadPoolAnalysisService {
 
                     String threadName = thread.toString();
                     String pool = extractPoolPrefix(threadName);
-                    PoolStats stats = poolStats.computeIfAbsent(pool, k -> new PoolStats());
+                    PoolStats stats = poolStats.computeIfAbsent(pool, _ -> new PoolStats());
                     stats.threadNames.add(threadName);
                     stats.blockedCount++;
 

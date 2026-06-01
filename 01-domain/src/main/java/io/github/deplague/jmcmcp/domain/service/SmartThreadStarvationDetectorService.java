@@ -1,7 +1,10 @@
 package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -9,9 +12,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.stackTraceMatches;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.stackTraceMatches;
 import static java.lang.Integer.parseInt;
 import static java.lang.Long.compare;
 import static java.lang.Math.min;
@@ -21,11 +23,11 @@ import static org.openjdk.jmc.common.item.ItemFilters.type;
 import static org.openjdk.jmc.common.unit.UnitLookup.NANOSECOND;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 
-/**
- * Pure domain service that detects thread starvation patterns.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SmartThreadStarvationDetectorService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final Pattern POOL_PATTERN = compile(
             "com\\.zaxxer\\.hikari|org\\.apache\\.tomcat\\.jdbc|com\\.mchange\\.v2\\.c3p0|org\\.apache\\.commons\\.dbcp|oracle\\.ucp");
@@ -38,7 +40,7 @@ public final class SmartThreadStarvationDetectorService {
         IItemCollection execSamples = events.apply(type("jdk.ExecutionSample"));
         for (IItemIterable iterable : execSamples) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type, "eventThread");
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
             if (threadAcc != null) {
                 for (IItem item : iterable) {
                     Object thread = threadAcc.getMember(item);
@@ -103,12 +105,10 @@ public final class SmartThreadStarvationDetectorService {
         int count = 0;
 
         for (IItemIterable iterable : cpuLoads) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> jvmUserAcc = getAccessor(type2, "jvmUser");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> jvmSysAcc = getAccessor(type1, "jvmSystem");
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> machineAcc = getAccessor(type, "machineTotal");
+            IMemberAccessor<IQuantity, IItem> jvmUserAcc = jfrAccessorRepository.getAccessor(type, "jvmUser");
+            IMemberAccessor<IQuantity, IItem> jvmSysAcc = jfrAccessorRepository.getAccessor(type, "jvmSystem");
+            IMemberAccessor<IQuantity, IItem> machineAcc = jfrAccessorRepository.getAccessor(type, "machineTotal");
 
             for (IItem item : iterable) {
                 if (jvmUserAcc != null) {
@@ -147,10 +147,9 @@ public final class SmartThreadStarvationDetectorService {
     private void analyzeBlocking(IItemCollection events, String typeId, Map<String, BlockedStats> stats) {
         IItemCollection filtered = events.apply(type(typeId));
         for (IItemIterable iterable : filtered) {
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type1, "eventThread");
             IType<?> type = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<IQuantity, IItem> durationAcc = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
             if (threadAcc == null) {
                 continue;
             }
@@ -183,7 +182,7 @@ public final class SmartThreadStarvationDetectorService {
 
         for (IItemIterable iterable : dumps) {
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> resultAcc = getAccessor(type, "result");
+            IMemberAccessor<Object, IItem> resultAcc = jfrAccessorRepository.getAccessor(type, "result");
             if (resultAcc == null) {
                 continue;
             }
@@ -212,16 +211,14 @@ public final class SmartThreadStarvationDetectorService {
     }
 
     private void analyzeMonitorEnterBlocking(IItemCollection events,
-                                             Map<String, BlockedStats> blockedStats,
-                                             MutablePoolSummary poolSummary) {
+                                              Map<String, BlockedStats> blockedStats,
+                                              MutablePoolSummary poolSummary) {
         IItemCollection filtered = events.apply(type("jdk.JavaMonitorEnter"));
         for (IItemIterable iterable : filtered) {
-            IType<?> type2 = iterable.getType();
-            IMemberAccessor<Object, IItem> threadAcc = getAccessor(type2, "eventThread");
-            IType<?> type1 = iterable.getType();
-            IMemberAccessor<IQuantity, IItem> durationAcc = getAccessor(type1, DURATION.getIdentifier());
             IType<?> type = iterable.getType();
-            IMemberAccessor<Object, IItem> stackAcc = getAccessor(type, "stackTrace");
+            IMemberAccessor<Object, IItem> threadAcc = jfrAccessorRepository.getAccessor(type, "eventThread");
+            IMemberAccessor<IQuantity, IItem> durationAcc = jfrAccessorRepository.getAccessor(type, DURATION.getIdentifier());
+            IMemberAccessor<Object, IItem> stackAcc = jfrAccessorRepository.getAccessor(type, "stackTrace");
             if (threadAcc == null) {
                 continue;
             }
@@ -270,34 +267,34 @@ public final class SmartThreadStarvationDetectorService {
         if (poolSummary.poolDetected && poolSummary.confidence > 0.6) {
             findings.add(format("Detected %d threads blocked on connection pool `%s`",
                     poolSummary.threadsWaiting, poolSummary.poolName));
-            return "🔴 Connection Pool Exhaustion";
+            return "\uD83D\uDD34 Connection Pool Exhaustion";
         }
 
         if (cpu.sampleCount() > 0 && cpu.avgMachineTotal() > 0.85 && cpu.efficiency() < 0.3) {
             findings.add(format("Machine CPU at %.0f%% but JVM only using %.0f%%",
                     cpu.avgMachineTotal() * 100, cpu.avgJvmUser() * 100));
-            return "🔴 CPU Saturation (External)";
+            return "\uD83D\uDD34 CPU Saturation (External)";
         }
 
         if (dumpSummary.totalThreads() > 0 && dumpSummary.blockedCount() > dumpSummary.totalThreads() * 0.4) {
             findings.add(format("%.0f%% of threads are BLOCKED (%d / %d)",
                     (double) dumpSummary.blockedCount() / dumpSummary.totalThreads() * 100,
                     dumpSummary.blockedCount(), dumpSummary.totalThreads()));
-            return "🔴 Lock Contention Starvation";
+            return "\uD83D\uDD34 Lock Contention Starvation";
         }
 
         if (activeThreads > 50 && cpu.sampleCount() > 0 && cpu.avgJvmUser() < 0.2) {
             findings.add(format("High thread count (%d) with low JVM CPU (%.0f%%)",
                     activeThreads, cpu.avgJvmUser() * 100));
-            return "🟡 Thread Over-Provisioning";
+            return "\uD83D\uDFE1 Thread Over-Provisioning";
         }
 
         if (totalBlocked > 100) {
             findings.add(format("High blocking event count: %d", totalBlocked));
-            return "🟡 Significant Thread Blocking";
+            return "\uD83D\uDFE1 Significant Thread Blocking";
         }
 
-        return "✅ No Thread Starvation Detected";
+        return "\u2705 No Thread Starvation Detected";
     }
 
     private String buildAgentHint(String primaryDiagnosis, CpuLoadSummary cpu,

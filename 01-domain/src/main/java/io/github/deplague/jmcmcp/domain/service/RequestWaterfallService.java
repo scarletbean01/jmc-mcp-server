@@ -3,17 +3,18 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.RequestWaterfallEvent;
 import io.github.deplague.jmcmcp.domain.model.RequestWaterfallResult;
 import io.github.deplague.jmcmcp.domain.model.WaterfallPhaseSummary;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getMember;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatFullStackTrace;
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService.formatStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatFullStackTrace;
+import static io.github.deplague.jmcmcp.domain.service.JfrStackTraceService.formatStackTrace;
 import static java.util.Comparator.comparingLong;
 import static java.util.List.of;
 import static java.util.regex.Pattern.compile;
@@ -23,12 +24,11 @@ import static org.openjdk.jmc.common.unit.UnitLookup.MILLISECOND;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
 import static org.openjdk.jmc.flightrecorder.JfrAttributes.START_TIME;
 
-/**
- * Pure domain service for reconstructing a chronological waterfall of events
- * for a specific thread. Contains no MCP-specific or UI formatting logic.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RequestWaterfallService {
+
+    private final JfrAccessorRepository jfrAccessorRepository;
 
     private static final List<String> WATERFALL_EVENT_TYPES = of(
             "jdk.ExecutionSample", "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait",
@@ -53,12 +53,11 @@ public final class RequestWaterfallService {
             }
 
             for (IItemIterable iterable : typeEvents) {
-                IType<?> type1 = iterable.getType();
+                IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> threadAccessor =
-                        getAccessor(type1, "eventThread");
+                        jfrAccessorRepository.getAccessor(type, "eventThread");
                 if (threadAccessor == null) {
-                    IType<?> type = iterable.getType();
-                    threadAccessor = getAccessor(type, "sampledThread");
+                    threadAccessor = jfrAccessorRepository.getAccessor(type, "sampledThread");
                 }
                 if (threadAccessor == null) {
                     continue;
@@ -68,9 +67,8 @@ public final class RequestWaterfallService {
                         START_TIME.getAccessor(iterable.getType());
                 IMemberAccessor<IQuantity, IItem> durationAccessor =
                         DURATION.getAccessor(iterable.getType());
-                IType<?> type = iterable.getType();
                 IMemberAccessor<Object, IItem> stackAccessor =
-                        getAccessor(type, "stackTrace");
+                        jfrAccessorRepository.getAccessor(type, "stackTrace");
 
                 for (IItem item : iterable) {
                     Object threadObj = threadAccessor.getMember(item);
@@ -184,14 +182,14 @@ public final class RequestWaterfallService {
 
         switch (typeId) {
             case "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait" -> {
-                Object monitor = getMember(item, "monitorClass").orElse(null);
+                Object monitor = jfrAccessorRepository.getMember(item, "monitorClass").orElse(null);
                 if (monitor != null) {
                     detail.append(monitor.toString());
                 }
             }
             case "jdk.SocketRead", "jdk.SocketWrite" -> {
-                Object host = getMember(item, "host").orElse(null);
-                Object port = getMember(item, "port").orElse(null);
+                Object host = jfrAccessorRepository.getMember(item, "host").orElse(null);
+                Object port = jfrAccessorRepository.getMember(item, "port").orElse(null);
                 if (host != null) {
                     detail.append(host);
                     if (port != null) {
@@ -199,20 +197,20 @@ public final class RequestWaterfallService {
                     }
                 }
                 String bytesAttr = typeId.equals("jdk.SocketRead") ? "bytesRead" : "bytesWritten";
-                Object bytes = getMember(item, bytesAttr).orElse(null);
+                Object bytes = jfrAccessorRepository.getMember(item, bytesAttr).orElse(null);
                 if (bytes != null) {
                     detail.append(" (").append(bytes).append("B)");
                 }
             }
             case "jdk.FileRead", "jdk.FileWrite" -> {
-                Object path = getMember(item, "path").orElse(null);
+                Object path = jfrAccessorRepository.getMember(item, "path").orElse(null);
                 if (path != null) {
                     detail.append(path);
                 }
             }
             case "jdk.JavaExceptionThrow" -> {
-                Object thrownClass = getMember(item, "thrownClass").orElse(null);
-                Object message = getMember(item, "message").orElse(null);
+                Object thrownClass = jfrAccessorRepository.getMember(item, "thrownClass").orElse(null);
+                Object message = jfrAccessorRepository.getMember(item, "message").orElse(null);
                 if (thrownClass != null) {
                     detail.append(thrownClass);
                 }

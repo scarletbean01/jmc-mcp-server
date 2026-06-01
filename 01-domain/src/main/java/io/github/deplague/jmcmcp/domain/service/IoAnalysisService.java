@@ -2,14 +2,17 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.IoAnalysisResult;
 import io.github.deplague.jmcmcp.domain.model.IoSummary;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.IItemCollection;
 import org.openjdk.jmc.common.unit.IQuantity;
 
 import java.util.Optional;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator.sumQuantity;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
@@ -22,7 +25,9 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class IoAnalysisService {
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public IoAnalysisResult analyze(IItemCollection events, String ioType) {
         Optional<IoSummary> fileIo = empty();
@@ -37,8 +42,8 @@ public final class IoAnalysisService {
                         displayOpt(fileEvents.getAggregate(count())),
                         displayOpt(fileEvents.getAggregate(sum(DURATION))),
                         displayOpt(fileEvents.getAggregate(avg(DURATION))),
-                        displayOpt(sumQuantity(items1, "bytesRead")),
-                        displayOpt(sumQuantity(items, "bytesWritten"))
+                        displayOpt(jfrQuantityAggregator.sumQuantity(items1, "bytesRead")),
+                        displayOpt(jfrQuantityAggregator.sumQuantity(items, "bytesWritten"))
                 ));
             }
         }
@@ -52,8 +57,8 @@ public final class IoAnalysisService {
                         displayOpt(socketEvents.getAggregate(count())),
                         displayOpt(socketEvents.getAggregate(sum(DURATION))),
                         displayOpt(socketEvents.getAggregate(avg(DURATION))),
-                        displayOpt(sumQuantity(items1, "bytesRead")),
-                        displayOpt(sumQuantity(items, "bytesWritten"))
+                        displayOpt(jfrQuantityAggregator.sumQuantity(items1, "bytesRead")),
+                        displayOpt(jfrQuantityAggregator.sumQuantity(items, "bytesWritten"))
                 ));
             }
         }

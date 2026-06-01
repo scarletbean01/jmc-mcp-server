@@ -1,6 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregatorImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrRecordingCache;
 import io.github.deplague.jmcmcp.infrastructure.mcp.LockAnalysisTool;
 import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
@@ -44,7 +46,8 @@ class LockAnalysisToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        LockAnalysisService domainService = new LockAnalysisService();
+        var accessorRepo = new JfrAccessorRepositoryImpl();
+        LockAnalysisService domainService = new LockAnalysisService(accessorRepo, new JfrQuantityAggregatorImpl(accessorRepo));
         LockAnalysisApplicationService appService = new LockAnalysisApplicationService(jfrProvider, domainService);
         tool = new LockAnalysisTool(appService);
     }

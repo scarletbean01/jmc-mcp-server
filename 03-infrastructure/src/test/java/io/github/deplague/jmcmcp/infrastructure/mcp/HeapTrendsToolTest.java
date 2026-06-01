@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
 
+import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepositoryImpl;
 import io.github.deplague.jmcmcp.infrastructure.jfr.JfrProviderImpl;
 import io.github.deplague.jmcmcp.application.service.HeapTrendsApplicationService;
 import io.github.deplague.jmcmcp.domain.service.HeapTrendsService;
@@ -44,7 +45,7 @@ class HeapTrendsToolTest {
         cache = new JfrRecordingCache();
         RecordingAccessController accessController = new RecordingAccessController();
         JfrProviderImpl jfrProvider = new JfrProviderImpl(cache, accessController);
-        HeapTrendsService domainService = new HeapTrendsService();
+        HeapTrendsService domainService = new HeapTrendsService(new JfrAccessorRepositoryImpl());
         HeapTrendsApplicationService appService = new HeapTrendsApplicationService(jfrProvider, domainService);
         tool = new HeapTrendsTool(appService);
     }

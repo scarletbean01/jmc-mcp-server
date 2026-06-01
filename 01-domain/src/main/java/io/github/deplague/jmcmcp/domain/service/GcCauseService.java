@@ -2,7 +2,11 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.GcCauseEntry;
 import io.github.deplague.jmcmcp.domain.model.GcCauseResult;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
@@ -11,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository.getAccessor;
 import static java.lang.Long.compare;
 import static org.openjdk.jmc.common.IDisplayable.AUTO;
 import static org.openjdk.jmc.common.item.ItemFilters.type;
@@ -23,7 +26,10 @@ import static org.openjdk.jmc.flightrecorder.JfrAttributes.DURATION;
  */
 @Slf4j
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GcCauseService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public GcCauseResult analyze(IItemCollection events) {
         Map<String, CauseStats> overallStats = new HashMap<>();
@@ -46,9 +52,9 @@ public final class GcCauseService {
                                  Map<String, CauseStats> overallStats) {
         IItemCollection gcEvents = events.apply(type(typeId));
         for (IItemIterable iterable : gcEvents) {
-            IType<?> type = iterable.getType();
-            IMemberAccessor<String, IItem> causeAccessor = getAccessor(type, "cause");
-            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor((IType<IItem>) type);
+            IType<IItem> type = iterable.getType();
+            IMemberAccessor<String, IItem> causeAccessor = jfrAccessorRepository.getAccessor(type, "cause");
+            IMemberAccessor<IQuantity, IItem> durationAccessor = DURATION.getAccessor(type);
 
             if (causeAccessor != null && durationAccessor != null) {
                 for (IItem item : iterable) {
@@ -56,8 +62,8 @@ public final class GcCauseService {
                     IQuantity duration = durationAccessor.getMember(item);
                     if (cause != null && duration != null) {
                         long nanos = duration.clampedLongValueIn(NANOSECOND);
-                        genStats.computeIfAbsent(cause, k -> new CauseStats()).add(nanos);
-                        overallStats.computeIfAbsent(cause, k -> new CauseStats()).add(nanos);
+                        genStats.computeIfAbsent(cause, _ -> new CauseStats()).add(nanos);
+                        overallStats.computeIfAbsent(cause, _ -> new CauseStats()).add(nanos);
                     }
                 }
             }

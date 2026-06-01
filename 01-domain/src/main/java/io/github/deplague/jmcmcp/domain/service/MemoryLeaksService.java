@@ -3,10 +3,11 @@ package io.github.deplague.jmcmcp.domain.service;
 import io.github.deplague.jmcmcp.domain.model.LeakSiteEntry;
 import io.github.deplague.jmcmcp.domain.model.LeakingClassEntry;
 import io.github.deplague.jmcmcp.domain.model.MemoryLeaksResult;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrAccessorRepository;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrQuantityAggregator;
-import io.github.deplague.jmcmcp.infrastructure.jfr.JfrStackTraceService;
+import io.github.deplague.jmcmcp.domain.port.JfrAccessorRepository;
+import io.github.deplague.jmcmcp.domain.port.JfrQuantityAggregator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.openjdk.jmc.common.item.*;
 import org.openjdk.jmc.common.unit.IQuantity;
 
@@ -18,11 +19,14 @@ import java.util.Map;
  * Domain service for memory leak analysis from old object samples.
  */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class MemoryLeaksService {
+    private final JfrAccessorRepository jfrAccessorRepository;
+    private final JfrQuantityAggregator jfrQuantityAggregator;
 
     public MemoryLeaksResult analyze(IItemCollection events, int topN) {
         IItemCollection samples = events.apply(ItemFilters.type("jdk.OldObjectSample"));
-        long count = JfrQuantityAggregator.count(samples);
+        long count = jfrQuantityAggregator.count(samples);
 
         if (count == 0) {
             return new MemoryLeaksResult(false, 0, List.of(), List.of());
