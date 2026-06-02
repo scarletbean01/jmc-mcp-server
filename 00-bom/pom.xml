@@ -11,6 +11,7 @@
     <packaging>pom</packaging>
 
     <name>JMC MCP Server :: BOM</name>
+    <description>Centralized dependency management (Bill of Materials) for all modules</description>
 
     <properties>
         <mcp.sdk.version>1.1.2</mcp.sdk.version>

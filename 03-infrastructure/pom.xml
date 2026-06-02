@@ -9,6 +9,7 @@
     <packaging>jar</packaging>
 
     <name>JMC MCP Server :: Infrastructure</name>
+    <description>Infrastructure adapters (MCP, REST), caching, observability, and framework integrations.</description>
     <parent>
         <groupId>io.github.deplague</groupId>
         <artifactId>jmc-mcp</artifactId>

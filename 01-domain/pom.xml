@@ -9,6 +9,7 @@
     <packaging>jar</packaging>
 
     <name>JMC MCP Server :: Domain</name>
+    <description>Core domain logic, JFR heuristics, and pure business models. Zero framework dependencies.</description>
     <parent>
         <groupId>io.github.deplague</groupId>
         <artifactId>jmc-mcp</artifactId>
