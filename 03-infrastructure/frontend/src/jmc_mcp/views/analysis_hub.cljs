@@ -402,34 +402,40 @@
    [:i {:class (str "zmdi text-lg " icon)}]
    label])
 
-(defn render-cpu-diagnostics [r-detail]
-  (let [thread-cpu (get-in r-detail [:thread-cpu :data])
-        hot-methods (get-in r-detail [:hot-methods :data])
-        thread-starve (get-in r-detail [:thread-starvation :data])]
+(defn render-cpu-diagnostics []
+  (let [thread-cpu @(rf/subscribe [:recording-detail/result :thread-cpu])
+        hot-methods @(rf/subscribe [:recording-detail/result :hot-methods])
+        thread-starve @(rf/subscribe [:recording-detail/result :thread-starvation])
+        thread-cpu-data (:data thread-cpu)
+        hot-methods-data (:data hot-methods)
+        thread-starve-data (:data thread-starve)]
     [:div {:class "flex flex-col gap-8"}
-     (when thread-starve
+     (when thread-starve-data
        [:div {:class "bg-amber-50 border border-amber-200 rounded-2xl p-6"}
         [:h3 {:class "text-amber-800 font-bold text-sm uppercase tracking-wider mb-2 flex items-center gap-2"}
          [:i {:class "zmdi zmdi-alert-triangle"}] "Thread Starvation Monitor"]
         [:p {:class "text-sm text-amber-700 leading-relaxed font-medium"}
-         (str "Top starvation instances: " (or (:summary thread-starve) "No threads starving in this segment."))]])
+         (str "Top starvation instances: " (or (:summary thread-starve-data) "No threads starving in this segment."))]])
      [:div {:class "grid grid-cols-1 lg:grid-cols-2 gap-8"}
       [:div {:class "flex flex-col gap-4"}
        [:h3 {:class "font-bold text-slate-700 text-sm uppercase tracking-wider"} "Top CPU Consuming Threads"]
-       [table-renderer (:threads thread-cpu)
+       [table-renderer (:threads thread-cpu-data)
         [{:key :threadName :label "Thread Name"}
          {:key :samples :label "Samples"}
          {:key :cpuPercent :label "CPU %"}]]]
       [:div {:class "flex flex-col gap-4"}
        [:h3 {:class "font-bold text-slate-700 text-sm uppercase tracking-wider"} "Hot Methods Execution"]
-       [table-renderer (:entries hot-methods)
+       [table-renderer (:entries hot-methods-data)
         [{:key :sampleCount :label "Samples"}
          {:key :stackTrace :label "Trace Frame"}]]]]]))
 
-(defn render-memory-diagnostics [r-detail]
-  (let [gc-detail (get-in r-detail [:gc-detail :data])
-        heap-trends (get-in r-detail [:heap-trends :data])
-        pred-leak (get-in r-detail [:predictive-leak :data])]
+(defn render-memory-diagnostics []
+  (let [gc-detail-res @(rf/subscribe [:recording-detail/result :gc-detail])
+        heap-trends-res @(rf/subscribe [:recording-detail/result :heap-trends])
+        pred-leak-res @(rf/subscribe [:recording-detail/result :predictive-leak])
+        gc-detail (:data gc-detail-res)
+        heap-trends (:data heap-trends-res)
+        pred-leak (:data pred-leak-res)]
     [:div {:class "flex flex-col gap-8"}
      (when pred-leak
        [:div {:class "bg-blue-50 border border-blue-100 rounded-2xl p-6 flex flex-col gap-2"}
@@ -480,10 +486,13 @@
          [:li {:class "flex justify-between font-medium text-sm text-slate-600"}
           [:span "Old GCs Run"] [:span (or (get-in gc-detail [:generationalSummary :oldCount]) 0)]]]]]]]))
 
-(defn render-lock-diagnostics [r-detail]
-  (let [contention (get-in r-detail [:thread-contention :data])
-        locks (get-in r-detail [:lock-analysis :data])
-        deadlock (get-in r-detail [:deadlock-detection :data])]
+(defn render-lock-diagnostics []
+  (let [contention-res @(rf/subscribe [:recording-detail/result :thread-contention])
+        locks-res @(rf/subscribe [:recording-detail/result :lock-analysis])
+        deadlock-res @(rf/subscribe [:recording-detail/result :deadlock-detection])
+        contention (:data contention-res)
+        locks (:data locks-res)
+        deadlock (:data deadlock-res)]
     [:div {:class "flex flex-col gap-8"}
      (when (seq (:deadlocks deadlock))
        (let [threads (mapcat :threads (:deadlocks deadlock))]
@@ -514,9 +523,11 @@
              [:span {:class "text-sm text-slate-400"} "No biased lock revocations"])]]
          [:div {:class "py-10 text-center text-slate-400 italic bg-white border rounded-xl text-sm"} "Lock stats not available"])]]]))
 
-(defn render-io-diagnostics [r-detail]
-  (let [io-hotspots (get-in r-detail [:io-hotspots :data])
-        jdbc-nplusone (get-in r-detail [:jdbc-nplusone :data])]
+(defn render-io-diagnostics []
+  (let [io-hotspots-res @(rf/subscribe [:recording-detail/result :io-hotspots])
+        jdbc-nplusone-res @(rf/subscribe [:recording-detail/result :jdbc-nplusone])
+        io-hotspots (:data io-hotspots-res)
+        jdbc-nplusone (:data jdbc-nplusone-res)]
     [:div {:class "flex flex-col gap-8"}
      (if (:hasPatterns jdbc-nplusone)
        [:div {:class "bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6"}
@@ -557,10 +568,10 @@
          {:key :p99 :label "P99"}
          {:key :max :label "Max Latency"}]]]]]))
 
-(defn diagnostics-panel [r-detail]
+(defn diagnostics-panel []
   (let [active-focus (rf/subscribe [:recording-detail/diagnostic-focus])
         loading? (rf/subscribe [:recording-detail/loading?])]
-    (fn [r-detail]
+    (fn []
       [:div {:class "flex flex-col gap-6"}
        ;; Diagnostic focus tabs
        [:div {:class "flex border-b border-slate-200 bg-white rounded-t-xl overflow-hidden"}
@@ -575,11 +586,11 @@
           [:span "Loading correlated diagnostics..."]]
          [:div {:class "p-6 bg-slate-50 border-x border-b border-slate-200 rounded-b-xl min-h-[400px]"}
           (case @active-focus
-            :cpu [render-cpu-diagnostics r-detail]
-            :memory [render-memory-diagnostics r-detail]
-            :locks [render-lock-diagnostics r-detail]
-            :io [render-io-diagnostics r-detail]
-            [render-cpu-diagnostics r-detail])])])))
+            :cpu [render-cpu-diagnostics]
+            :memory [render-memory-diagnostics]
+            :locks [render-lock-diagnostics]
+            :io [render-io-diagnostics]
+            [render-cpu-diagnostics])])])))
 
 ;; ------------------------------------------------------------------
 ;; Tab 3: Forensic Deep-Dive View
@@ -625,7 +636,7 @@
          {:key :status :label "Status"}]]
        [:p {:class "text-xs text-slate-400 italic"} "No event availability data"])]]])
 
-(defn forensic-panel [recording-id r-detail]
+(defn forensic-panel [recording-id]
   (let [active-forensic (rf/subscribe [:recording-detail/forensic-focus])
         loading? (rf/subscribe [:recording-detail/loading?])
         forensic-categories
@@ -635,8 +646,9 @@
                                              [:call-tree "Call Tree"]]}
          {:label "Memory" :items [[:heap-trends "Heap Trends"]]}
          {:label "Exceptions" :items [[:exceptions "Exceptions"]]}]]
-    (fn [recording-id r-detail]
-      (let [result (get r-detail @active-forensic)
+    (fn [recording-id]
+      (let [focus @active-forensic
+            result @(rf/subscribe [:recording-detail/result focus])
             data (:data result)]
         [:div {:class "flex-1 flex bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm min-h-[500px]"}
          ;; Sidebar selector
@@ -645,16 +657,16 @@
             ^{:key (:label cat)}
             [:div {:class "flex flex-col gap-1.5"}
              [:div {:class "px-4 text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 mb-1"} (:label cat)]
-             (for [[focus label] (:items cat)]
-               ^{:key focus} [forensic-sidebar-item focus label (= @active-forensic focus)])])]
+             (for [[focus-id label] (:items cat)]
+               ^{:key focus-id} [forensic-sidebar-item focus-id label (= focus-id focus)])])]
          ;; Result panel
          [:div {:class "flex-1 p-8 overflow-auto"}
           (if @loading?
             [:div {:class "h-full flex flex-col items-center justify-center gap-4 text-slate-400"}
              [components/spinner]
              [:span "Gathering profiler metrics..."]]
-            (if-let [data (:data result)]
-              (case @active-forensic
+            (if data
+              (case focus
                 :overview [render-overview data]
                 :hot-methods [table-renderer (:entries data)
                               [{:key :sampleCount :label "Samples"}
@@ -690,8 +702,7 @@
 (defn analysis-hub-page []
   (let [recording-id (rf/subscribe [:recording-detail/recording-id])
         info (rf/subscribe [:recording-detail/info])
-        active-tab (rf/subscribe [:recording-detail/active-tab])
-        r-detail (rf/subscribe [:recording-detail/results])]
+        active-tab (rf/subscribe [:recording-detail/active-tab])]
     (fn []
       (let [rec-id @recording-id
             rec-info @info
@@ -736,6 +747,6 @@
          [:div {:class "flex-1"}
           (case tab
             :copilot [copilot-dashboard-tab rec-id]
-            :diagnostics [diagnostics-panel @r-detail]
-            :forensics [forensic-panel rec-id @r-detail]
+            :diagnostics [diagnostics-panel]
+            :forensics [forensic-panel rec-id]
             [copilot-dashboard-tab rec-id])]]))))
