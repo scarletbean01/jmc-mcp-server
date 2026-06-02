@@ -40,11 +40,24 @@ This package contains the ClojureScript Single Page Application (SPA) that acts 
    - Use `day8.re-frame/http-fx` for HTTP requests inside event handlers.
    - Always handle `:on-failure` to provide user feedback (e.g., via the notification system).
 
-4. **Interactivity:**
+4. **Interactivity & Component Lifecycle:**
    - For deeply nested data (like Differential Call Trees), use recursive Reagent components and track expansion state centrally in `re-frame` rather than relying on local component state (to allow global "Expand All" functionality).
+   - **Form-2/Form-3 Reagent Components:** When a component requires local setup (e.g. subscribing to `re-frame` state), you MUST return an inner render function. Any `deref` (`@`) or `rf/subscribe` calls inside the `let` binding will only be evaluated ONCE. For dynamic reactivity, place subscriptions and dereferences INSIDE the inner `(fn [] ...)` block.
+   - **Granular Subscriptions:** Avoid passing monolithic state maps (e.g., all analysis results) down the component tree, as this causes massive UI re-renders and lag. Components should subscribe exclusively to their specific slice of the state tree (e.g., `(rf/subscribe [:recording-detail/result-for :thread-cpu])`).
 
 5. **Time Parameters:**
    - The timeline scrubber uses relative seconds (`0` to `durationSeconds`) to track filtering state in ClojureScript. These are converted to absolute ISO-8601 strings in the `events.cljs` `resolve-time-params` helper right before dispatching HTTP requests to the backend.
+   - Separate visual drag state from global state dispatch to avoid render storms.
+
+6. **Dashboard Architecture (Three-Layer Stratified Model):**
+   - The UI is divided into three layers:
+     - **Copilot Dashboard:** High-level executive summary, auto-insight generators, and heuristic alerts.
+     - **Pre-Correlated Diagnostics:** Grouped investigative tools (CPU, Memory, IO, Locks).
+     - **Forensic Deep-Dive:** Raw data exploration (Flame Graphs, Call Trees, Events).
+   - Analysis data loading is parallelized during the Copilot phase to minimize perceived latency.
+
+7. **ClojureScript Performance:**
+   - Use eager evaluation (`mapv` or `(into [] (map ...))`) instead of lazy sequences (`map`, `for`) when rendering Hiccup forms to avoid memory leaks and excessive garbage collection in the browser.
 
 ## Development & Building
 
