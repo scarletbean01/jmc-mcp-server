@@ -124,3 +124,4 @@ The server is optimized for high-volume JFR analysis using advanced caching and 
 4.  **Resource Safety:** Always use try-with-resources for I/O and JFR streams.
 5.  **Tests:** Add tool integration tests in `src/test/java/.../mcp` using real JFR fixtures located in `src/test/resources`.
 6.  **Performance:** Prefer `IItemCollection` filtering over manual iteration where possible. Use `JfrQuantityAggregator` for efficient data reduction.
+7.  **Time Parameters:** All time parameters passed to the backend (`start-time` and `end-time`) must be absolute (ISO-8601 strings or epoch millisecond/second integers). Relative second offsets (e.g., `0` to `30`) are converted to absolute ISO-8601 values in the frontend using the recording's start epoch.

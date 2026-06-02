@@ -10,6 +10,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for ana
 - **Smart caching** — TTL-based recording cache with file-change detection and memory-pressure eviction
 - **Performance-optimized search** — `smart_stack_trace_search` uses frame-level regex matching instead of expensive full-trace formatting
 - **Health monitoring** — built-in health check with JVM metrics, cache stats, and job queue state
+- **Interactive Web Dashboard** — A built-in ClojureScript & Tailwind SPA served at the root URL (`http://localhost:8080/`) acting as a Performance Expert Copilot to inspect timeline ranges, diagnostics, SQL loops, and call-stack flame graphs.
 
 ### Tool Categories
 
@@ -124,6 +125,29 @@ The fat JAR is produced at:
 ```
 target/jmc-mcp-1.0.0-SNAPSHOT.jar
 ```
+
+## Web Dashboard
+
+The server embeds an interactive web-based dashboard built with ClojureScript and Tailwind CSS. The dashboard acts as a **Performance Expert Copilot**, presenting JFR recording telemetry in a stratified layout:
+
+1. **Executive Copilot Layer:** Auto-generated natural language insights, severity-classified findings (JMC rules), and high-level system metrics.
+2. **Pre-Correlated Diagnostics:** Focused panels for **CPU & Threads** (starvation, hot methods), **Memory & GC** (predictive leak regression, pause times), **Locks & Contention** (biased lock revocations, deadlock visualizers), and **Database & I/O** (SQL N+1 loop detection, file/socket endpoints).
+3. **Forensic Profiler:** Color-coded CPU execution flame graphs, interactive call trees, and exceptions log tables.
+
+### Accessing the Dashboard
+
+1. Build the project (which compiles both the ClojureScript UI and Java backend):
+   ```bash
+   ./mvnw clean package
+   ```
+2. Run the server locally:
+   ```bash
+   java -jar target/jmc-mcp-1.0.0-SNAPSHOT.jar
+   ```
+3. Open your browser and navigate to:
+   ```
+   http://localhost:8080/
+   ```
 
 ## Usage with an MCP Client
 

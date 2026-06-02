@@ -30,3 +30,4 @@ This package contains the REST API driving adapter, built with Quarkus REST.
 - **Error Mapping:** Use `ApiResponse.error()` to return meaningful messages to the client.
 - **Observability:** Ensure every new endpoint is instrumented via `AnalysisMetrics`.
 - **Models:** Use Java Records for all request and response bodies.
+- **Absolute Boundaries:** The `RecordingInfo` DTO exposes computed absolute boundaries (`startTime`, `endTime`) and the actual duration of the JFR file. Frontend clients must use these to convert relative timeline selections into absolute ISO-8601 params before querying endpoints.

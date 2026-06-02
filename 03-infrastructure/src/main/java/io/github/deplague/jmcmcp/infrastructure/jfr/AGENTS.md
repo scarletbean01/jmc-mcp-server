@@ -26,3 +26,4 @@ This package contains the high-performance implementation for JFR parsing and ca
 - **Memory Pressure:** JFR data is heavy. Be surgical with event filtering.
 - **Stack Traces:** When grouping by stack trace, use `StackTraceKey` instead of converting to Strings early.
 - **Metrics:** Register cache gauges with `AnalysisMetrics`.
+- **Time Ranges:** Time-filtering ranges must be parsed using absolute ISO-8601 or absolute epoch timestamps. Small integer relative second offsets (e.g. `0`, `30`) are ignored silently (returning `null`) to prevent noisy `WARN` logs.

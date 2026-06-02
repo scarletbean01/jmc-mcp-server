@@ -13,6 +13,8 @@ public record RecordingInfo(
         Instant uploadTime,
         double durationSeconds,
         long totalEvents,
+        Instant startTime,
+        Instant endTime,
         Map<String, String> availability
 ) {
 }

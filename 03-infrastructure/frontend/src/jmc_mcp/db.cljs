@@ -10,7 +10,9 @@
 
    :recording-detail {:recording-id nil
                       :info nil
-                      :active-analysis :overview
+                      :active-tab :copilot
+                      :diagnostic-focus :cpu
+                      :forensic-focus :overview
                       :analysis-params {:start-time nil
                                         :end-time nil
                                         :topN 20}

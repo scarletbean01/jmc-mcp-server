@@ -11,11 +11,102 @@
  (fn [_ _]
    default-db))
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :route/changed
- (fn [db [_ new-match]]
-   (assoc db :route {:current (get-in new-match [:data :name])
-                     :params (:path-params new-match)})))
+ (fn [{:keys [db]} [_ new-match]]
+   (let [current-route (get-in new-match [:data :name])
+         params (:path-params new-match)
+         recording-id (:id params)
+         old-recording-id (get-in db [:recording-detail :recording-id])
+         new-db (-> db
+                    (assoc :route {:current current-route
+                                   :params params})
+                    (cond-> (= current-route :recording-detail)
+                      (assoc-in [:recording-detail :recording-id] recording-id)))]
+     (cond-> {:db new-db}
+       (and (= current-route :recording-detail)
+            (or (not= recording-id old-recording-id)
+                (empty? (get-in db [:recording-detail :results]))))
+       (assoc :dispatch [:analysis/load-copilot-data recording-id])))))
+
+;; Copilot, Diagnostics, and Forensic view event handlers
+(rf/reg-event-fx
+ :analysis/load-copilot-data
+ (fn [{:keys [db]} [_ recording-id]]
+   (let [params (get-in db [:recording-detail :analysis-params])]
+     {:dispatch-n [[:analysis/run recording-id :system-health params]
+                   [:analysis/run recording-id :jfr-rules params]
+                   [:analysis/run recording-id :hot-methods params]
+                   [:analysis/run recording-id :thread-contention params]
+                   [:analysis/run recording-id :io-hotspots params]
+                   [:analysis/run recording-id :jdbc-nplusone params]]})))
+
+(rf/reg-event-fx
+ :analysis/select-tab
+ (fn [{:keys [db]} [_ tab]]
+   (let [recording-id (get-in db [:route :params :id])
+         new-db (assoc-in db [:recording-detail :active-tab] tab)]
+     (cond-> {:db new-db}
+       (and (= tab :diagnostics) (not (get-in db [:recording-detail :results :thread-cpu])))
+       (assoc :dispatch [:analysis/select-diagnostic-focus (get-in db [:recording-detail :diagnostic-focus] :cpu)])
+       
+       (and (= tab :forensics) (not (get-in db [:recording-detail :results :overview])))
+       (assoc :dispatch [:analysis/select-forensic-focus (get-in db [:recording-detail :forensic-focus] :overview)])))))
+
+(rf/reg-event-fx
+ :analysis/select-diagnostic-focus
+ (fn [{:keys [db]} [_ focus]]
+   (let [recording-id (get-in db [:route :params :id])
+         params (get-in db [:recording-detail :analysis-params])
+         new-db (assoc-in db [:recording-detail :diagnostic-focus] focus)
+         dispatches (case focus
+                      :cpu [[:analysis/run recording-id :thread-cpu params]
+                            [:analysis/run recording-id :hot-methods params]
+                            [:analysis/run recording-id :thread-starvation params]]
+                      :memory [[:analysis/run recording-id :gc-detail params]
+                               [:analysis/run recording-id :heap-trends params]
+                               [:analysis/run recording-id :predictive-leak params]]
+                      :locks [[:analysis/run recording-id :thread-contention params]
+                              [:analysis/run recording-id :lock-analysis params]
+                              [:analysis/run recording-id :deadlock-detection params]
+                              [:analysis/run recording-id :lock-resolver params]]
+                      :io [[:analysis/run recording-id :io-analysis params]
+                           [:analysis/run recording-id :io-hotspots params]
+                           [:analysis/run recording-id :jdbc-nplusone params]]
+                      [])]
+     {:db new-db
+      :dispatch-n dispatches})))
+
+(rf/reg-event-fx
+ :analysis/select-forensic-focus
+ (fn [{:keys [db]} [_ focus]]
+   (let [recording-id (get-in db [:route :params :id])
+         params (get-in db [:recording-detail :analysis-params])
+         new-db (assoc-in db [:recording-detail :forensic-focus] focus)
+         result (get-in db [:recording-detail :results focus])]
+     (cond-> {:db new-db}
+       (not result)
+       (assoc :dispatch [:analysis/run recording-id focus params])))))
+
+(rf/reg-event-fx
+ :analysis/apply-time-filter
+ (fn [{:keys [db]} [_ start-time end-time]]
+   (let [recording-id (get-in db [:route :params :id])
+         new-params (assoc (get-in db [:recording-detail :analysis-params])
+                           :start-time start-time
+                           :end-time end-time)
+         new-db (-> db
+                    (assoc-in [:recording-detail :analysis-params] new-params)
+                    (assoc-in [:recording-detail :results] {})) ; Clear cache to force reload
+         active-tab (get-in db [:recording-detail :active-tab] :copilot)
+         active-focus (get-in db [:recording-detail :diagnostic-focus] :cpu)
+         active-forensic (get-in db [:recording-detail :forensic-focus] :overview)]
+     {:db new-db
+      :dispatch-n (case active-tab
+                    :copilot [[:analysis/load-copilot-data recording-id]]
+                    :diagnostics [[:analysis/select-diagnostic-focus active-focus]]
+                    :forensics [[:analysis/select-forensic-focus active-forensic]]
+                    [])})))
 
 ;; Notifications
 (rf/reg-event-db
@@ -104,19 +195,35 @@
      (cond-> {:db (assoc-in db [:recording-detail :active-analysis] type)}
        (not result) (assoc :dispatch [:analysis/run recording-id type (get-in db [:recording-detail :analysis-params])])))))
 
+(defn- resolve-time-params [db recording-id params]
+  (let [info (or (get-in db [:recording-detail :info])
+                 (some #(when (= (:id %) recording-id) %) (get-in db [:recordings :items])))
+        start-sec (:start-time params)
+        end-sec (:end-time params)]
+    (cond-> params
+      (and start-sec (:startTime info))
+      (assoc :start-time (let [start-inst (js/Date. (:startTime info))
+                               new-time (+ (.getTime start-inst) (* start-sec 1000))]
+                           (.toISOString (js/Date. new-time))))
+      (and end-sec (:startTime info))
+      (assoc :end-time (let [start-inst (js/Date. (:startTime info))
+                             new-time (+ (.getTime start-inst) (* end-sec 1000))]
+                         (.toISOString (js/Date. new-time)))))))
+
 ;; Analysis
 (rf/reg-event-fx
  :analysis/run
  (fn [{:keys [db]} [_ recording-id type params]]
    (when (and recording-id type)
-     {:db (assoc-in db [:recording-detail :loading?] true)
-      :http-xhrio {:method          :post
-                 :uri             (api/url "/recordings/" recording-id "/analyze/" (name type))
-                 :params          params
-                 :format          (ajax/json-request-format)
-                 :response-format (ajax/json-response-format {:keywords? true})
-                 :on-success      [:analysis/result type]
-                 :on-failure      [:analysis/failed type]}})))
+     (let [resolved-params (resolve-time-params db recording-id params)]
+       {:db (assoc-in db [:recording-detail :loading?] true)
+        :http-xhrio {:method          :post
+                   :uri             (api/url "/recordings/" recording-id "/analyze/" (name type))
+                   :params          resolved-params
+                   :format          (ajax/json-request-format)
+                   :response-format (ajax/json-response-format {:keywords? true})
+                   :on-success      [:analysis/result type]
+                   :on-failure      [:analysis/failed type]}}))))
 
 (rf/reg-event-db
  :analysis/result
@@ -351,14 +458,15 @@
 (rf/reg-event-fx
  :analysis/run-async
  (fn [{:keys [db]} [_ recording-id type params]]
-   {:db (assoc-in db [:recording-detail :loading?] true)
-    :http-xhrio {:method          :post
-               :uri             (api/url "/recordings/" recording-id "/analyze/" (name type) "/async")
-               :params          params
-               :format          (ajax/json-request-format)
-               :response-format (ajax/json-response-format {:keywords? true})
-               :on-success      [:analysis/job-created recording-id type]
-               :on-failure      [:analysis/failed type]}}))
+   (let [resolved-params (resolve-time-params db recording-id params)]
+     {:db (assoc-in db [:recording-detail :loading?] true)
+      :http-xhrio {:method          :post
+                 :uri             (api/url "/recordings/" recording-id "/analyze/" (name type) "/async")
+                 :params          resolved-params
+                 :format          (ajax/json-request-format)
+                 :response-format (ajax/json-response-format {:keywords? true})
+                 :on-success      [:analysis/job-created recording-id type]
+                 :on-failure      [:analysis/failed type]}})))
 
 (rf/reg-event-fx
  :analysis/job-created

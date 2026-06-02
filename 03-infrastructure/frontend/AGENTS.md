@@ -43,6 +43,9 @@ This package contains the ClojureScript Single Page Application (SPA) that acts 
 4. **Interactivity:**
    - For deeply nested data (like Differential Call Trees), use recursive Reagent components and track expansion state centrally in `re-frame` rather than relying on local component state (to allow global "Expand All" functionality).
 
+5. **Time Parameters:**
+   - The timeline scrubber uses relative seconds (`0` to `durationSeconds`) to track filtering state in ClojureScript. These are converted to absolute ISO-8601 strings in the `events.cljs` `resolve-time-params` helper right before dispatching HTTP requests to the backend.
+
 ## Development & Building
 
 - During regular Maven builds (`./mvnw compile` or `./mvnw package`), the `frontend-maven-plugin` automatically downloads Node.js, installs dependencies via `npm install`, and compiles the ClojureScript application via `shadow-cljs release`. The output is bundled into the final JAR under `META-INF/resources`.

@@ -106,7 +106,7 @@ public class RecordingStorageService {
                         return mapToInfo(meta);
                     } catch (IOException e) {
                         log.warn("Failed to get info for recording {}", meta.recordingId, e);
-                        return new RecordingInfo(meta.recordingId, meta.fileName, meta.fileSize, meta.uploadedAt, 0, 0, Map.of());
+                        return new RecordingInfo(meta.recordingId, meta.fileName, meta.fileSize, meta.uploadedAt, 0.0, 0, null, null, Map.of());
                     }
                 })
                 .sorted(java.util.Comparator.comparing(RecordingInfo::uploadTime).reversed())
@@ -119,13 +119,31 @@ public class RecordingStorageService {
         for (var iterable : events) {
             eventCount += iterable.getItemCount();
         }
+        double durationSeconds = 0.0;
+        Instant startTime = null;
+        Instant endTime = null;
+        try {
+            org.openjdk.jmc.common.unit.IQuantity startQ = org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getEarliestStartTime(events);
+            org.openjdk.jmc.common.unit.IQuantity endQ = org.openjdk.jmc.flightrecorder.rules.util.RulesToolkit.getLatestEndTime(events);
+            if (startQ != null && endQ != null) {
+                long startMillis = startQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS);
+                long endMillis = endQ.clampedLongValueIn(org.openjdk.jmc.common.unit.UnitLookup.EPOCH_MS);
+                durationSeconds = (endMillis - startMillis) / 1000.0;
+                startTime = Instant.ofEpochMilli(startMillis);
+                endTime = Instant.ofEpochMilli(endMillis);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract duration for recording {}", meta.recordingId, e);
+        }
         return new RecordingInfo(
                 meta.recordingId,
                 meta.fileName,
                 meta.fileSize,
                 meta.uploadedAt,
-                0.0,
+                durationSeconds,
                 eventCount,
+                startTime,
+                endTime,
                 Map.of()
         );
     }

@@ -22,14 +22,42 @@
    (get-in db [:recordings :loading?])))
 
 (rf/reg-sub
- :recording-detail/info
+ :recording-detail/recording-id
  (fn [db _]
-   (get-in db [:recording-detail :info])))
+   (get-in db [:recording-detail :recording-id])))
 
 (rf/reg-sub
- :recording-detail/active-analysis
+ :recording-detail/results
  (fn [db _]
-   (get-in db [:recording-detail :active-analysis])))
+   (get-in db [:recording-detail :results])))
+
+(rf/reg-sub
+ :recording-detail/info
+ (fn [db _]
+   (let [id (get-in db [:recording-detail :recording-id])
+         items (get-in db [:recordings :items])]
+     (or (get-in db [:recording-detail :info])
+         (some #(when (= (:id %) id) %) items)))))
+
+(rf/reg-sub
+ :recording-detail/active-tab
+ (fn [db _]
+   (get-in db [:recording-detail :active-tab])))
+
+(rf/reg-sub
+ :recording-detail/diagnostic-focus
+ (fn [db _]
+   (get-in db [:recording-detail :diagnostic-focus])))
+
+(rf/reg-sub
+ :recording-detail/forensic-focus
+ (fn [db _]
+   (get-in db [:recording-detail :forensic-focus])))
+
+(rf/reg-sub
+ :recording-detail/analysis-params
+ (fn [db _]
+   (get-in db [:recording-detail :analysis-params])))
 
 (rf/reg-sub
  :recording-detail/result
