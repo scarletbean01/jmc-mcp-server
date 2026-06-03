@@ -23,13 +23,17 @@
   (let [detail (rf/subscribe [:heapdump/detail])]
     (fn []
       (let [info (:info @detail)]
-        [:div {:class "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"}
-         [info-card "File Name" (:fileName info) "zmdi-file"]
-         [info-card "Format" (or (:format info) "HPROF") "zmdi-format"]
-         [info-card "Size" (str (js/Math.round (/ (:fileSize info) 1024 1024)) " MB") "zmdi-storage"]
-         [info-card "Objects" (if (pos? (:objectCount info)) (str (:objectCount info)) "—") "zmdi-layers"]
-         [info-card "Classes" (if (pos? (:classCount info)) (str (:classCount info)) "—") "zmdi-code"]
-         [info-card "Uploaded" (:uploadTime info) "zmdi-time"]]))))
+        (if (nil? info)
+          [:div {:class "py-20 flex flex-col items-center gap-4 text-slate-400"}
+           [components/spinner]
+           [:span "Loading heap dump info..."]]
+          [:div {:class "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"}
+           [info-card "File Name" (:fileName info) "zmdi-file"]
+           [info-card "Format" (or (:format info) "HPROF") "zmdi-format"]
+           [info-card "Size" (if (:fileSize info) (str (js/Math.round (/ (:fileSize info) 1024 1024)) " MB") "—") "zmdi-storage"]
+           [info-card "Objects" (if (and (:objectCount info) (pos? (:objectCount info))) (str (:objectCount info)) "—") "zmdi-layers"]
+           [info-card "Classes" (if (and (:classCount info) (pos? (:classCount info))) (str (:classCount info)) "—") "zmdi-code"]
+           [info-card "Uploaded" (:uploadTime info) "zmdi-time"]])))))
 
 (defn- class-histogram-tab []
   (let [result (rf/subscribe [:heapdump/analysis-result :class-histogram])
@@ -68,34 +72,35 @@
                  [:td {:class "px-4 py-3 font-mono text-xs"} (:className entry)]
                  [:td {:class "px-4 py-3 text-right"} (str (:instanceCount entry))]
                  [:td {:class "px-4 py-3 text-right"} (str (:totalShallowSize entry))]
-                 [:td {:class "px-4 py-3 text-right font-semibold"} (str (:totalRetainedSize entry))]])]]]]))))
+                 [:td {:class "px-4 py-3 text-right font-semibold"} (str (:totalRetainedSize entry))]])]]]])))))
 
 (defn- dominator-tree-node [node tree-id depth]
   (let [expanded (rf/subscribe [:heapdump/dominator-expanded])
-        loading-nodes (rf/subscribe [:heapdump/dominator-loading-nodes])
-        node-id (str (:objectId node))
-        is-expanded? (contains? @expanded node-id)
-        is-loading? (contains? @loading-nodes node-id)
-        has-children? (:hasChildren node)]
-    [:div {:class (str "border-l-2 pl-3 " (if (> depth 0) "ml-4 " "") "border-slate-200")}
-     [:div {:class    "flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-2"
-            :on-click #(when has-children?
-                         (rf/dispatch [:heapdump/expand-dominator tree-id node-id]))}
-      (cond
-        is-loading? [:i {:class "zmdi zmdi-spinner zmdi-hc-spin text-slate-400"}]
-        (and has-children? is-expanded?) [:i {:class "zmdi zmdi-minis zmdi-chevron-down text-slate-400"}]
-        has-children? [:i {:class "zmdi zmdi-chevron-right text-slate-400"}]
-        :else [:span {:class "w-4"}])
-      [:span {:class "font-mono text-xs text-slate-500"} (str "#" (:objectId node))]
-      [:span {:class "text-sm font-medium text-slate-700"} (:className node)]
-      [:span {:class "text-xs text-slate-400 ml-2"}
-       (str "retained " (:retainedSize node) " | shallow " (:shallowSize node))]]
-     (when is-expanded?
-       (if (seq (:children node))
-         (for [child (:children node)]
-           ^{:key (:objectId child)}
-           [dominator-tree-node child tree-id (inc depth)])
-         [:div {:class "text-sm text-slate-400 py-1 pl-6"} "No children"]))]))
+        loading-nodes (rf/subscribe [:heapdump/dominator-loading-nodes])]
+    (fn [node tree-id depth]
+      (let [node-id (str (:objectId node))
+            is-expanded? (contains? (or @expanded #{}) node-id)
+            is-loading? (contains? (or @loading-nodes #{}) node-id)
+            has-children? (:hasChildren node)]
+        [:div {:class (str "border-l-2 pl-3 " (if (> depth 0) "ml-4 " "") "border-slate-200")}
+         [:div {:class    "flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-2"
+                :on-click #(when has-children?
+                             (rf/dispatch [:heapdump/expand-dominator tree-id node-id]))}
+          (cond
+            is-loading? [:i {:class "zmdi zmdi-spinner zmdi-hc-spin text-slate-400"}]
+            (and has-children? is-expanded?) [:i {:class "zmdi zmdi-minis zmdi-chevron-down text-slate-400"}]
+            has-children? [:i {:class "zmdi zmdi-chevron-right text-slate-400"}]
+            :else [:span {:class "w-4"}])
+          [:span {:class "font-mono text-xs text-slate-500"} (str "#" (:objectId node))]
+          [:span {:class "text-sm font-medium text-slate-700"} (:className node)]
+          [:span {:class "text-xs text-slate-400 ml-2"}
+           (str "retained " (:retainedSize node) " | shallow " (:shallowSize node))]]
+         (when is-expanded?
+           (if (seq (:children node))
+             (for [child (:children node)]
+               ^{:key (:objectId child)}
+               [dominator-tree-node child tree-id (inc depth)])
+             [:div {:class "text-sm text-slate-400 py-1 pl-6"} "No children"]))]))))
 
 (defn- dominator-tree-tab []
   (let [result (rf/subscribe [:heapdump/analysis-result :dominator-tree])
@@ -123,6 +128,14 @@
            (for [node top-dominators]
              ^{:key (:objectId node)}
              [dominator-tree-node node tree-id 0])])))))
+
+(defn- flatten-tree-with-depth
+  ([node] (flatten-tree-with-depth node 0))
+  ([node depth]
+   (lazy-seq
+     (cons (assoc node :depth depth)
+           (mapcat #(flatten-tree-with-depth % (inc depth))
+                   (:children node))))))
 
 (defn- reference-graph-tab []
   (let [object-id (r/atom "")
@@ -155,10 +168,10 @@
               [:div {:class "border border-slate-200 rounded-lg p-4 bg-slate-50"}
                [:div {:class "font-semibold text-slate-700 mb-2"} (str "Path " (inc idx))]
                [:div {:class "space-y-1"}
-                (for [[link-idx link] (map-indexed vector (tree-seq :children :children path))]
+                (for [[link-idx link] (map-indexed vector (flatten-tree-with-depth path))]
                   ^{:key link-idx}
                   [:div {:class "text-sm"}
-                   [:span {:class "text-slate-400 mr-2"} (str (repeat (* 2 (:depth link 0)) "\u00A0"))]
+                   [:span {:class "text-slate-400 mr-2"} (str (apply str (repeat (* 2 (:depth link 0)) "\u00A0")))]
                    [:span {:class "font-medium text-slate-600"} (:referenceType link)]
                    (when (seq (:fieldName link))
                      [:span {:class "text-slate-400 mx-1"} (str "(" (:fieldName link) ")")])
@@ -231,8 +244,7 @@
 
 (defn heapdump-detail-page []
   (let [detail (rf/subscribe [:heapdump/detail])
-        active-tab (rf/subscribe [:heapdump/active-tab])
-        linked-recording-id (rf/subscribe [:heapdump/detail])]
+        active-tab (rf/subscribe [:heapdump/active-tab])]
     (fn []
       (let [info (:info @detail)
             linked-id (:linked-recording-id @detail)]
@@ -271,4 +283,3 @@
            :reference-graph [reference-graph-tab]
            :cross-analysis [cross-analysis-tab]
            [overview-tab])]))))
-)

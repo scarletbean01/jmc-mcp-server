@@ -6,7 +6,7 @@ import io.github.deplague.jmcmcp.domain.model.UnifiedClassEntry;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
-import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ public final class HeapDumpCrossAnalysisTool {
 
     private final HeapDumpCrossAnalysisApplicationService crossAnalysisService;
 
-    @RunOnVirtualThread
+    @Blocking
     @Tool(description = "Perform a unified cross-analysis between a JFR recording and a linked heap dump. Correlates JFR OldObjectSample leak signals with heap dump retained sizes to produce severity-ranked leak candidates.")
     public ToolResponse heapDumpCrossAnalysis(
             @ToolArg(name = "recording_path", description = "Absolute or relative path to the .jfr recording file") String recordingPath,

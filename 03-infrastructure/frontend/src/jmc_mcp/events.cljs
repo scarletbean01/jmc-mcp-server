@@ -408,7 +408,7 @@
 (defn- assoc-children [nodes target-id children]
   (reduce (fn [acc node]
             (conj acc
-                  (if (= (:objectId node) target-id)
+                  (if (= (str (:objectId node)) (str target-id))
                     (assoc node :children children)
                     (if-let [existing-children (:children node)]
                       (assoc node :children (assoc-children existing-children target-id children))
@@ -702,7 +702,7 @@
          job (get-in db [:jobs job-id])]
      (cond-> {:db (assoc-in db [:jobs job-id] (merge job status-data))}
        (= status "COMPLETED")
-       (assoc :dispatch [:analysis/result (:analysisType job) response])
+       (assoc :dispatch [:analysis/result (:analysisType job) {:data (:result status-data)}])
 
        (or (= status "COMPLETED") (= status "FAILED"))
        (assoc :notify {:type (if (= status "COMPLETED") :success :error)

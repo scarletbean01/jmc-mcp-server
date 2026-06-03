@@ -24,3 +24,4 @@ This is the technical implementation layer, containing adapters for external pro
 - **Concurrency:** Use `@RunOnVirtualThread` for all entry points to leverage Java 25's lightweight concurrency.
 - **Tracing & Metrics:** Use `@WithSpan` (OpenTelemetry) and `AnalysisMetrics` to ensure operations are observable.
 - **Security:** Always invoke `RecordingAccessController.validate()` before reading user-provided file paths.
+- **Static Assets Caching & Shadowing:** Do not check compiled static assets (`js/compiled/`, `index.html`, or `css/`) into `src/main/resources/META-INF/resources/`. They will shadow target resources and cause stale caching issues in Quarkus dev mode. Let the Maven build and resources plugins copy them automatically from the `frontend/resources/public/` directory into `target/classes`.

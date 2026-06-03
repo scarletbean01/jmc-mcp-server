@@ -82,8 +82,8 @@
     [:div {:class "bg-white border border-slate-200 rounded-xl p-6 shadow-sm"}
      [:div {:class "h-64 relative"}
       [:> Line {:data (clj->js chart-data)
-                :options {:responsive true
-                          :maintainAspectRatio false}}]]]))
+                :options (clj->js {:responsive true
+                                   :maintainAspectRatio false})}]]]))
 
 ;; ------------------------------------------------------------------
 ;; Color-Coded Interactive Flame Graph
@@ -693,6 +693,14 @@
        [:div {:class "p-6 text-center text-slate-400 text-sm italic bg-white border border-slate-200 rounded-xl"}
         "No dominator tree data available"])]))
 
+(defn- flatten-tree-with-depth
+  ([node] (flatten-tree-with-depth node 0))
+  ([node depth]
+   (lazy-seq
+    (cons (assoc node :depth depth)
+          (mapcat #(flatten-tree-with-depth % (inc depth))
+                  (:children node))))))
+
 (defn reference-graph-renderer [data]
   (let [recording-id @(rf/subscribe [:recording-detail/recording-id])
         object-id (r/atom "")]
@@ -720,25 +728,29 @@
            (str "Paths from " (:targetClassName data) " #" (:targetObjectId data)
                 " (" (js/Math.round (/ (:targetRetainedSize data) 1024 1024)) " MB retained)")]
           (for [[idx path] (map-indexed vector (:pathsToGcRoots data))]
-            ^{:key idx}
-            [:div {:class "bg-white border border-slate-200 rounded-xl p-5 shadow-sm"}
-             [:div {:class "text-xs font-bold text-slate-400 uppercase tracking-widest mb-3"}
-              (str "Path " (inc idx) " (" (count path) " links)")]
-             [:div {:class "flex flex-col gap-2"}
-              (for [[link-idx link] (map-indexed vector path)]
-                ^{:key link-idx}
-                [:div {:class (str "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium "
-                                   (case (:referenceType link)
-                                     "ROOT" "bg-red-50 text-red-700 border border-red-100"
-                                     "FIELD" "bg-blue-50 text-blue-700 border border-blue-100"
-                                     "bg-slate-50 text-slate-700 border border-slate-100"))}
-                 [:span {:class "text-xs font-bold opacity-60 w-16 shrink-0"} (or (:referenceType link) "REF")]
-                 [:div {:class "flex flex-col min-w-0"}
-                  [:span {:class "truncate font-mono text-xs"} (or (:className link) "Unknown")]
-                  (when (seq (:fieldName link))
-                    [:span {:class "text-[10px] opacity-60 truncate"} (:fieldName link)])]
-                 [:span {:class "text-xs opacity-60 shrink-0 ml-auto"}
-                  (str (:shallowSize link) "b / " (:retainedSize link) "b")]])]])])])))
+            (let [flat-path (flatten-tree-with-depth path)]
+              ^{:key idx}
+              [:div {:class "bg-white border border-slate-200 rounded-xl p-5 shadow-sm"}
+               [:div {:class "text-xs font-bold text-slate-400 uppercase tracking-widest mb-3"}
+                (str "Path " (inc idx) " (" (count flat-path) " links)")]
+               [:div {:class "flex flex-col gap-2"}
+                (for [[link-idx link] (map-indexed vector flat-path)]
+                  ^{:key link-idx}
+                  [:div {:class (str "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium "
+                                     (case (:referenceType link)
+                                       "ROOT" "bg-red-50 text-red-700 border border-red-100"
+                                       "FIELD" "bg-blue-50 text-blue-700 border border-blue-100"
+                                       "bg-slate-50 text-slate-700 border border-slate-100"))
+                         :style {:margin-left (str (* (:depth link 0) 16) "px")}}
+                   [:span {:class "text-xs font-bold opacity-60 w-16 shrink-0"} (or (:referenceType link) "REF")]
+                   [:div {:class "flex flex-col min-w-0"}
+                    [:span {:class "truncate font-mono text-xs"}
+                     (str (or (:className link) "Unknown")
+                          (when (:objectId link) (str " #" (:objectId link))))]
+                    (when (seq (:fieldName link))
+                      [:span {:class "text-[10px] opacity-60 truncate"} (:fieldName link)])]
+                   [:span {:class "text-xs opacity-60 shrink-0 ml-auto"}
+                    (str (:shallowSize link) "b / " (:retainedSize link) "b")]])]]))])])))
 
 (defn forensic-panel [recording-id]
   (let [active-forensic (rf/subscribe [:recording-detail/forensic-focus])

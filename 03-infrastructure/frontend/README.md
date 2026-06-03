@@ -214,5 +214,4 @@ npm run release
 
 Please be patient; it may take over 15 seconds to see any output, and over 30 seconds to complete.
 
-The `resources/public/js/compiled` directory is created, containing the compiled `app.js` and
-`manifest.edn` files.
+The `resources/public/js/compiled` directory is created, containing the compiled `app.js` and `manifest.edn` files. Note that these compiled assets are ignored by Git (see `.gitignore`) and should never be copied or checked directly into the Java source resources tree (`03-infrastructure/src/main/resources/META-INF/resources/js/compiled/`), as doing so will cause stale assets shadowing in development mode. The Maven build automatically copies these generated assets from `resources/public/` directly into `target/classes/META-INF/resources/` at build time.

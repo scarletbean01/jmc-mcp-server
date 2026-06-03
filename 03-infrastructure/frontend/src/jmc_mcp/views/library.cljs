@@ -51,7 +51,8 @@
           [:div {:class "text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors flex items-center gap-2"}
            (:filename recording)
            (when heap-dump-id
-             [:span {:class "px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-200"}
+             [:span {:class "px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-200 cursor-pointer"
+                     :on-click #(navigate-to-heapdump heap-dump-id)}
               "Heap"])]
           [:div {:class "flex items-center gap-3 text-sm text-slate-500 mt-0.5"}
            [:span {:class "flex items-center gap-1"}

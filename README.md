@@ -134,13 +134,33 @@ The server embeds an interactive web-based dashboard built with ClojureScript an
 2. **Pre-Correlated Diagnostics:** Focused panels for **CPU & Threads** (starvation, hot methods), **Memory & GC** (predictive leak regression, pause times), **Locks & Contention** (biased lock revocations, deadlock visualizers), and **Database & I/O** (SQL N+1 loop detection, file/socket endpoints).
 3. **Forensic Profiler:** Color-coded CPU execution flame graphs, interactive call trees, and exceptions log tables.
 
-### Accessing the Dashboard
+### Local Development Workflow
 
-1. Build the project (which compiles both the ClojureScript UI and Java backend):
+To work on the frontend locally with hot-reloading:
+
+1. **Start the backend server** on port 8080 (which serves JFR APIs):
+   ```bash
+   ./mvnw -pl 03-infrastructure quarkus:dev
+   ```
+2. **Start the shadow-cljs watcher** in another terminal:
+   ```bash
+   cd 03-infrastructure/frontend
+   npm install
+   npm run watch
+   ```
+3. Open your browser and navigate to the dev server on port 3000:
+   ```
+   http://localhost:3000/
+   ```
+   This setup serves the hot-reloaded ClojureScript assets directly from the `frontend/resources/public/` folder while forwarding API calls to the backend on `localhost:8080`.
+
+### Production Build & Standalone Run
+
+1. Build the full project (which automatically compiles the ClojureScript bundle and packages it inside the JAR's `META-INF/resources/` classpath):
    ```bash
    ./mvnw clean package
    ```
-2. Run the server locally:
+2. Run the compiled standalone JAR:
    ```bash
    java -jar target/jmc-mcp-1.0.0-SNAPSHOT.jar
    ```

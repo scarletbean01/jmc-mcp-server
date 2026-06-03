@@ -2,10 +2,12 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.HeapDumpClassHistogramEntry;
 import io.github.deplague.jmcmcp.domain.model.HeapDumpClassHistogramResult;
+import com.google.common.collect.MinMaxPriorityQueue;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.netbeans.lib.profiler.heap.Heap;
 import org.netbeans.lib.profiler.heap.JavaClass;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -21,23 +23,30 @@ public final class HeapDumpClassHistogramService {
         long totalInstances = 0;
         long totalBytes = 0;
 
-        List<HeapDumpClassHistogramEntry> entries = allClasses.stream()
-                .filter(jc -> jc.getInstancesCount() > 0)
-                .map(jc -> {
-                    long count = jc.getInstancesCount();
-                    long shallow = jc.getAllInstancesSize();
-                    long retained = heap.isRetainedSizeByClassComputed() ? jc.getRetainedSizeByClass() : 0;
-                    return new HeapDumpClassHistogramEntry(jc.getName(), count, shallow, retained);
-                })
-                .sorted(Comparator.comparingLong(HeapDumpClassHistogramEntry::totalRetainedSize).reversed()
-                        .thenComparing(Comparator.comparingLong(HeapDumpClassHistogramEntry::totalShallowSize).reversed()))
-                .limit(topN)
-                .toList();
+        Comparator<HeapDumpClassHistogramEntry> comparator = Comparator
+                .comparingLong(HeapDumpClassHistogramEntry::totalRetainedSize)
+                .thenComparingLong(HeapDumpClassHistogramEntry::totalShallowSize);
+
+        MinMaxPriorityQueue<HeapDumpClassHistogramEntry> topEntries = MinMaxPriorityQueue
+                .orderedBy(comparator.reversed())
+                .maximumSize(topN)
+                .create();
 
         for (JavaClass jc : allClasses) {
-            totalInstances += jc.getInstancesCount();
-            totalBytes += jc.getAllInstancesSize();
+            long count = jc.getInstancesCount();
+            long shallow = jc.getAllInstancesSize();
+            
+            totalInstances += count;
+            totalBytes += shallow;
+
+            if (count > 0) {
+                long retained = heap.isRetainedSizeByClassComputed() ? jc.getRetainedSizeByClass() : 0;
+                topEntries.add(new HeapDumpClassHistogramEntry(jc.getName(), count, shallow, retained));
+            }
         }
+
+        List<HeapDumpClassHistogramEntry> entries = new ArrayList<>(topEntries);
+        entries.sort(comparator.reversed());
 
         return new HeapDumpClassHistogramResult(true, totalInstances, totalBytes, entries);
     }

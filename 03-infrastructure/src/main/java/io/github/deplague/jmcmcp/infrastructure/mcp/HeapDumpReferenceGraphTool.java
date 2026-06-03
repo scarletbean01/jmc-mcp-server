@@ -6,7 +6,7 @@ import io.github.deplague.jmcmcp.domain.model.ReferencePathResult;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
-import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +18,9 @@ public final class HeapDumpReferenceGraphTool {
 
     private final HeapDumpAnalysisApplicationService appService;
 
-    @RunOnVirtualThread
-    @Tool(description = "Trace reference paths from a specific object in a heap dump to its GC roots. Shows the chain of references keeping the object alive.")
+    @Blocking
+    @Tool(description = "Trace paths from a specific object to GC roots in a heap dump. Essential for diagnosing why an object is not being garbage collected.")
+
     public ToolResponse heapDumpReferenceGraph(
             @ToolArg(name = "heap_dump_path", description = "Absolute or relative path to the .hprof heap dump file") String heapDumpPath,
             @ToolArg(name = "object_id", description = "The object ID (instanceId) to trace from") long objectId,

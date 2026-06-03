@@ -6,7 +6,7 @@ import io.github.deplague.jmcmcp.domain.model.HeapDumpClassHistogramResult;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
-import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ public final class HeapDumpClassHistogramTool {
 
     private final HeapDumpAnalysisApplicationService appService;
 
-    @RunOnVirtualThread
+    @Blocking
     @Tool(description = "Analyze a heap dump (HPROF) and return a class histogram showing the top classes by retained size, instance count, and shallow size.")
     public ToolResponse heapDumpClassHistogram(
             @ToolArg(name = "heap_dump_path", description = "Absolute or relative path to the .hprof heap dump file") String heapDumpPath,

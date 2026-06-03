@@ -1,1 +1,0 @@
-{"version":3,"sources":["jmc_mcp/config.cljs"],"mappings":";AAEA;;;;yBAAA,AAAAA,YAAA,yBAAA,9DAAaC","names":["js/goog.define","jmc-mcp.config/api-url"],"sourcesContent":["(ns jmc-mcp.config)\n\n(goog-define api-url \"http://localhost:8080/api/v1\")\n"]}

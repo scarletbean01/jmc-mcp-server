@@ -84,10 +84,25 @@ public class HeapDumpStorageService {
         log.info("Stored heap dump {} ({} bytes, totalStorage={}MB)",
                 heapDumpId, fileSize, getTotalStorageBytes() / (1024 * 1024));
 
-        // Async enrichment: parse heap dump to extract object/class counts
-        CompletableFuture.runAsync(() -> enrichHeapDumpInfo(heapDumpId, targetPath.toString()));
-
         return new UploadResponse(heapDumpId, fileName, fileSize, Instant.now());
+    }
+
+    public void enrichHeapDumpInfo(String heapDumpId, Heap heap) {
+        if (heap == null) return;
+        try {
+            HeapSummary summary = heap.getSummary();
+            long objectCount = summary != null ? summary.getTotalLiveInstances() : 0;
+            long classCount = heap.getAllClasses() != null ? heap.getAllClasses().size() : 0;
+
+            heapDumps.computeIfPresent(heapDumpId, (_, meta) -> {
+                meta.objectCount = objectCount;
+                meta.classCount = classCount;
+                return meta;
+            });
+            log.debug("Enriched heap dump {}: {} objects, {} classes", heapDumpId, objectCount, classCount);
+        } catch (Exception e) {
+            log.warn("Failed to enrich heap dump info for {}: {}", heapDumpId, e.getMessage());
+        }
     }
 
     public HeapDumpInfo getHeapDumpInfo(String heapDumpId) {
@@ -118,24 +133,6 @@ public class HeapDumpStorageService {
         );
     }
 
-    private void enrichHeapDumpInfo(String heapDumpId, String filePath) {
-        try {
-            Heap heap = heapDumpProvider.loadSnapshot(filePath);
-            HeapSummary summary = heap.getSummary();
-            long objectCount = summary != null ? summary.getTotalLiveInstances() : 0;
-            long classCount = heap.getAllClasses() != null ? heap.getAllClasses().size() : 0;
-
-            heapDumps.computeIfPresent(heapDumpId, (_, meta) -> {
-                meta.objectCount = objectCount;
-                meta.classCount = classCount;
-                return meta;
-            });
-            log.info("Enriched heap dump {}: {} objects, {} classes", heapDumpId, objectCount, classCount);
-        } catch (Exception e) {
-            log.warn("Failed to enrich heap dump info for {}: {}", heapDumpId, e.getMessage());
-        }
-    }
-
     public String getHeapDumpPath(String heapDumpId) {
         HeapDumpMetadata meta = heapDumps.get(heapDumpId);
         return meta != null ? meta.filePath.toString() : null;
@@ -145,15 +142,22 @@ public class HeapDumpStorageService {
         HeapDumpMetadata meta = heapDumps.remove(heapDumpId);
         if (meta != null) {
             recordingToHeapDump.values().removeIf(v -> v.equals(heapDumpId));
-            try {
-                Files.deleteIfExists(meta.filePath);
-                log.info("Deleted heap dump {}", heapDumpId);
-                return true;
-            } catch (IOException e) {
-                log.warn("Failed to delete heap dump file for {}", heapDumpId, e);
-            }
+            cleanupFiles(meta);
+            return true;
         }
         return false;
+    }
+
+    private void cleanupFiles(HeapDumpMetadata meta) {
+        try {
+            Files.deleteIfExists(meta.filePath);
+            // Also cleanup NetBeans index file
+            Path indexPath = meta.filePath.resolveSibling(meta.filePath.getFileName().toString() + ".index");
+            Files.deleteIfExists(indexPath);
+            log.info("Deleted heap dump files for {}", meta.heapDumpId);
+        } catch (IOException e) {
+            log.warn("Failed to delete heap dump files for {}", meta.heapDumpId, e);
+        }
     }
 
     public void associateWithRecording(String heapDumpId, String recordingId) {
@@ -176,12 +180,7 @@ public class HeapDumpStorageService {
         heapDumps.entrySet().removeIf(entry -> {
             HeapDumpMetadata meta = entry.getValue();
             if (meta.uploadedAt.isBefore(cutoff)) {
-                try {
-                    Files.deleteIfExists(meta.filePath);
-                    log.info("Cleaned up expired heap dump {} (uploaded {})", meta.heapDumpId, meta.uploadedAt);
-                } catch (IOException e) {
-                    log.warn("Failed to delete expired heap dump file for {}", meta.heapDumpId, e);
-                }
+                cleanupFiles(meta);
                 return true;
             }
             return false;
@@ -196,13 +195,9 @@ public class HeapDumpStorageService {
             if (oldest == null) break;
             heapDumps.remove(oldest.heapDumpId);
             recordingToHeapDump.values().removeIf(v -> v.equals(oldest.heapDumpId));
-            try {
-                Files.deleteIfExists(oldest.filePath);
-                log.warn("Evicted oldest heap dump {} to make space ({} bytes)",
-                        oldest.heapDumpId, oldest.fileSize);
-            } catch (IOException e) {
-                log.warn("Failed to delete evicted heap dump file for {}", oldest.heapDumpId, e);
-            }
+            cleanupFiles(oldest);
+            log.warn("Evicted oldest heap dump {} to make space ({} bytes)",
+                    oldest.heapDumpId, oldest.fileSize);
         }
     }
 

@@ -84,7 +84,7 @@ public class AnalysisResource {
     }
 
     private Response dispatchHeapDumpAnalysis(String recordingId, String analysisType, AnalysisRequest request) {
-        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        String heapDumpId = storageService.getAssociatedHeapDumpId(recordingId);
         if (heapDumpId == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
@@ -118,7 +118,7 @@ public class AnalysisResource {
                     .entity(ApiResponse.error("Recording not found: " + recordingId))
                     .build();
         }
-        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        String heapDumpId = storageService.getAssociatedHeapDumpId(recordingId);
         if (heapDumpId == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
@@ -195,7 +195,7 @@ public class AnalysisResource {
     }
 
     private Response dispatchHeapDumpAnalysisAsync(String recordingId, String analysisType, AnalysisRequest request) {
-        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        String heapDumpId = storageService.getAssociatedHeapDumpId(recordingId);
         if (heapDumpId == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
@@ -234,7 +234,7 @@ public class AnalysisResource {
                     .entity(ApiResponse.error("Recording not found: " + recordingId))
                     .build();
         }
-        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        String heapDumpId = storageService.getAssociatedHeapDumpId(recordingId);
         if (heapDumpId == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))

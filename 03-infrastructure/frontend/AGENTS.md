@@ -62,4 +62,10 @@ This package contains the ClojureScript Single Page Application (SPA) that acts 
 ## Development & Building
 
 - During regular Maven builds (`./mvnw compile` or `./mvnw package`), the `frontend-maven-plugin` automatically downloads Node.js, installs dependencies via `npm install`, and compiles the ClojureScript application via `shadow-cljs release`. The output is bundled into the final JAR under `META-INF/resources`.
-- To fix compilation errors during UI development, ensure correct Clojure symbol matching and proper closing of Hiccup vectors (`[]`). 
+- **Do not check in compiled static assets** to the Java source folder `03-infrastructure/src/main/resources/META-INF/resources/js/compiled/` or its `index.html`. They shadow target resources in Quarkus dev mode and result in serving stale resources.
+- To fix compilation errors during UI development, ensure correct Clojure symbol matching and proper closing of Hiccup vectors (`[]`).
+
+## ClojureScript Interoperability (JS Libraries)
+
+- When interacting with external React components or JS libraries (e.g., `react-chartjs-2`, `chart.js`), always wrap configuration map parameters (like `:options`) in `clj->js` to serialize them into standard JavaScript objects.
+- Passing raw ClojureScript maps directly to external JS libraries will lead to runtime lookups returning `undefined`, causing crashes like `TypeError: right-hand side of 'in' should be an object, got undefined` when the library attempts internal properties check.

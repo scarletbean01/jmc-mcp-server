@@ -2,12 +2,14 @@ package io.github.deplague.jmcmcp.infrastructure.heapdump;
 
 import io.github.deplague.jmcmcp.infrastructure.api.model.AnalysisRequest;
 import io.github.deplague.jmcmcp.infrastructure.api.model.ApiResponse;
-import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import org.netbeans.lib.profiler.heap.Heap;
+import io.github.deplague.jmcmcp.application.port.HeapDumpProvider;
 
 @Path("/api/v1/heap-dumps/{heapDumpId}/analyze")
 @Produces(MediaType.APPLICATION_JSON)
@@ -17,8 +19,9 @@ public class HeapDumpAnalysisResource {
 
     private final HeapDumpStorageService storageService;
     private final HeapDumpAnalysisDispatcher dispatcher;
+    private final HeapDumpProvider heapDumpProvider;
 
-    @RunOnVirtualThread
+    @Blocking
     @POST
     @Path("/{analysisType}")
     public Response analyze(
@@ -35,6 +38,15 @@ public class HeapDumpAnalysisResource {
 
         try {
             Object result = dispatcher.dispatch(analysisType, filePath, request);
+
+            // Lazy enrichment: now that the heap is likely loaded in cache, update metadata
+            try {
+                Heap heap = heapDumpProvider.loadSnapshot(filePath);
+                storageService.enrichHeapDumpInfo(heapDumpId, heap);
+            } catch (Exception e) {
+                // Ignore enrichment errors
+            }
+
             return Response.ok(ApiResponse.ok(result)).build();
         } catch (IllegalArgumentException e) {
             return Response.status(Response.Status.BAD_REQUEST)
@@ -47,7 +59,7 @@ public class HeapDumpAnalysisResource {
         }
     }
 
-    @RunOnVirtualThread
+    @Blocking
     @POST
     @Path("/dominator-tree/{treeId}/expand")
     public Response expandDominatorTree(
@@ -69,6 +81,15 @@ public class HeapDumpAnalysisResource {
 
         try {
             Object result = dispatcher.expandDominatorNode(treeId, nodeId);
+
+            // Lazy enrichment: update metadata if not already done
+            try {
+                Heap heap = heapDumpProvider.loadSnapshot(filePath);
+                storageService.enrichHeapDumpInfo(heapDumpId, heap);
+            } catch (Exception e) {
+                // Ignore enrichment errors
+            }
+
             return Response.ok(ApiResponse.ok(result)).build();
         } catch (IllegalArgumentException e) {
             return Response.status(Response.Status.BAD_REQUEST)
