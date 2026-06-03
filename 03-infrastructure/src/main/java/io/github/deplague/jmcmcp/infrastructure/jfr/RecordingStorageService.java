@@ -38,6 +38,7 @@ public class RecordingStorageService {
     private final JfrProvider jfrProvider;
     private final Map<String, RecordingMetadata> recordings = new ConcurrentHashMap<>();
     private final Map<String, String> recordingToHeapDump = new ConcurrentHashMap<>();
+    private final Map<String, String> heapDumpToRecording = new ConcurrentHashMap<>();
     private final long maxStorageBytes;
 
     @Inject
@@ -159,6 +160,7 @@ public class RecordingStorageService {
     public void associateHeapDump(String recordingId, String heapDumpId) {
         recordings.get(recordingId); // validate recording exists
         recordingToHeapDump.put(recordingId, heapDumpId);
+        heapDumpToRecording.put(heapDumpId, recordingId);
         log.info("Associated heap dump {} with recording {}", heapDumpId, recordingId);
     }
 
@@ -166,9 +168,16 @@ public class RecordingStorageService {
         return recordingToHeapDump.get(recordingId);
     }
 
+    public String getAssociatedRecordingId(String heapDumpId) {
+        return heapDumpToRecording.get(heapDumpId);
+    }
+
     public boolean deleteRecording(String recordingId) {
         RecordingMetadata meta = recordings.remove(recordingId);
-        recordingToHeapDump.remove(recordingId);
+        String heapDumpId = recordingToHeapDump.remove(recordingId);
+        if (heapDumpId != null) {
+            heapDumpToRecording.remove(heapDumpId);
+        }
         if (meta != null) {
             try {
                 Files.deleteIfExists(meta.filePath);

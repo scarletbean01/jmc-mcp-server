@@ -8,6 +8,8 @@
     {:name :library}]
    ["recordings/:id"
     {:name :recording-detail}]
+   ["heap-dumps/:id"
+    {:name :heapdump-detail}]
    ["compare"
     {:name :compare}]])
 

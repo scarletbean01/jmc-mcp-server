@@ -2,6 +2,7 @@ package io.github.deplague.jmcmcp.infrastructure.api;
 
 import io.github.deplague.jmcmcp.application.model.JobStatusResponse;
 import io.github.deplague.jmcmcp.application.service.AsyncJobService;
+import io.github.deplague.jmcmcp.application.service.HeapDumpCrossAnalysisApplicationService;
 import io.github.deplague.jmcmcp.infrastructure.heapdump.HeapDumpAnalysisDispatcher;
 import io.github.deplague.jmcmcp.infrastructure.heapdump.HeapDumpStorageService;
 import io.github.deplague.jmcmcp.infrastructure.jfr.RecordingStorageService;
@@ -41,6 +42,7 @@ public class AnalysisResource {
     private final RecordingStorageService storageService;
     private final HeapDumpStorageService heapDumpStorage;
     private final HeapDumpAnalysisDispatcher heapDumpDispatcher;
+    private final HeapDumpCrossAnalysisApplicationService crossAnalysisService;
     private final AsyncJobService jobService;
     private final Executor managedExecutor;
 
@@ -53,6 +55,9 @@ public class AnalysisResource {
             @PathParam("analysisType") String analysisType,
             AnalysisRequest request
     ) {
+        if ("cross".equals(analysisType)) {
+            return dispatchCrossAnalysis(recordingId, request);
+        }
         if (HEAP_DUMP_ANALYSES.contains(analysisType)) {
             return dispatchHeapDumpAnalysis(recordingId, analysisType, request);
         }
@@ -106,6 +111,47 @@ public class AnalysisResource {
         }
     }
 
+    private Response dispatchCrossAnalysis(String recordingId, AnalysisRequest request) {
+        String recordingPath = storageService.getRecordingPath(recordingId);
+        if (recordingPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Recording not found: " + recordingId))
+                    .build();
+        }
+        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        if (heapDumpId == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
+                    .build();
+        }
+        String heapDumpPath = heapDumpStorage.getHeapDumpPath(heapDumpId);
+        if (heapDumpPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Heap dump not found: " + heapDumpId))
+                    .build();
+        }
+
+        try {
+            Map<String, Object> p = request.getParams() != null ? request.getParams() : Map.of();
+            Object result = crossAnalysisService.analyze(
+                    recordingPath,
+                    heapDumpPath,
+                    p.get("startTime") instanceof String s ? s : null,
+                    p.get("endTime") instanceof String s ? s : null,
+                    p.get("topN") instanceof Number n ? n.intValue() : 50
+            );
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error(e.getMessage()))
+                    .build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Analysis failed: " + e.getMessage()))
+                    .build();
+        }
+    }
+
     @RunOnVirtualThread
     @POST
     @Path("/{analysisType}/async")
@@ -115,6 +161,9 @@ public class AnalysisResource {
             @PathParam("analysisType") String analysisType,
             AnalysisRequest request
     ) {
+        if ("cross".equals(analysisType)) {
+            return dispatchCrossAnalysisAsync(recordingId, request);
+        }
         if (HEAP_DUMP_ANALYSES.contains(analysisType)) {
             return dispatchHeapDumpAnalysisAsync(recordingId, analysisType, request);
         }
@@ -165,6 +214,52 @@ public class AnalysisResource {
             try {
                 jobService.updateJobStatus(job.jobId(), "RUNNING", 10);
                 Object result = heapDumpDispatcher.dispatch(analysisType, heapDumpPath, request);
+                jobService.completeJob(job.jobId(), result);
+            } catch (Exception e) {
+                jobService.failJob(job.jobId(), e.getMessage());
+            }
+        }, managedExecutor);
+
+        jobService.setJobFuture(job.jobId(), future);
+
+        return Response.status(Response.Status.ACCEPTED)
+                .entity(ApiResponse.ok(Map.of("jobId", job.jobId(), "status", "PENDING")))
+                .build();
+    }
+
+    private Response dispatchCrossAnalysisAsync(String recordingId, AnalysisRequest request) {
+        String recordingPath = storageService.getRecordingPath(recordingId);
+        if (recordingPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Recording not found: " + recordingId))
+                    .build();
+        }
+        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        if (heapDumpId == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
+                    .build();
+        }
+        String heapDumpPath = heapDumpStorage.getHeapDumpPath(heapDumpId);
+        if (heapDumpPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Heap dump not found: " + heapDumpId))
+                    .build();
+        }
+
+        AsyncJob job = jobService.createJob(recordingId, "cross");
+
+        CompletableFuture<Void> future = jobService.submitAsync(() -> {
+            try {
+                jobService.updateJobStatus(job.jobId(), "RUNNING", 10);
+                Map<String, Object> p = request.getParams() != null ? request.getParams() : Map.of();
+                Object result = crossAnalysisService.analyze(
+                        recordingPath,
+                        heapDumpPath,
+                        p.get("startTime") instanceof String s ? s : null,
+                        p.get("endTime") instanceof String s ? s : null,
+                        p.get("topN") instanceof Number n ? n.intValue() : 50
+                );
                 jobService.completeJob(job.jobId(), result);
             } catch (Exception e) {
                 jobService.failJob(job.jobId(), e.getMessage());

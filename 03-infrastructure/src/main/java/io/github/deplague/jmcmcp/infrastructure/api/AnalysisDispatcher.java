@@ -184,15 +184,15 @@ public class AnalysisDispatcher {
         };
     }
 
-    public Object expandCallTree(String treeId, String nodeId) throws Exception {
+    public Object expandCallTree(String treeId, String nodeId) {
         return expandCallTreeService.expand(treeId, nodeId);
     }
 
-    public Object expandDiffCallTree(String treeId, String nodeId) throws Exception {
+    public Object expandDiffCallTree(String treeId, String nodeId) {
         return expandDiffCallTreeService.expand(treeId, nodeId);
     }
 
-    public Object compareRecordings(String baselinePath, String comparisonPath) throws Exception {
+    public Object compareRecordings(String baselinePath, String comparisonPath) {
         return metrics.timeAnalysis("compare", () -> {
             try {
                 return compareService.analyze(baselinePath, comparisonPath);
@@ -204,7 +204,7 @@ public class AnalysisDispatcher {
         });
     }
 
-    public Object compareRecordingsStructured(String baselinePath, String comparisonPath) throws Exception {
+    public Object compareRecordingsStructured(String baselinePath, String comparisonPath) {
         return metrics.timeAnalysis("compare-structured", () -> {
             try {
                 return compareService.analyzeStructured(baselinePath, comparisonPath);
@@ -216,7 +216,7 @@ public class AnalysisDispatcher {
         });
     }
 
-    public Object diffCallTree(String baselinePath, String targetPath, String subsystem, String packageFilter) throws Exception {
+    public Object diffCallTree(String baselinePath, String targetPath, String subsystem, String packageFilter) {
         return metrics.timeAnalysis("diff-call-tree", () -> {
             try {
                 return diffCallTreeService.analyze(baselinePath, targetPath, subsystem, packageFilter);
@@ -228,7 +228,7 @@ public class AnalysisDispatcher {
         });
     }
 
-    public Object diffStackTraces(String baselinePath, String targetPath, String packagePrefix, int topN) throws Exception {
+    public Object diffStackTraces(String baselinePath, String targetPath, String packagePrefix, int topN) {
         return metrics.timeAnalysis("diff-stack-traces", () -> {
             try {
                 return diffStackService.analyze(baselinePath, targetPath, packagePrefix, topN);

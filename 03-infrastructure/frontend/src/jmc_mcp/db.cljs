@@ -23,6 +23,14 @@
                       :results {}
                       :loading? false}
 
+   :heapdump-detail {:heapdump-id nil
+                     :info nil
+                     :active-tab :overview
+                     :analysis-results {}
+                     :dominator-tree {:expanded #{} :loading-nodes #{} :target-object nil}
+                     :cross-analysis nil
+                     :loading? false}
+
    :upload {:status :idle
             :progress 0
             :error nil}

@@ -6,6 +6,8 @@
             [day8.re-frame.http-fx]
             [jmc-mcp.fx]))
 
+(declare assoc-children)
+
 (rf/reg-event-db
  :initialize-db
  (fn [_ _]
@@ -17,17 +19,26 @@
    (let [current-route (get-in new-match [:data :name])
          params (:path-params new-match)
          recording-id (:id params)
+         heapdump-id (:id params)
          old-recording-id (get-in db [:recording-detail :recording-id])
+         old-heapdump-id (get-in db [:heapdump-detail :heapdump-id])
          new-db (-> db
                     (assoc :route {:current current-route
                                    :params params})
                     (cond-> (= current-route :recording-detail)
-                      (assoc-in [:recording-detail :recording-id] recording-id)))]
+                      (assoc-in [:recording-detail :recording-id] recording-id))
+                    (cond-> (= current-route :heapdump-detail)
+                      (assoc-in [:heapdump-detail :heapdump-id] heapdump-id)))]
      (cond-> {:db new-db}
        (and (= current-route :recording-detail)
             (or (not= recording-id old-recording-id)
                 (empty? (get-in db [:recording-detail :results]))))
-       (assoc :dispatch [:analysis/load-copilot-data recording-id])))))
+       (assoc :dispatch [:analysis/load-copilot-data recording-id])
+
+       (and (= current-route :heapdump-detail)
+            (or (not= heapdump-id old-heapdump-id)
+                (nil? (get-in db [:heapdump-detail :info]))))
+       (assoc :dispatch [:heapdump/load-detail heapdump-id])))))
 
 ;; Copilot, Diagnostics, and Forensic view event handlers
 (rf/reg-event-fx
@@ -268,6 +279,143 @@
    {:dispatch [:library/load-recordings]
     :notify {:type :success :message "Heap dump linked to recording"}}))
 
+;; Heap Dump Detail
+(rf/reg-event-fx
+ :heapdump/load-detail
+ (fn [{:keys [db]} [_ heapdump-id]]
+   {:db (assoc-in db [:heapdump-detail :loading?] true)
+    :http-xhrio {:method          :get
+                 :uri             (api/url "/heap-dumps/" heapdump-id)
+                 :response-format (ajax/json-response-format {:keywords? true})
+                 :on-success      [:heapdump/detail-loaded heapdump-id]
+                 :on-failure      [:heapdump/detail-failed]}}))
+
+(rf/reg-event-fx
+ :heapdump/detail-loaded
+ (fn [{:keys [db]} [_ heapdump-id response]]
+   (let [info (:data response)
+         new-db (-> db
+                    (assoc-in [:heapdump-detail :loading?] false)
+                    (assoc-in [:heapdump-detail :info] info)
+                    (assoc-in [:heapdump-detail :heapdump-id] heapdump-id)
+                    (assoc-in [:heapdump-detail :analysis-results] {})
+                    (assoc-in [:heapdump-detail :cross-analysis] nil))]
+     {:db new-db
+      :http-xhrio {:method          :get
+                   :uri             (api/url "/heap-dumps/" heapdump-id "/linked-recording")
+                   :response-format (ajax/json-response-format {:keywords? true})
+                   :on-success      [:heapdump/linked-recording-loaded]
+                   :on-failure      [:heapdump/linked-recording-failed]}})))
+
+(rf/reg-event-db
+ :heapdump/detail-failed
+ (fn [db _]
+   (assoc-in db [:heapdump-detail :loading?] false)))
+
+(rf/reg-event-db
+ :heapdump/linked-recording-loaded
+ (fn [db [_ response]]
+   (assoc-in db [:heapdump-detail :linked-recording-id] (get-in response [:data :recordingId]))))
+
+(rf/reg-event-db
+ :heapdump/linked-recording-failed
+ (fn [db _]
+   (assoc-in db [:heapdump-detail :linked-recording-id] nil)))
+
+(rf/reg-event-db
+ :heapdump/select-tab
+ (fn [db [_ tab]]
+   (assoc-in db [:heapdump-detail :active-tab] tab)))
+
+(rf/reg-event-fx
+ :heapdump/run-analysis
+ (fn [{:keys [db]} [_ type params]]
+   (let [heapdump-id (get-in db [:heapdump-detail :heapdump-id])]
+     {:db (assoc-in db [:heapdump-detail :loading?] true)
+      :http-xhrio {:method          :post
+                   :uri             (api/url "/heap-dumps/" heapdump-id "/analyze/" (name type))
+                   :params          (or params {})
+                   :format          (ajax/json-request-format)
+                   :response-format (ajax/json-response-format {:keywords? true})
+                   :on-success      [:heapdump/analysis-result type]
+                   :on-failure      [:heapdump/analysis-failed type]}})))
+
+(rf/reg-event-db
+ :heapdump/analysis-result
+ (fn [db [_ type response]]
+   (-> db
+       (assoc-in [:heapdump-detail :loading?] false)
+       (assoc-in [:heapdump-detail :analysis-results type] (:data response)))))
+
+(rf/reg-event-db
+ :heapdump/analysis-failed
+ (fn [db [_ type]]
+   (assoc-in db [:heapdump-detail :loading?] false)))
+
+;; Dominator tree expansion
+(rf/reg-event-fx
+ :heapdump/expand-dominator
+ (fn [{:keys [db]} [_ tree-id node-id]]
+   (let [heapdump-id (get-in db [:heapdump-detail :heapdump-id])
+         expanded (get-in db [:heapdump-detail :dominator-tree :expanded])
+         is-expanded? (contains? expanded node-id)]
+     (if is-expanded?
+       {:db (update-in db [:heapdump-detail :dominator-tree :expanded] disj node-id)}
+       {:db (update-in db [:heapdump-detail :dominator-tree :loading-nodes] conj node-id)
+        :http-xhrio {:method          :post
+                     :uri             (api/url "/heap-dumps/" heapdump-id "/analyze/dominator-tree/" tree-id "/expand?nodeId=" node-id)
+                     :format          (ajax/json-request-format)
+                     :response-format (ajax/json-response-format {:keywords? true})
+                     :on-success      [:heapdump/dominator-expanded node-id]
+                     :on-failure      [:heapdump/analysis-failed :dominator-tree]}}))))
+
+(rf/reg-event-db
+ :heapdump/dominator-expanded
+ (fn [db [_ node-id response]]
+   (let [children (:data response)]
+     (-> db
+         (update-in [:heapdump-detail :dominator-tree :loading-nodes] disj node-id)
+         (update-in [:heapdump-detail :dominator-tree :expanded] conj node-id)
+         (update-in [:heapdump-detail :analysis-results :dominator-tree :topDominators]
+                    (fn [top-dominators]
+                      (assoc-children top-dominators node-id children)))))))
+
+;; Cross analysis
+(rf/reg-event-fx
+ :heapdump/run-cross-analysis
+ (fn [{:keys [db]} _]
+   (let [heapdump-id (get-in db [:heapdump-detail :heapdump-id])
+         recording-id (get-in db [:heapdump-detail :linked-recording-id])]
+     (if recording-id
+       {:db (assoc-in db [:heapdump-detail :loading?] true)
+        :http-xhrio {:method          :post
+                     :uri             (api/url "/recordings/" recording-id "/analyze/cross")
+                     :params          {}
+                     :format          (ajax/json-request-format)
+                     :response-format (ajax/json-response-format {:keywords? true})
+                     :on-success      [:heapdump/cross-analysis-result]
+                     :on-failure      [:heapdump/analysis-failed :cross]}}
+       {:db db}))))
+
+(rf/reg-event-db
+ :heapdump/cross-analysis-result
+ (fn [db [_ response]]
+   (-> db
+       (assoc-in [:heapdump-detail :loading?] false)
+       (assoc-in [:heapdump-detail :cross-analysis] (:data response)))))
+
+;; Reuse comparison helper for updating nested children
+(defn- assoc-children [nodes target-id children]
+  (reduce (fn [acc node]
+            (conj acc
+                  (if (= (:objectId node) target-id)
+                    (assoc node :children children)
+                    (if-let [existing-children (:children node)]
+                      (assoc node :children (assoc-children existing-children target-id children))
+                      node))))
+          []
+          nodes))
+
 (rf/reg-event-fx
  :analysis/select-type
  (fn [{:keys [db]} [_ type]]
@@ -438,18 +586,6 @@
                        :on-success      [:comparison/node-expanded node-id]
                        :on-failure      [:comparison/failed]}}
            {:db (update-in db [:comparison :diff-call-tree :expanded] conj node-id)}))))))
-
-;; Helper to update nested children in Clojure.
-(defn- assoc-children [nodes target-id children]
-  (reduce (fn [acc node]
-            (conj acc
-                  (if (= (:nodeId node) target-id)
-                    (assoc node :children children)
-                    (if-let [existing-children (:children node)]
-                      (assoc node :children (assoc-children existing-children target-id children))
-                      node))))
-          []
-          nodes))
 
 (rf/reg-event-fx
  :comparison/node-expanded

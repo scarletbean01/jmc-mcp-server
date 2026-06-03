@@ -5,6 +5,7 @@
             [jmc-mcp.views.components :as components]
             [jmc-mcp.views.library :as library]
             [jmc-mcp.views.analysis-hub :as analysis-hub]
+            [jmc-mcp.views.heapdump-detail :as heapdump-detail]
             [jmc-mcp.views.comparison :as comparison]
             [jmc-mcp.views.job-monitor :as job-monitor]))
 
@@ -35,6 +36,7 @@
         (case @current-route
           :library [library/library-page]
           :recording-detail [analysis-hub/analysis-hub-page]
+          :heapdump-detail [heapdump-detail/heapdump-detail-page]
           :compare [comparison/comparison-page]
           [:div {:class "text-slate-400 italic"} "Page not found"])]])))
 

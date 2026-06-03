@@ -6,6 +6,9 @@
             [reitit.frontend.easy :as rfe]
             [jmc-mcp.views.components :as components]))
 
+(defn- navigate-to-heapdump [heapdump-id]
+  (rfe/push-state :heapdump-detail {:id heapdump-id}))
+
 (defn upload-zone []
   (let [uploading? (rf/subscribe [:upload/status])]
     (fn []
@@ -81,7 +84,8 @@
                                  (rf/dispatch [:library/delete-recording (:id recording)])))} "Delete"]]]])))
 
 (defn heapdump-row [heapdump]
-  [:div {:class "bg-white border border-slate-200 rounded-xl overflow-hidden group hover:ring-2 hover:ring-emerald-500/20 transition-all shadow-sm"}
+  [:div {:class "bg-white border border-slate-200 rounded-xl overflow-hidden group hover:ring-2 hover:ring-emerald-500/20 transition-all shadow-sm cursor-pointer"
+         :on-click #(navigate-to-heapdump (:heapDumpId heapdump))}
    [:div {:class "p-6 flex items-center justify-between"}
     [:div {:class "flex items-center gap-5"}
      [:div {:class "w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors"}
@@ -102,7 +106,8 @@
           [:span {:class "text-slate-300"} "•"]
           [:span {:class "flex items-center gap-1"}
            [:i {:class "zmdi zmdi-layers"}] (str (:objectCount heapdump) " objects")]])]]]
-    [:div {:class "flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"}
+    [:div {:class "flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+           :on-click #(.stopPropagation %)}
      [:button {:class "btn-outline border-red-200 text-red-500 hover:bg-red-50 !py-1.5 !text-sm"
                :on-click (fn []
                            (when (js/confirm "Are you sure you want to delete this heap dump?")

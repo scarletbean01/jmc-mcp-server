@@ -46,4 +46,38 @@ public class HeapDumpAnalysisResource {
                     .build();
         }
     }
+
+    @RunOnVirtualThread
+    @POST
+    @Path("/dominator-tree/{treeId}/expand")
+    public Response expandDominatorTree(
+            @PathParam("heapDumpId") String heapDumpId,
+            @PathParam("treeId") String treeId,
+            @QueryParam("nodeId") String nodeId
+    ) {
+        String filePath = storageService.getHeapDumpPath(heapDumpId);
+        if (filePath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Heap dump not found: " + heapDumpId))
+                    .build();
+        }
+        if (nodeId == null || nodeId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error("nodeId is required"))
+                    .build();
+        }
+
+        try {
+            Object result = dispatcher.expandDominatorNode(treeId, nodeId);
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error(e.getMessage()))
+                    .build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Expansion failed: " + e.getMessage()))
+                    .build();
+        }
+    }
 }

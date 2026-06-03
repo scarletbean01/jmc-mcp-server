@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @ApplicationScoped
@@ -21,11 +22,17 @@ public class HeapDumpAnalysisDispatcher {
 
     private final HeapDumpAnalysisApplicationService appService;
     private final AnalysisResultCache resultCache;
+    private final Map<String, String> treeIdToPath = new ConcurrentHashMap<>();
 
     public Object dispatch(String analysisType, String heapDumpPath, AnalysisRequest request) {
         String paramsHash = buildParamsHash(request);
-        String cacheKey = AnalysisResultCache.buildKey(
-                hashPath(heapDumpPath), analysisType, paramsHash);
+        String pathHash = hashPath(heapDumpPath);
+        String cacheKey = AnalysisResultCache.buildKey(pathHash, analysisType, paramsHash);
+
+        if ("dominator-tree".equals(analysisType)) {
+            String treeId = pathHash + "|dominator-tree|" + paramsHash;
+            treeIdToPath.put(treeId, heapDumpPath);
+        }
 
         return resultCache.getOrCompute(cacheKey, () -> {
             try {
@@ -48,9 +55,21 @@ public class HeapDumpAnalysisDispatcher {
     }
 
     public List<HeapObjectEntry> expandDominatorNode(String treeId, String nodeId) {
-        // treeId format: "{heapDumpPathHash}|dominator-tree|{paramsHash}"
-        // For simplicity, we re-parse on expansion. In production, cache the heap dump handle.
-        throw new UnsupportedOperationException("Dominator node expansion not yet implemented");
+        String heapDumpPath = treeIdToPath.get(treeId);
+        if (heapDumpPath == null) {
+            throw new IllegalArgumentException("Unknown dominator tree: " + treeId);
+        }
+        long objectId;
+        try {
+            objectId = Long.parseLong(nodeId);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid nodeId (must be object ID): " + nodeId);
+        }
+        try {
+            return appService.expandDominatorNode(heapDumpPath, objectId, 50);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to expand dominator node: " + e.getMessage(), e);
+        }
     }
 
     private static int intParam(Map<String, Object> p, String key, int defaultValue) {

@@ -2,13 +2,13 @@ package io.github.deplague.jmcmcp.infrastructure.heapdump;
 
 import io.github.deplague.jmcmcp.application.service.HeapDumpAnalysisApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HeapDumpClassHistogramResult;
+import io.github.deplague.jmcmcp.domain.model.HeapObjectEntry;
 import io.github.deplague.jmcmcp.infrastructure.api.model.AnalysisRequest;
 import io.github.deplague.jmcmcp.infrastructure.jfr.AnalysisResultCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -79,5 +79,46 @@ class HeapDumpAnalysisDispatcherTest {
         dispatcher.dispatch("class-histogram", "/path/heap.hprof", request);
 
         verify(appService).classHistogram("/path/heap.hprof", 10);
+    }
+
+    @Test
+    void expandDominatorNodeResolvesTreeId() throws Exception {
+        List<HeapObjectEntry> expected = List.of(
+                new HeapObjectEntry(1L, "java.lang.String", 100, 200, 1, List.of(), false)
+        );
+        when(appService.expandDominatorNode("/path/heap.hprof", 42L, 50)).thenReturn(expected);
+
+        // First dispatch to register the treeId mapping
+        AnalysisRequest request = new AnalysisRequest();
+        dispatcher.dispatch("dominator-tree", "/path/heap.hprof", request);
+
+        // Then expand a node
+        List<HeapObjectEntry> result = dispatcher.expandDominatorNode(
+                hashPath("/path/heap.hprof") + "|dominator-tree|default", "42");
+
+        assertThat(result).isEqualTo(expected);
+    }
+
+    @Test
+    void expandDominatorNodeUnknownTreeThrows() {
+        assertThatThrownBy(() -> dispatcher.expandDominatorNode("unknown-tree", "42"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown dominator tree");
+    }
+
+    @Test
+    void expandDominatorNodeInvalidNodeIdThrows() throws Exception {
+        // Register a tree first
+        AnalysisRequest request = new AnalysisRequest();
+        dispatcher.dispatch("dominator-tree", "/path/heap.hprof", request);
+
+        String treeId = hashPath("/path/heap.hprof") + "|dominator-tree|default";
+        assertThatThrownBy(() -> dispatcher.expandDominatorNode(treeId, "not-a-number"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid nodeId");
+    }
+
+    private static String hashPath(String path) {
+        return String.valueOf(java.util.Objects.hash(path));
     }
 }

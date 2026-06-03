@@ -1,5 +1,6 @@
 package io.github.deplague.jmcmcp.infrastructure.heapdump;
 
+import io.github.deplague.jmcmcp.application.port.HeapDumpProvider;
 import io.github.deplague.jmcmcp.domain.model.HeapDumpInfo;
 import io.github.deplague.jmcmcp.infrastructure.api.model.UploadResponse;
 import io.quarkus.scheduler.Scheduled;
@@ -7,6 +8,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.netbeans.lib.profiler.heap.Heap;
+import org.netbeans.lib.profiler.heap.HeapSummary;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,6 +23,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -29,15 +33,18 @@ public class HeapDumpStorageService {
     private static final Duration MAX_AGE = Duration.ofHours(24);
 
     private final Path uploadDir;
+    private final HeapDumpProvider heapDumpProvider;
     private final Map<String, HeapDumpMetadata> heapDumps = new ConcurrentHashMap<>();
     private final Map<String, String> recordingToHeapDump = new ConcurrentHashMap<>();
     private final long maxStorageBytes;
 
     @Inject
     public HeapDumpStorageService(
+            HeapDumpProvider heapDumpProvider,
             @ConfigProperty(name = "heapdump.storage.path", defaultValue = "heap-dumps") String storagePath,
             @ConfigProperty(name = "heapdump.max-size-mb", defaultValue = "2048") long maxSizeMb
     ) {
+        this.heapDumpProvider = heapDumpProvider;
         this.uploadDir = Paths.get(storagePath).toAbsolutePath().normalize();
         this.maxStorageBytes = maxSizeMb * 1024 * 1024;
         try {
@@ -76,6 +83,10 @@ public class HeapDumpStorageService {
 
         log.info("Stored heap dump {} ({} bytes, totalStorage={}MB)",
                 heapDumpId, fileSize, getTotalStorageBytes() / (1024 * 1024));
+
+        // Async enrichment: parse heap dump to extract object/class counts
+        CompletableFuture.runAsync(() -> enrichHeapDumpInfo(heapDumpId, targetPath.toString()));
+
         return new UploadResponse(heapDumpId, fileName, fileSize, Instant.now());
     }
 
@@ -84,32 +95,45 @@ public class HeapDumpStorageService {
         if (meta == null) {
             return null;
         }
+        return toInfo(meta);
+    }
+
+    public List<HeapDumpInfo> listHeapDumps() {
+        return heapDumps.values().stream()
+                .map(this::toInfo)
+                .sorted(java.util.Comparator.comparing(HeapDumpInfo::uploadTime).reversed())
+                .toList();
+    }
+
+    private HeapDumpInfo toInfo(HeapDumpMetadata meta) {
         return new HeapDumpInfo(
                 meta.heapDumpId,
                 meta.fileName,
                 meta.fileSize,
                 meta.uploadedAt,
-                "HPROF",
-                0,
-                0,
+                meta.format,
+                meta.objectCount,
+                meta.classCount,
                 Map.of()
         );
     }
 
-    public List<HeapDumpInfo> listHeapDumps() {
-        return heapDumps.values().stream()
-                .map(meta -> new HeapDumpInfo(
-                        meta.heapDumpId,
-                        meta.fileName,
-                        meta.fileSize,
-                        meta.uploadedAt,
-                        "HPROF",
-                        0,
-                        0,
-                        Map.of()
-                ))
-                .sorted(java.util.Comparator.comparing(HeapDumpInfo::uploadTime).reversed())
-                .toList();
+    private void enrichHeapDumpInfo(String heapDumpId, String filePath) {
+        try {
+            Heap heap = heapDumpProvider.loadSnapshot(filePath);
+            HeapSummary summary = heap.getSummary();
+            long objectCount = summary != null ? summary.getTotalLiveInstances() : 0;
+            long classCount = heap.getAllClasses() != null ? heap.getAllClasses().size() : 0;
+
+            heapDumps.computeIfPresent(heapDumpId, (_, meta) -> {
+                meta.objectCount = objectCount;
+                meta.classCount = classCount;
+                return meta;
+            });
+            log.info("Enriched heap dump {}: {} objects, {} classes", heapDumpId, objectCount, classCount);
+        } catch (Exception e) {
+            log.warn("Failed to enrich heap dump info for {}: {}", heapDumpId, e.getMessage());
+        }
     }
 
     public String getHeapDumpPath(String heapDumpId) {
@@ -167,7 +191,7 @@ public class HeapDumpStorageService {
     private void evictOldestToMakeSpace(long requiredBytes) {
         while (getTotalStorageBytes() + requiredBytes > maxStorageBytes && !heapDumps.isEmpty()) {
             HeapDumpMetadata oldest = heapDumps.values().stream()
-                    .min(java.util.Comparator.comparing(HeapDumpMetadata::uploadedAt))
+                    .min(java.util.Comparator.comparing(m -> m.uploadedAt))
                     .orElse(null);
             if (oldest == null) break;
             heapDumps.remove(oldest.heapDumpId);
@@ -183,14 +207,25 @@ public class HeapDumpStorageService {
     }
 
     private long getTotalStorageBytes() {
-        return heapDumps.values().stream().mapToLong(HeapDumpMetadata::fileSize).sum();
+        return heapDumps.values().stream().mapToLong(m -> m.fileSize).sum();
     }
 
-    private record HeapDumpMetadata(
-            String heapDumpId,
-            String fileName,
-            long fileSize,
-            Path filePath,
-            Instant uploadedAt
-    ) {}
+    private static final class HeapDumpMetadata {
+        final String heapDumpId;
+        final String fileName;
+        final long fileSize;
+        final Path filePath;
+        final Instant uploadedAt;
+        volatile String format = "HPROF";
+        volatile long objectCount;
+        volatile long classCount;
+
+        HeapDumpMetadata(String heapDumpId, String fileName, long fileSize, Path filePath, Instant uploadedAt) {
+            this.heapDumpId = heapDumpId;
+            this.fileName = fileName;
+            this.fileSize = fileSize;
+            this.filePath = filePath;
+            this.uploadedAt = uploadedAt;
+        }
+    }
 }

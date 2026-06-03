@@ -135,6 +135,41 @@
    (get-in db [:heapdumps :loading?])))
 
 (rf/reg-sub
+ :heapdump/detail
+ (fn [db _]
+   (get-in db [:heapdump-detail])))
+
+(rf/reg-sub
+ :heapdump/detail-loading?
+ (fn [db _]
+   (get-in db [:heapdump-detail :loading?])))
+
+(rf/reg-sub
+ :heapdump/active-tab
+ (fn [db _]
+   (get-in db [:heapdump-detail :active-tab])))
+
+(rf/reg-sub
+ :heapdump/analysis-result
+ (fn [db [_ type]]
+   (get-in db [:heapdump-detail :analysis-results type])))
+
+(rf/reg-sub
+ :heapdump/dominator-expanded
+ (fn [db _]
+   (get-in db [:heapdump-detail :dominator-tree :expanded])))
+
+(rf/reg-sub
+ :heapdump/dominator-loading-nodes
+ (fn [db _]
+   (get-in db [:heapdump-detail :dominator-tree :loading-nodes])))
+
+(rf/reg-sub
+ :heapdump/cross-analysis
+ (fn [db _]
+   (get-in db [:heapdump-detail :cross-analysis])))
+
+(rf/reg-sub
  :notifications
  (fn [db _]
    (:notifications db)))

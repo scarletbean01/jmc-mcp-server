@@ -14,6 +14,7 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.Map;
 
 @Path("/api/v1/heap-dumps")
 @Produces(MediaType.APPLICATION_JSON)
@@ -121,5 +122,18 @@ public class HeapDumpUploadResource {
                     .entity(ApiResponse.error(e.getMessage()))
                     .build();
         }
+    }
+
+    @RunOnVirtualThread
+    @GET
+    @Path("/{heapDumpId}/linked-recording")
+    public Response getLinkedRecording(@PathParam("heapDumpId") String heapDumpId) {
+        String recordingId = recordingStorage.getAssociatedRecordingId(heapDumpId);
+        if (recordingId == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("No recording linked to heap dump: " + heapDumpId))
+                    .build();
+        }
+        return Response.ok(ApiResponse.ok(Map.of("recordingId", recordingId))).build();
     }
 }
