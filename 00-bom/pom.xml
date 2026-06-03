@@ -21,6 +21,7 @@
         <logback.version>1.5.18</logback.version>
         <junit.version>5.12.1</junit.version>
         <assertj.version>3.27.3</assertj.version>
+        <mockito.version>5.16.0</mockito.version>
         <lombok.version>1.18.46</lombok.version>
         <quarkus.platform.version>3.36.0</quarkus.platform.version>
         <quarkus-mcp-server-bom.version>1.12.0</quarkus-mcp-server-bom.version>
@@ -29,6 +30,7 @@
         <jakarta-interceptor.version>2.2.0</jakarta-interceptor.version>
         <caffeine.version>3.2.4</caffeine.version>
         <microprofile-config.version>3.1</microprofile-config.version>
+        <netbeans-profiler.version>RELEASE300</netbeans-profiler.version>
     </properties>
 
     <dependencyManagement>
@@ -151,6 +153,18 @@
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
+            </dependency>
+
+            <!-- NetBeans Profiler Heap Dump Parser -->
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-lib-profiler</artifactId>
+                <version>${netbeans-profiler.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -66,7 +66,10 @@
             [:tr {:class "border-t border-slate-100 hover:bg-slate-50/50 transition-colors"}
              (for [col columns]
                ^{:key (:key col)}
-               [:td {:class "px-6 py-3.5 text-sm text-slate-700 font-medium truncate max-w-2xl"} (str (get row (:key col)))])])]]]])))
+               [:td {:class "px-6 py-3.5 text-sm text-slate-700 font-medium truncate max-w-2xl"}
+                (if (:render col)
+                  ((:render col) row)
+                  (str (get row (:key col))))])])]]]])))
 
 (defn timeline-renderer [data x-key y-key]
   (let [chart-data {:labels (map #(get % x-key) data)
@@ -636,6 +639,107 @@
          {:key :status :label "Status"}]]
        [:p {:class "text-xs text-slate-400 italic"} "No event availability data"])]]])
 
+;; ------------------------------------------------------------------
+;; Heap Walker Renderers
+;; ------------------------------------------------------------------
+
+(defn class-histogram-renderer [data]
+  [:div {:class "flex flex-col gap-6"}
+   [:div {:class "grid grid-cols-2 md:grid-cols-4 gap-4"}
+    [:div {:class "bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-0.5 shadow-sm"}
+     [:span {:class "text-xs font-semibold text-slate-400"} "Total Instances"]
+     [:span {:class "text-lg font-black text-slate-700"} (or (:totalInstances data) "N/A")]]
+    [:div {:class "bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-0.5 shadow-sm"}
+     [:span {:class "text-xs font-semibold text-slate-400"} "Total Bytes"]
+     [:span {:class "text-lg font-black text-slate-700"}
+      (if (:totalBytes data) (str (js/Math.round (/ (:totalBytes data) 1024 1024)) " MB") "N/A")]]]
+   (if (seq (:entries data))
+     [table-renderer (:entries data)
+      [{:key :className :label "Class Name"}
+       {:key :instanceCount :label "Instances"}
+       {:key :totalShallowSize :label "Shallow Size"}
+       {:key :totalRetainedSize :label "Retained Size"}]]
+     [:div {:class "p-6 text-center text-slate-400 text-sm italic bg-white border border-slate-200 rounded-xl"}
+      "No histogram data available"])])
+
+(defn dominator-tree-renderer [data]
+  (let [recording-id @(rf/subscribe [:recording-detail/recording-id])]
+    [:div {:class "flex flex-col gap-6"}
+     [:div {:class "grid grid-cols-2 md:grid-cols-4 gap-4"}
+      [:div {:class "bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-0.5 shadow-sm"}
+       [:span {:class "text-xs font-semibold text-slate-400"} "Total Objects"]
+       [:span {:class "text-lg font-black text-slate-700"} (or (:totalObjects data) "N/A")]]
+      [:div {:class "bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-0.5 shadow-sm"}
+       [:span {:class "text-xs font-semibold text-slate-400"} "Total Classes"]
+       [:span {:class "text-lg font-black text-slate-700"} (or (:totalClasses data) "N/A")]]
+      [:div {:class "bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-0.5 shadow-sm"}
+       [:span {:class "text-xs font-semibold text-slate-400"} "Total Heap"]
+       [:span {:class "text-lg font-black text-slate-700"}
+        (if (:totalHeapBytes data) (str (js/Math.round (/ (:totalHeapBytes data) 1024 1024)) " MB") "N/A")]]]
+     (if (seq (:topDominators data))
+       [table-renderer (:topDominators data)
+        [{:key :className :label "Class Name"}
+         {:key :instanceCount :label "Count"}
+         {:key :shallowSize :label "Shallow Size"}
+         {:key :retainedSize :label "Retained Size"}
+         {:key :objectId :label "Actions"
+          :render (fn [row]
+                    [:button {:class "text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1"
+                              :on-click #(do
+                                           (rf/dispatch [:analysis/run recording-id :reference-graph
+                                                         {:objectId (:objectId row) :maxPaths 5}])
+                                           (rf/dispatch [:analysis/select-forensic-focus :reference-graph]))}
+                     [:i {:class "zmdi zmdi-device-hub"}] "GC Roots"])}]]
+       [:div {:class "p-6 text-center text-slate-400 text-sm italic bg-white border border-slate-200 rounded-xl"}
+        "No dominator tree data available"])]))
+
+(defn reference-graph-renderer [data]
+  (let [recording-id @(rf/subscribe [:recording-detail/recording-id])
+        object-id (r/atom "")]
+    (fn [data]
+      [:div {:class "flex flex-col gap-6"}
+       [:div {:class "bg-white p-5 border border-slate-200 rounded-xl shadow-sm flex flex-col gap-4"}
+        [:h3 {:class "font-bold text-slate-700 text-sm uppercase tracking-wider"} "Find Paths to GC Roots"]
+        [:div {:class "flex items-center gap-3"}
+         [:input {:type "text"
+                  :placeholder "Object ID (decimal or hex)"
+                  :class "bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 flex-1"
+                  :value @object-id
+                  :on-change #(reset! object-id (.. % -target -value))}]
+         [:button {:class "btn-primary !py-2 !text-xs uppercase tracking-wider"
+                   :on-click #(when (seq @object-id)
+                                (let [oid (if (str/starts-with? (str/lower-case @object-id) "0x")
+                                            (js/parseInt (subs @object-id 2) 16)
+                                            (js/parseInt @object-id))]
+                                  (rf/dispatch [:analysis/run recording-id :reference-graph
+                                                {:objectId oid :maxPaths 5}])))}
+          "Find GC Roots"]]]
+       (when (and data (seq (:pathsToGcRoots data)))
+         [:div {:class "flex flex-col gap-4"}
+          [:h3 {:class "font-bold text-slate-700 text-sm uppercase tracking-wider"}
+           (str "Paths from " (:targetClassName data) " #" (:targetObjectId data)
+                " (" (js/Math.round (/ (:targetRetainedSize data) 1024 1024)) " MB retained)")]
+          (for [[idx path] (map-indexed vector (:pathsToGcRoots data))]
+            ^{:key idx}
+            [:div {:class "bg-white border border-slate-200 rounded-xl p-5 shadow-sm"}
+             [:div {:class "text-xs font-bold text-slate-400 uppercase tracking-widest mb-3"}
+              (str "Path " (inc idx) " (" (count path) " links)")]
+             [:div {:class "flex flex-col gap-2"}
+              (for [[link-idx link] (map-indexed vector path)]
+                ^{:key link-idx}
+                [:div {:class (str "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium "
+                                   (case (:referenceType link)
+                                     "ROOT" "bg-red-50 text-red-700 border border-red-100"
+                                     "FIELD" "bg-blue-50 text-blue-700 border border-blue-100"
+                                     "bg-slate-50 text-slate-700 border border-slate-100"))}
+                 [:span {:class "text-xs font-bold opacity-60 w-16 shrink-0"} (or (:referenceType link) "REF")]
+                 [:div {:class "flex flex-col min-w-0"}
+                  [:span {:class "truncate font-mono text-xs"} (or (:className link) "Unknown")]
+                  (when (seq (:fieldName link))
+                    [:span {:class "text-[10px] opacity-60 truncate"} (:fieldName link)])]
+                 [:span {:class "text-xs opacity-60 shrink-0 ml-auto"}
+                  (str (:shallowSize link) "b / " (:retainedSize link) "b")]])]])])])))
+
 (defn forensic-panel [recording-id]
   (let [active-forensic (rf/subscribe [:recording-detail/forensic-focus])
         loading? (rf/subscribe [:recording-detail/loading?])
@@ -645,6 +749,9 @@
                                              [:cpu-flame "CPU Flame Graph"]
                                              [:call-tree "Call Tree"]]}
          {:label "Memory" :items [[:heap-trends "Heap Trends"]]}
+         {:label "Heap Walker" :items [[:class-histogram "Class Histogram"]
+                                        [:dominator-tree "Dominator Tree"]
+                                        [:reference-graph "Reference Graph"]]}
          {:label "Exceptions" :items [[:exceptions "Exceptions"]]}]]
     (fn [recording-id]
       (let [focus @active-forensic
@@ -679,8 +786,11 @@
                                [{:key :className :label "Class"}
                                 {:key :message :label "Message"}
                                 {:key :count :label "Count"}]]
-                              [:div {:class "text-center text-slate-400 italic p-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl"} 
+                              [:div {:class "text-center text-slate-400 italic p-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl"}
                                "No exceptions recorded in this interval"])
+                :class-histogram [class-histogram-renderer data]
+                :dominator-tree [dominator-tree-renderer data]
+                :reference-graph [reference-graph-renderer data]
                 [:div {:class "text-center text-slate-400 italic"} "No visualizer mapped"])
               [:div {:class "h-full flex flex-col items-center justify-center gap-2 text-slate-300"}
                [:i {:class "zmdi zmdi-search-for text-4xl"}]

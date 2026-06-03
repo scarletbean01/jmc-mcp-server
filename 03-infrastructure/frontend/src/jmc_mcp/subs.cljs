@@ -125,6 +125,16 @@
    (get-in db [:upload :status])))
 
 (rf/reg-sub
+ :heapdumps/items
+ (fn [db _]
+   (get-in db [:heapdumps :items])))
+
+(rf/reg-sub
+ :heapdumps/loading?
+ (fn [db _]
+   (get-in db [:heapdumps :loading?])))
+
+(rf/reg-sub
  :notifications
  (fn [db _]
    (:notifications db)))

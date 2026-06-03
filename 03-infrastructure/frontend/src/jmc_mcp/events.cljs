@@ -187,6 +187,87 @@
  (fn [db [_ response]]
    (assoc db :upload {:status :error :progress 0 :error (:error response)})))
 
+;; Heap Dump Management
+(rf/reg-event-fx
+ :heapdump/upload
+ (fn [{:keys [db]} [_ file]]
+   (let [form-data (js/FormData.)]
+     (.append form-data "file" file)
+     {:db (assoc db :upload {:status :uploading :progress 0 :error nil})
+      :http-xhrio {:method          :post
+                 :uri             (api/url "/heap-dumps/upload")
+                 :body            form-data
+                 :response-format (ajax/json-response-format {:keywords? true})
+                 :on-success      [:heapdump/upload-success]
+                 :on-failure      [:heapdump/upload-failure]}})))
+
+(rf/reg-event-fx
+ :heapdump/upload-success
+ (fn [{:keys [db]} [_ response]]
+   {:db (assoc db :upload {:status :success :progress 100 :error nil})
+    :dispatch [:heapdump/load-list]
+    :notify {:type :success :message "Heap dump uploaded successfully"}}))
+
+(rf/reg-event-db
+ :heapdump/upload-failure
+ (fn [db [_ response]]
+   (assoc db :upload {:status :error :progress 0 :error (:error response)})))
+
+(rf/reg-event-fx
+ :heapdump/load-list
+ (fn [{:keys [db]} _]
+   {:db (assoc-in db [:heapdumps :loading?] true)
+    :http-xhrio {:method          :get
+               :uri             (api/url "/heap-dumps")
+               :response-format (ajax/json-response-format {:keywords? true})
+               :on-success      [:heapdump/list-loaded]
+               :on-failure      [:heapdump/list-failed]}}))
+
+(rf/reg-event-db
+ :heapdump/list-loaded
+ (fn [db [_ response]]
+   (-> db
+       (assoc-in [:heapdumps :loading?] false)
+       (assoc-in [:heapdumps :items] (:data response)))))
+
+(rf/reg-event-fx
+ :heapdump/list-failed
+ (fn [{:keys [db]} [_ response]]
+   {:db (assoc-in db [:heapdumps :loading?] false)
+    :notify {:type :error :message "Failed to load heap dumps"}}))
+
+(rf/reg-event-fx
+ :heapdump/delete
+ (fn [{:keys [db]} [_ heap-dump-id]]
+   {:http-xhrio {:method          :delete
+               :uri             (api/url "/heap-dumps/" heap-dump-id)
+               :format          (ajax/json-request-format)
+               :response-format (ajax/json-response-format {:keywords? true})
+               :on-success      [:heapdump/deleted heap-dump-id]
+               :on-failure      [:notification/add {:type :error :message "Failed to delete heap dump"}]}}))
+
+(rf/reg-event-fx
+ :heapdump/deleted
+ (fn [{:keys [db]} [_ heap-dump-id]]
+   {:db (update-in db [:heapdumps :items] (fn [items] (remove #(= (:heapDumpId %) heap-dump-id) items)))
+    :notify {:type :success :message "Heap dump deleted"}}))
+
+(rf/reg-event-fx
+ :heapdump/link-recording
+ (fn [{:keys [db]} [_ heap-dump-id recording-id]]
+   {:http-xhrio {:method          :post
+               :uri             (api/url "/heap-dumps/" heap-dump-id "/link/" recording-id)
+               :format          (ajax/json-request-format)
+               :response-format (ajax/json-response-format {:keywords? true})
+               :on-success      [:heapdump/linked heap-dump-id recording-id]
+               :on-failure      [:notification/add {:type :error :message "Failed to link heap dump"}]}}))
+
+(rf/reg-event-fx
+ :heapdump/linked
+ (fn [{:keys [db]} [_ heap-dump-id recording-id]]
+   {:dispatch [:library/load-recordings]
+    :notify {:type :success :message "Heap dump linked to recording"}}))
+
 (rf/reg-event-fx
  :analysis/select-type
  (fn [{:keys [db]} [_ type]]

@@ -8,6 +8,10 @@
                 :loading? false
                 :error nil}
 
+   :heapdumps {:items []
+               :loading? false
+               :error nil}
+
    :recording-detail {:recording-id nil
                       :info nil
                       :active-tab :copilot

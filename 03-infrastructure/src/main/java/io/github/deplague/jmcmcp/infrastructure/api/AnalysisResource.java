@@ -2,6 +2,8 @@ package io.github.deplague.jmcmcp.infrastructure.api;
 
 import io.github.deplague.jmcmcp.application.model.JobStatusResponse;
 import io.github.deplague.jmcmcp.application.service.AsyncJobService;
+import io.github.deplague.jmcmcp.infrastructure.heapdump.HeapDumpAnalysisDispatcher;
+import io.github.deplague.jmcmcp.infrastructure.heapdump.HeapDumpStorageService;
 import io.github.deplague.jmcmcp.infrastructure.jfr.RecordingStorageService;
 import io.github.deplague.jmcmcp.domain.model.AsyncJob;
 import io.github.deplague.jmcmcp.infrastructure.api.model.AnalysisRequest;
@@ -18,6 +20,7 @@ import jakarta.ws.rs.sse.SseEventSink;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -30,8 +33,14 @@ import java.util.concurrent.Executor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AnalysisResource {
 
+    private static final Set<String> HEAP_DUMP_ANALYSES = Set.of(
+            "class-histogram", "dominator-tree", "reference-graph"
+    );
+
     private final AnalysisDispatcher dispatcher;
     private final RecordingStorageService storageService;
+    private final HeapDumpStorageService heapDumpStorage;
+    private final HeapDumpAnalysisDispatcher heapDumpDispatcher;
     private final AsyncJobService jobService;
     private final Executor managedExecutor;
 
@@ -44,6 +53,10 @@ public class AnalysisResource {
             @PathParam("analysisType") String analysisType,
             AnalysisRequest request
     ) {
+        if (HEAP_DUMP_ANALYSES.contains(analysisType)) {
+            return dispatchHeapDumpAnalysis(recordingId, analysisType, request);
+        }
+
         String filePath = storageService.getRecordingPath(recordingId);
         if (filePath == null) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -65,6 +78,34 @@ public class AnalysisResource {
         }
     }
 
+    private Response dispatchHeapDumpAnalysis(String recordingId, String analysisType, AnalysisRequest request) {
+        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        if (heapDumpId == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
+                    .build();
+        }
+        String heapDumpPath = heapDumpStorage.getHeapDumpPath(heapDumpId);
+        if (heapDumpPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Heap dump not found: " + heapDumpId))
+                    .build();
+        }
+
+        try {
+            Object result = heapDumpDispatcher.dispatch(analysisType, heapDumpPath, request);
+            return Response.ok(ApiResponse.ok(result)).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error(e.getMessage()))
+                    .build();
+        } catch (Exception e) {
+            return Response.serverError()
+                    .entity(ApiResponse.error("Analysis failed: " + e.getMessage()))
+                    .build();
+        }
+    }
+
     @RunOnVirtualThread
     @POST
     @Path("/{analysisType}/async")
@@ -74,6 +115,10 @@ public class AnalysisResource {
             @PathParam("analysisType") String analysisType,
             AnalysisRequest request
     ) {
+        if (HEAP_DUMP_ANALYSES.contains(analysisType)) {
+            return dispatchHeapDumpAnalysisAsync(recordingId, analysisType, request);
+        }
+
         String filePath = storageService.getRecordingPath(recordingId);
         if (filePath == null) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -87,6 +132,39 @@ public class AnalysisResource {
             try {
                 jobService.updateJobStatus(job.jobId(), "RUNNING", 10);
                 Object result = dispatcher.dispatch(analysisType, filePath, request);
+                jobService.completeJob(job.jobId(), result);
+            } catch (Exception e) {
+                jobService.failJob(job.jobId(), e.getMessage());
+            }
+        }, managedExecutor);
+
+        jobService.setJobFuture(job.jobId(), future);
+
+        return Response.status(Response.Status.ACCEPTED)
+                .entity(ApiResponse.ok(Map.of("jobId", job.jobId(), "status", "PENDING")))
+                .build();
+    }
+
+    private Response dispatchHeapDumpAnalysisAsync(String recordingId, String analysisType, AnalysisRequest request) {
+        String heapDumpId = heapDumpStorage.getAssociatedHeapDumpId(recordingId);
+        if (heapDumpId == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("No heap dump linked to recording " + recordingId))
+                    .build();
+        }
+        String heapDumpPath = heapDumpStorage.getHeapDumpPath(heapDumpId);
+        if (heapDumpPath == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Heap dump not found: " + heapDumpId))
+                    .build();
+        }
+
+        AsyncJob job = jobService.createJob(recordingId, analysisType);
+
+        CompletableFuture<Void> future = jobService.submitAsync(() -> {
+            try {
+                jobService.updateJobStatus(job.jobId(), "RUNNING", 10);
+                Object result = heapDumpDispatcher.dispatch(analysisType, heapDumpPath, request);
                 jobService.completeJob(job.jobId(), result);
             } catch (Exception e) {
                 jobService.failJob(job.jobId(), e.getMessage());

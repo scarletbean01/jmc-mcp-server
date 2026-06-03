@@ -59,6 +59,12 @@
             <artifactId>flightrecorder.rules.jdk</artifactId>
         </dependency>
 
+        <!-- NetBeans Profiler Heap Dump Parser -->
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-lib-profiler</artifactId>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -85,6 +91,11 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -118,7 +129,7 @@
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>@{argLine}</argLine>
+                    
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -136,7 +147,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <argLine>@{argLine}</argLine>
+                    
                     <systemPropertyVariables>
                         <native.image.path>${project.build.directory}/${project.build.finalName}-runner
                         </native.image.path>

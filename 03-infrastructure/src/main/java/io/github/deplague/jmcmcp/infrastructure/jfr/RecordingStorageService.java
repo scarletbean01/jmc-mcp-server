@@ -37,6 +37,7 @@ public class RecordingStorageService {
     private final Path uploadDir;
     private final JfrProvider jfrProvider;
     private final Map<String, RecordingMetadata> recordings = new ConcurrentHashMap<>();
+    private final Map<String, String> recordingToHeapDump = new ConcurrentHashMap<>();
     private final long maxStorageBytes;
 
     @Inject
@@ -135,6 +136,8 @@ public class RecordingStorageService {
         } catch (Exception e) {
             log.warn("Failed to extract duration for recording {}", meta.recordingId, e);
         }
+        String heapDumpId = recordingToHeapDump.get(meta.recordingId);
+        Map<String, String> extra = heapDumpId != null ? Map.of("heapDumpId", heapDumpId) : Map.of();
         return new RecordingInfo(
                 meta.recordingId,
                 meta.fileName,
@@ -144,7 +147,7 @@ public class RecordingStorageService {
                 eventCount,
                 startTime,
                 endTime,
-                Map.of()
+                extra
         );
     }
 
@@ -153,8 +156,19 @@ public class RecordingStorageService {
         return meta != null ? meta.filePath.toString() : null;
     }
 
+    public void associateHeapDump(String recordingId, String heapDumpId) {
+        recordings.get(recordingId); // validate recording exists
+        recordingToHeapDump.put(recordingId, heapDumpId);
+        log.info("Associated heap dump {} with recording {}", heapDumpId, recordingId);
+    }
+
+    public String getAssociatedHeapDumpId(String recordingId) {
+        return recordingToHeapDump.get(recordingId);
+    }
+
     public boolean deleteRecording(String recordingId) {
         RecordingMetadata meta = recordings.remove(recordingId);
+        recordingToHeapDump.remove(recordingId);
         if (meta != null) {
             try {
                 Files.deleteIfExists(meta.filePath);
