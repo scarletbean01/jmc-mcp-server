@@ -2,12 +2,16 @@ package io.github.deplague.jmcmcp.domain.service;
 
 import io.github.deplague.jmcmcp.domain.model.*;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import org.netbeans.lib.profiler.heap.Heap;
+import org.netbeans.lib.profiler.heap.JavaClass;
 import org.openjdk.jmc.common.item.IItemCollection;
 
 import java.util.*;
 
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class HeapDumpCrossAnalysisService {
 
     private static final long HIGH_SEVERITY_RETAINED_THRESHOLD = 1_048_576L; // 1 MB
@@ -18,15 +22,10 @@ public final class HeapDumpCrossAnalysisService {
     private final MemoryLeaksService memoryLeaksService;
     private final HeapDumpClassHistogramService classHistogramService;
 
-    public HeapDumpCrossAnalysisService(MemoryLeaksService memoryLeaksService,
-                                        HeapDumpClassHistogramService classHistogramService) {
-        this.memoryLeaksService = memoryLeaksService;
-        this.classHistogramService = classHistogramService;
-    }
 
     public CrossAnalysisResult analyze(IItemCollection jfrEvents, Heap heap, int topN) {
         MemoryLeaksResult leaks = memoryLeaksService.analyze(jfrEvents, Integer.MAX_VALUE);
-        
+
         // Optimization: Use a smaller limit for the general histogram to avoid O(C log C) overhead,
         // but we will explicitly check for JFR-flagged classes.
         HeapDumpClassHistogramResult histogram = classHistogramService.analyze(heap, 1000);
@@ -66,7 +65,7 @@ public final class HeapDumpCrossAnalysisService {
         for (LeakSiteEntry site : leaks.leakSites()) {
             String siteKey = site.siteKey();
             String className = extractClassNameFromSite(siteKey);
-            sitesByClass.computeIfAbsent(className, k -> new ArrayList<>()).add(siteKey);
+            sitesByClass.computeIfAbsent(className, _ -> new ArrayList<>()).add(siteKey);
         }
 
         Set<String> allClasses = new HashSet<>();
@@ -93,14 +92,12 @@ public final class HeapDumpCrossAnalysisService {
             unified.add(new UnifiedClassEntry(className, sampleCount, sites, instanceCount, retainedSize, severity));
         }
 
-        unified.sort(Comparator.<UnifiedClassEntry>comparingLong(e -> {
-                    return switch (e.severity()) {
-                        case "HIGH" -> 3;
-                        case "MEDIUM" -> 2;
-                        case "LOW" -> 1;
-                        default -> 0;
-                    };
-                }).reversed()
+        unified.sort(Comparator.<UnifiedClassEntry>comparingLong(e -> switch (e.severity()) {
+            case "HIGH" -> 3;
+            case "MEDIUM" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        }).reversed()
                 .thenComparing(Comparator.comparingLong(UnifiedClassEntry::heapRetainedSize).reversed()));
 
         List<UnifiedClassEntry> limited = unified.size() > topN ? unified.subList(0, topN) : unified;
@@ -137,11 +134,11 @@ public final class HeapDumpCrossAnalysisService {
     }
 
     private static String buildRecommendation(int high, int medium, int low,
-                                               boolean hasJfrData, boolean hasHeapData, boolean retainedComputed) {
+                                              boolean hasJfrData, boolean hasHeapData, boolean retainedComputed) {
         if (!hasJfrData && !hasHeapData) {
             return "No data available from either JFR or heap dump.";
         }
-        
+
         StringBuilder sb = new StringBuilder();
         if (!hasJfrData) {
             sb.append("JFR recording lacks OldObjectSample events. Enable object sampling in JFR settings for leak correlation. ");
@@ -149,7 +146,7 @@ public final class HeapDumpCrossAnalysisService {
         if (!hasHeapData) {
             sb.append("Heap dump histogram is empty. ");
         }
-        
+
         if (!retainedComputed) {
             sb.append("Note: Retained sizes are not yet computed for this heap dump. Severities are estimated based on instance counts and JFR samples. Run 'Dominator Tree' to trigger full retained size computation. ");
         }
@@ -157,7 +154,7 @@ public final class HeapDumpCrossAnalysisService {
         if (high > 0) {
             sb.append(String.format(
                     "Critical memory pressure detected: %d high-severity classes identified. " +
-                    "Investigate these classes first — they are likely leak candidates. Consider reviewing allocation sites and lifecycle management.",
+                            "Investigate these classes first — they are likely leak candidates. Consider reviewing allocation sites and lifecycle management.",
                     high));
         } else if (medium > 0) {
             sb.append(String.format(
