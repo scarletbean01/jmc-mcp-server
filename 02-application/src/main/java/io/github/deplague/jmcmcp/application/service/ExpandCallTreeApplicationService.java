@@ -24,7 +24,7 @@ public class ExpandCallTreeApplicationService {
         CallTreeCache.CachedTree cached = callTreeCache.getTree(treeId);
         if (cached == null) {
             throw new AnalysisFailedException(
-                    "Tree not found or expired. Please call `get_call_tree` again."
+                    "Tree not found or expired. Please call `call_tree` again."
             );
         }
         return expandCallTreeService.expand(

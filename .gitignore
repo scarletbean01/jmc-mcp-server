@@ -1,39 +1,41 @@
 # Build artifacts
-/target/
+target/
 /resources/public/js/compiled/
-/.shadow-cljs/
-/.cpcache/
-/.cljs_rhino_repl
+.shadow-cljs/
+.cpcache/
+.cljs_rhino_repl
 /out/
 
 # Dependencies
-/node_modules/
-/checkouts/
-/.lein-plugins/
-/.lein-failures/
+node_modules/
+checkouts/
+.lein-plugins/
+.lein-failures/
 
 # IDE and Editor files
-/.idea/
-/*.iml
-/*.ipr
-/*.iws
-/.project
-/.classpath
-/.settings/
-/.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+.vscode/
 .DS_Store
 .dir-locals.el
 
 # Temporary files
-/*.log
-/*.swp
-/*.swo
-/.nrepl-port
-/.shadow-cljs/*.port
-/.playwright-mcp/
-/.clj-kondo/.cache/
-.clj-kondo/.cache/
+*.log
+*.swp
+*.swo
+.nrepl-port
+.shadow-cljs/*.port
+.playwright-mcp/
+**/.clj-kondo/.cache/
+.worktrees/
 /uploads/
+03-infrastructure/uploads/
 
 # Environment variables
 .env

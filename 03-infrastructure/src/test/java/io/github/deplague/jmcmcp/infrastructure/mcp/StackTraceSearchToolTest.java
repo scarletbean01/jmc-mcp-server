@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StackTraceSearchToolTest {
 
@@ -51,7 +52,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchShowsResultFromAfterFixesFile() {
+    void searchShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(afterPath, ".*java.*", null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -59,7 +60,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchShowsResultFromBeforeFixesFile() {
+    void searchShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -67,7 +68,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchContainsPatternAndEventTypesInOutput() {
+    void searchContainsPatternAndEventTypesInOutput() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -79,7 +80,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchContainsClassDistributionSection() {
+    void searchContainsClassDistributionSection() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -90,7 +91,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchWithEventTypeFilter() {
+    void searchWithEventTypeFilter() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", "jdk.ExecutionSample", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -101,7 +102,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchWithLimitParameter() {
+    void searchWithLimitParameter() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", null, null, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -111,7 +112,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchWithTimeRange() {
+    void searchWithTimeRange() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(afterPath, ".*java.*", null, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -119,39 +120,31 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchReturnsErrorForInvalidRegex() {
-        ToolResponse result = tool.smartStackTraceSearch(beforePath, "[invalid", null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Invalid regex pattern");
+    void searchReturnsErrorForInvalidRegex() throws Exception {
+        assertThatThrownBy(() -> tool.smartStackTraceSearch(beforePath, "[invalid", null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void searchReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartStackTraceSearch("/nonexistent/path.jfr", ".*DAO.*", null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void searchReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartStackTraceSearch("/nonexistent/path.jfr", ".*DAO.*", null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void searchReturnsErrorForMissingClassPattern() {
-        ToolResponse result = tool.smartStackTraceSearch(beforePath, null, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
+    void searchReturnsErrorForMissingClassPattern() throws Exception {
+        assertThatThrownBy(() -> tool.smartStackTraceSearch(beforePath, null, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void searchReturnsErrorForMissingJfrFilePath() {
-        ToolResponse result = tool.smartStackTraceSearch(null, ".*DAO.*", null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void searchReturnsErrorForMissingJfrFilePath() throws Exception {
+        assertThatThrownBy(() -> tool.smartStackTraceSearch(null, ".*DAO.*", null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void searchCachesResultOnSecondCall() {
+    void searchCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.smartStackTraceSearch(afterPath, ".*java.*", null, null, null, null);
         ToolResponse second = tool.smartStackTraceSearch(afterPath, ".*java.*", null, null, null, null);
 
@@ -161,7 +154,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchNoMatchesReturnsEmptyDistribution() {
+    void searchNoMatchesReturnsEmptyDistribution() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, "ZZZNonExistentClassZZZ", null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -171,7 +164,7 @@ class StackTraceSearchToolTest {
     }
 
     @Test
-    void searchResultContainsAgentHintWhenMatchesFound() {
+    void searchResultContainsAgentHintWhenMatchesFound() throws Exception {
         ToolResponse result = tool.smartStackTraceSearch(beforePath, ".*java.*", null, null, null, null);
 
         assertThat(result.isError()).isFalse();

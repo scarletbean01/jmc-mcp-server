@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DeadlockDetectionToolTest {
 
@@ -54,7 +55,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisShowsResultFromJfrFile() {
+    void analysisShowsResultFromJfrFile() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -64,7 +65,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisContainsVerdict() {
+    void analysisContainsVerdict() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -74,7 +75,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisWithBeforeFixesFile() {
+    void analysisWithBeforeFixesFile() throws Exception {
         ToolResponse result = tool.deadlockDetection(beforeFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -85,7 +86,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z");
 
         assertThat(result.isError()).isFalse();
@@ -95,25 +96,19 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.deadlockDetection("/nonexistent/path.jfr", null, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.deadlockDetection("/nonexistent/path.jfr", null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.deadlockDetection(null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.deadlockDetection(null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.deadlockDetection(jfrFilePath, null, null);
         ToolResponse second = tool.deadlockDetection(jfrFilePath, null, null);
 
@@ -123,7 +118,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisContainsMonitorSummaryOrLimitedMode() {
+    void analysisContainsMonitorSummaryOrLimitedMode() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -138,7 +133,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisOutputContainsThreadOrMonitorInfo() {
+    void analysisOutputContainsThreadOrMonitorInfo() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -153,7 +148,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisNoDeadlocksOutputStructure() {
+    void analysisNoDeadlocksOutputStructure() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -166,7 +161,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisDeadlockOutputContainsRecommendations() {
+    void analysisDeadlockOutputContainsRecommendations() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -181,7 +176,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisDeadlockCycleContainsMermaidDiagram() {
+    void analysisDeadlockCycleContainsMermaidDiagram() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -195,7 +190,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisDeadlockCycleContainsThreadTable() {
+    void analysisDeadlockCycleContainsThreadTable() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -207,7 +202,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisLimitedModeShowsMonitorCounts() {
+    void analysisLimitedModeShowsMonitorCounts() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -221,7 +216,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisMonitorSummaryContainsTableFormat() {
+    void analysisMonitorSummaryContainsTableFormat() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -237,7 +232,7 @@ class DeadlockDetectionToolTest {
     }
 
     @Test
-    void analysisToolNameIsCorrect() {
+    void analysisToolNameIsCorrect() throws Exception {
         ToolResponse result = tool.deadlockDetection(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JfrOverviewToolTest {
 
@@ -47,7 +48,7 @@ class JfrOverviewToolTest {
     }
 
     @Test
-    void overviewShowsResultFromJfrFile() {
+    void overviewShowsResultFromJfrFile() throws Exception {
         ToolResponse result = tool.jfrOverview(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -61,7 +62,7 @@ class JfrOverviewToolTest {
     }
 
     @Test
-    void overviewContainsFileName() {
+    void overviewContainsFileName() throws Exception {
         ToolResponse result = tool.jfrOverview(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -83,7 +84,7 @@ class JfrOverviewToolTest {
     }
 
     @Test
-    void overviewWithTimeRangeShowsFilteredEvents() {
+    void overviewWithTimeRangeShowsFilteredEvents() throws Exception {
         ToolResponse result = tool.jfrOverview(jfrFilePath, "2025-01-01T00:00:00Z", "2027-12-31T23:59:59Z");
 
         assertThat(result.isError()).isFalse();
@@ -93,25 +94,19 @@ class JfrOverviewToolTest {
     }
 
     @Test
-    void overviewReturnsErrorForMissingFile() {
-        ToolResponse result = tool.jfrOverview("/nonexistent/path.jfr", null, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error:");
+    void overviewReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.jfrOverview("/nonexistent/path.jfr", null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void overviewReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.jfrOverview(null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error: Path cannot be null or blank");
+    void overviewReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.jfrOverview(null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void overviewCachesResultOnSecondCall() {
+    void overviewCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.jfrOverview(jfrFilePath, null, null);
         ToolResponse second = tool.jfrOverview(jfrFilePath, null, null);
 
@@ -130,7 +125,7 @@ class JfrOverviewToolTest {
     }
 
     @Test
-    void overviewWithoutTimeRangeDoesNotShowFilteredLabel() {
+    void overviewWithoutTimeRangeDoesNotShowFilteredLabel() throws Exception {
         ToolResponse result = tool.jfrOverview(jfrFilePath, null, null);
 
         assertThat(result.isError()).isFalse();

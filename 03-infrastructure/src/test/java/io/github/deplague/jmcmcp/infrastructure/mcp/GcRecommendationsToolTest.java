@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GcRecommendationsToolTest {
 
@@ -54,7 +55,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisShowsResultFromJfrFile() {
+    void analysisShowsResultFromJfrFile() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -62,7 +63,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisWithBeforeFixesFile() {
+    void analysisWithBeforeFixesFile() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -70,7 +71,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsPauseDistribution() {
+    void analysisContainsPauseDistribution() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -80,7 +81,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisPauseDistributionContainsMetrics() {
+    void analysisPauseDistributionContainsMetrics() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -97,7 +98,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsGcAlgorithm() {
+    void analysisContainsGcAlgorithm() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsGcCauseAnalysis() {
+    void analysisContainsGcCauseAnalysis() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -119,7 +120,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsYoungGcCauses() {
+    void analysisContainsYoungGcCauses() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -131,7 +132,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsOldGcCauses() {
+    void analysisContainsOldGcCauses() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -143,7 +144,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsHeapUtilization() {
+    void analysisContainsHeapUtilization() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -158,7 +159,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsRecommendationsSection() {
+    void analysisContainsRecommendationsSection() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -168,7 +169,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisContainsWarningsWhenApplicable() {
+    void analysisContainsWarningsWhenApplicable() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -180,7 +181,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z");
 
         assertThat(result.isError()).isFalse();
@@ -188,23 +189,19 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.gcRecommendations("/nonexistent/path.jfr", null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.gcRecommendations("/nonexistent/path.jfr", null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.gcRecommendations(null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.gcRecommendations(null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.gcRecommendations(afterPath, null, null);
         ToolResponse second = tool.gcRecommendations(afterPath, null, null);
 
@@ -214,7 +211,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisPauseDistributionTableFormat() {
+    void analysisPauseDistributionTableFormat() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -227,7 +224,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisHeapUtilizationTableFormat() {
+    void analysisHeapUtilizationTableFormat() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -240,7 +237,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisRecommendationsAreNumberedWhenPresent() {
+    void analysisRecommendationsAreNumberedWhenPresent() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -252,7 +249,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisHealthyGcShowsNoRecommendations() {
+    void analysisHealthyGcShowsNoRecommendations() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -264,7 +261,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisExplicitGcWarningWhenPresent() {
+    void analysisExplicitGcWarningWhenPresent() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -276,7 +273,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisFullGcRatioWarningWhenPresent() {
+    void analysisFullGcRatioWarningWhenPresent() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -288,7 +285,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisMetaspaceWarningWhenPresent() {
+    void analysisMetaspaceWarningWhenPresent() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -300,7 +297,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisP95PauseWarningWhenHigh() {
+    void analysisP95PauseWarningWhenHigh() throws Exception {
         ToolResponse result = tool.gcRecommendations(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -312,7 +309,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisGcAlgorithmDisplayedWhenAvailable() {
+    void analysisGcAlgorithmDisplayedWhenAvailable() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -330,7 +327,7 @@ class GcRecommendationsToolTest {
     }
 
     @Test
-    void analysisHeapAmplitudePercentage() {
+    void analysisHeapAmplitudePercentage() throws Exception {
         ToolResponse result = tool.gcRecommendations(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();

@@ -27,17 +27,17 @@ public class HeapDumpAnalysisApplicationService {
 
     public HeapDumpClassHistogramResult classHistogram(String filePath, int topN) throws IOException {
         Heap heap = heapDumpProvider.loadSnapshot(filePath);
-        return classHistogramService.analyze(heap, topN);
+        return classHistogramService.analyze(heap, topN <= 0 ? 50 : topN);
     }
 
     public DominatorTreeResult dominatorTree(String filePath, int topN) throws IOException {
         Heap heap = heapDumpProvider.loadSnapshot(filePath);
-        return dominatorTreeService.buildTopDominators(heap, topN);
+        return dominatorTreeService.buildTopDominators(heap, topN <= 0 ? 50 : topN);
     }
 
     public List<HeapObjectEntry> expandDominatorNode(String filePath, long objectId, int topN) throws IOException {
         Heap heap = heapDumpProvider.loadSnapshot(filePath);
-        return dominatorTreeService.expandNode(heap, objectId, topN);
+        return dominatorTreeService.expandNode(heap, objectId, topN <= 0 ? 20 : topN);
     }
 
     public ReferencePathResult referenceGraph(String filePath, long objectId, int maxPaths) throws IOException {

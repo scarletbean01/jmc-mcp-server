@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.EventSchemaApplicationService;
 import io.github.deplague.jmcmcp.domain.model.EventSchemaResult;
@@ -23,18 +26,19 @@ public final class EventSchemaTool {
     private final EventSchemaApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Discover JFR event types and their field schemas in a recording. Lists all event types with counts, or shows detailed field schema for a specific event type. Use this before search_events to find available event type IDs and their fields.")
+    @Tool(
+            name = ToolNames.EVENT_SCHEMA,
+            title = "Event Schema",
+            description = "Discover JFR event types and their field schemas in a recording. Lists all event types with counts, or shows detailed field schema for a specific event type. Use this before search_events to find available event type IDs and their fields.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse eventSchema(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
             @ToolArg(name = "event_type", required = false, description = "Optional event type ID to show detailed field schema (e.g., 'jdk.GCPhasePause'). If omitted, lists all event types.") String eventType
-    ) {
-        try {
-            EventSchemaResult result = appService.analyze(jfrFilePath, eventType);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        EventSchemaResult result = appService.analyze(jfrFilePath, eventType);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(EventSchemaResult result) {

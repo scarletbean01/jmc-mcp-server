@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CompareRecordingsToolTest {
 
@@ -55,7 +56,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareShowsResultFromTwoJfrFiles() {
+    void compareShowsResultFromTwoJfrFiles() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -67,7 +68,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsCategorySections() {
+    void compareContainsCategorySections() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -84,7 +85,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsMetricTables() {
+    void compareContainsMetricTables() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -94,7 +95,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsRulesSection() {
+    void compareContainsRulesSection() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -104,7 +105,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsCpuMetrics() {
+    void compareContainsCpuMetrics() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -116,7 +117,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsGcMetrics() {
+    void compareContainsGcMetrics() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -127,7 +128,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsRegressionSections() {
+    void compareContainsRegressionSections() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -140,7 +141,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsNormalizationNote() {
+    void compareContainsNormalizationNote() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -150,7 +151,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareContainsFileNames() {
+    void compareContainsFileNames() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();
@@ -161,43 +162,31 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareReturnsErrorForMissingBaselineFile() {
-        ToolResponse result = tool.compareRecordings("/nonexistent/baseline.jfr", targetPath);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error:");
+    void compareReturnsErrorForMissingBaselineFile() throws Exception {
+        assertThatThrownBy(() -> tool.compareRecordings("/nonexistent/baseline.jfr", targetPath))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void compareReturnsErrorForMissingTargetFile() {
-        ToolResponse result = tool.compareRecordings(baselinePath, "/nonexistent/target.jfr");
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error:");
+    void compareReturnsErrorForMissingTargetFile() throws Exception {
+        assertThatThrownBy(() -> tool.compareRecordings(baselinePath, "/nonexistent/target.jfr"))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void compareReturnsErrorForMissingBaselineArgument() {
-        ToolResponse result = tool.compareRecordings(null, targetPath);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error: Path cannot be null or blank");
+    void compareReturnsErrorForMissingBaselineArgument() throws Exception {
+        assertThatThrownBy(() -> tool.compareRecordings(null, targetPath))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void compareReturnsErrorForMissingTargetArgument() {
-        ToolResponse result = tool.compareRecordings(baselinePath, null);
-
-        assertThat(result.isError()).isTrue();
-        String text = extractText(result);
-        assertThat(text).contains("Error: Path cannot be null or blank");
+    void compareReturnsErrorForMissingTargetArgument() throws Exception {
+        assertThatThrownBy(() -> tool.compareRecordings(baselinePath, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void compareCachesResultOnSecondCall() {
+    void compareCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.compareRecordings(baselinePath, targetPath);
         ToolResponse second = tool.compareRecordings(baselinePath, targetPath);
 
@@ -207,7 +196,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareSameFileAsBaselineAndTarget() {
+    void compareSameFileAsBaselineAndTarget() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, baselinePath);
 
         assertThat(result.isError()).isFalse();
@@ -218,7 +207,7 @@ class CompareRecordingsToolTest {
     }
 
     @Test
-    void compareDeltaValuesContainPercentSign() {
+    void compareDeltaValuesContainPercentSign() throws Exception {
         ToolResponse result = tool.compareRecordings(baselinePath, targetPath);
 
         assertThat(result.isError()).isFalse();

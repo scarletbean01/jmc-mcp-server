@@ -21,8 +21,9 @@ public class VmOperationsApplicationService {
     private final VmOperationsService vmOperationsService;
 
     public VmOperationsResult analyze(String filePath, String startTime, String endTime, int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return vmOperationsService.analyze(events, topN);
+        return vmOperationsService.analyze(events, effectiveTopN);
     }
 }

@@ -1,128 +1,67 @@
 ---
 
-## 🏗️ Architectural Vision: Hexagonal (Ports & Adapters)
+## 🏗️ Architecture & Structure
+**Hexagonal (Clean) Architecture** via Maven multi-module. Dependencies point inward (`01-domain` <- `02-application` <- `03-infrastructure`).
+- **`01-domain`**: Pure business logic, JFR heuristics. **Zero frameworks** (No Quarkus/CDI).
+- **`02-application`**: Orchestration, Ports. CDI-aware (`@ApplicationScoped`), Protocol-agnostic.
+- **`03-infrastructure`**: Driving Adapters (MCP, REST via Quarkus) & Driven Adapters (Caffeine, OTEL).
 
-The project follows a strict **Hexagonal Architecture** (Clean Architecture) distributed across a **Maven multi-module** setup. This ensures the core JFR analysis logic remains decoupled from delivery mechanisms (MCP, REST) and external frameworks (Quarkus).
+## 🚀 API & MCP Tools
+- **REST Endpoints**: JFR management (`/upload`, `/{id}`), synchronous/async analysis (`/analyze/*`), A/B comparisons (`/compare/*`), and observability (`/metrics`, `/health/*`).
+- **MCP Pattern**: Tools are `@Tool` annotated methods in `@ApplicationScoped` adapters.
+  - **Tool Registry**: Tool names must be explicitly defined snake_case constants in `ToolNames` (e.g., `@Tool(name = ToolNames.HOT_METHODS)`). All tool names must be registered in `ToolNames.ALL`.
+  - **Parameter Standards**:
+    - Use `ToolDocs` constants for shared parameter descriptions (`JFR_FILE_PATH`, `HEAP_DUMP_PATH`, `START_TIME`, `END_TIME`, `PACKAGE_PREFIX`, `TOP_N_10`, `TOP_N_20`, `TOP_N_50`).
+    - Use wrapper types (`Integer`, `Long`, `Double`, `Boolean`) for optional parameters with `@ToolArg(defaultValue = "...")`, never primitives (`int`, `long`), to prevent unboxing NPEs. Apply defensive defaults: `topN != null ? topN : 10`.
+    - Validate time ranges via `TimeRangeArgs.validateRange(startTime, endTime)`.
+  - **Error Handling & Interceptor Contract**:
+    - Do NOT catch exceptions inline in MCP tools. Declare `throws Exception` and annotate tool classes with `@HandleToolError`.
+    - `ToolErrorInterceptor` sets MDC `tool` to `@Tool.name()` (snake_case).
+    - Records OpenTelemetry span errors and times executions via Micrometer `jmc.mcp.tool.duration` tagged with `tool` and `outcome` (`success`/`error`).
+    - Maps exceptions to clean, safe MCP error responses (`ToolResponse.error(message)`):
+      - `PathAccessDeniedException` (allowlist violations): Fixed message `"Access denied: path not allowed under JMC_MCP_ALLOWED_PATHS"` (avoids leaking server paths or allowlists).
+      - Any other `SecurityException`: its message, prefixed with `"Access denied: "`. These messages reach the client, so never put server paths or allowlists in them.
+      - `RecordingNotFoundException`: `"Recording not found: " + msg`.
+      - `IllegalArgumentException`: `"Invalid argument: " + msg`.
+      - `ValidationException` (incl. `ConstraintViolationException`): `"Validation error: " + msg`.
+      - `JmcMcpDomainException`: the exception's message, unchanged.
+      - Null messages: `"Error: " + e.getClass().getSimpleName()`.
+  - **Output Bounds**: All markdown responses must pass through `ToolOutput.limit(markdown)` (configurable via `jmc.mcp.max-output-chars`, default 40,000 characters) to safeguard LLM context windows. `ToolOutput` automatically reserves budget for notices, closes unclosed markdown code fences (`\n````), and preserves trailing `<agent_hint>` instructions.
+  - **Agent Hints**: Always include actionable `<agent_hint>...</agent_hint>` guidance suggesting next-step tools using canonical backticked tool names (e.g., `` `correlate` ``, `` `hot_methods` ``).
+  - **Contract Enforcement**: Enforced by `ToolContractTest` via reflection:
+    - Verifies all tool classes are `@ApplicationScoped` and annotated with `@HandleToolError`.
+    - Verifies all `@Tool` methods have `@RunOnVirtualThread` and never `@Blocking`.
+    - Verifies tool names are snake_case and present in `ToolNames.ALL`.
+    - Verifies optional arguments use wrapper types, not primitives.
+    - Verifies descriptions match `ToolDocs` constants.
+    - Verifies `<agent_hint>` blocks reference valid tools registered in `ToolNames.ALL`.
 
-### Dependency Rule
-**Dependencies point inward.** Domain has zero knowledge of Application, and both have zero knowledge of Infrastructure.
+## ⚡ Infrastructure & Observability
+- **Concurrency**: All MCP and REST entry points use `@RunOnVirtualThread` (never `@Blocking`). CPU-heavy JMC parsing is offloaded to `WorkStealingPool` (`CompletableFuture`) to avoid pinning Virtual Thread carriers.
+- **Security & Path Control**:
+  - `RecordingAccessController`:
+    - Validates recording and heap dump paths against configured `allowed-paths` (default `.` / cwd) with real-path canonicalization (`toRealPath()`).
+    - Resolves the deepest existing ancestor for non-existent target paths (e.g., write/dump destinations) to prevent symlink bypasses.
+    - Path traversal (`..`) and invalid characters throw `SecurityException`.
+    - `validate(path, allowedExtensions)` returns the canonical path it checked; use that, not the raw input, for the subsequent I/O. Extensions are enforced on the resolved target and only where a caller passes them (heap dumps: `.hprof`, `.phd`, `.dump`; live-recording dumps: `.jfr`). Allowed URI schemes default to `file`.
+    - Dangling symlinks are rejected (not followed), because resolving their targets textually can disagree with the kernel.
+  - Live Recording:
+    - Host validation restricts targets to loopback hosts (`localhost`, `127.0.0.1`, `[::1]`, `::1`) by default, configurable via `jmc.live.allowed-jmx-hosts`.
+    - Enforces `rmi` protocol and a `/jndi/rmi://<allowed host>/…` URL path with `JMXServiceURL` parsing; `/stub/`, `/ior/`, other JNDI schemes and empty paths are rejected.
+    - Enforces `Action` enum (`list`, `start`, `stop`, `dump`), validates settings (`default`, `profile`), and ensures dump files are written to safe destinations.
+- **Caching**: `JfrRecordingCache` (weight-based, 3.5x multiplier), `HeapDumpCache`, `AnalysisResultCache` (domain results, 15m TTL), `CallTreeCache`.
+- **Observability**: Micrometer (`AnalysisMetrics`, `jmc.mcp.tool.duration`) and OpenTelemetry (`@WithSpan` on `AnalysisDispatcher`, span error recording in `ToolErrorInterceptor`).
 
-| Module | Layer | Responsibility | Constraints |
-|:---|:---|:---|:---|
-| **`01-domain`** | **Domain** | Pure business logic, JFR heuristics, models. | **Zero frameworks.** No Quarkus/CDI. |
-| **`02-application`** | **Application** | Use case orchestration, Port definitions. | CDI-aware (`@ApplicationScoped`). Protocol agnostic. |
-| **`03-infrastructure`** | **Infrastructure** | Driving Adapters (MCP, REST) & Driven (JFR Cache). | Framework specific (Quarkus, Caffeine, OTEL). |
-| **`00-bom`** | **BOM** | Centralized Dependency Management. | No code. POM only. |
-
----
-
-## 📦 Project Structure
-
-```
-.
-├── 00-bom/                   # Centralized versions (Bill of Materials)
-├── 01-domain/                # CORE: Pure logic & JMC heuristics
-│   └── src/main/java/.../domain/
-│       ├── model/            # Pure Java Records (Result types)
-│       ├── service/          # Core analysis logic (Pure Java + JMC)
-│       └── exception/        # Domain-specific exceptions
-├── 02-application/           # USE CASES: Orchestration
-│   └── src/main/java/.../application/
-│       ├── port/             # SPIs (e.g., JfrProvider)
-│       └── service/          # Orchestrators (Async jobs, Storage)
-└── 03-infrastructure/        # TECHNICAL: Adapters & Frameworks
-    └── src/main/java/.../infrastructure/
-        ├── mcp/              # DRIVING: MCP Tools (@Tool)
-        ├── api/              # DRIVING: REST API (Quarkus REST)
-        ├── jfr/              # DRIVEN: JMC Parsing & Caffeine Cache
-        ├── security/         # Technical Guards (Access Control)
-        └── observability/    # Metrics (Micrometer) & Tracing (OTEL)
-```
-
----
-
-## 🚀 REST API Reference
-
-The server exposes a comprehensive REST API for JFR management and analysis.
-
-### Recording Management
-- `POST /api/v1/recordings/upload` — Upload a JFR file (multipart/form-data).
-- `GET /api/v1/recordings` — List all uploaded recordings.
-- `GET /api/v1/recordings/{id}` — Get metadata for a recording.
-- `DELETE /api/v1/recordings/{id}` — Delete a recording.
-
-### Analysis Endpoints
-- `POST /api/v1/recordings/{id}/analyze/{type}` — Synchronous analysis.
-- `POST /api/v1/recordings/{id}/analyze/{type}/async` — Asynchronous analysis (returns `jobId`).
-- `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}` — Poll async job status.
-- `GET /api/v1/recordings/{id}/analyze/jobs/{jobId}/stream` — SSE stream for job updates.
-- `POST /api/v1/compare/call-tree/{treeId}/expand` — Interactive differential call tree expansion.
-
-### Comparison (A/B Deep-Dive)
-- `POST /api/v1/compare` — Compare two recordings (textual/markdown).
-- `POST /api/v1/compare/structured` — Compare two recordings (JSON model) encompassing KPIs, Rule changes, and top hotspots.
-- `POST /api/v1/compare/call-tree` — Generate a differential call tree.
-- `POST /api/v1/compare/stack-traces` — Generate a flattened method-level performance shift analysis.
-
-### Observability
-- `GET /metrics` — Prometheus metrics (Micrometer).
-- `GET /health/live` — Liveness probe.
-- `GET /health/ready` — Readiness probe (checks storage and cache sanity).
-- `GET /api/v1/health` — Internal JVM health and memory metrics.
-
----
-
-## 🛠️ MCP Tools Pattern
-
-All tools are methods within `@ApplicationScoped` adapters in `infrastructure.mcp`.
-
-- **Declarative Tools:** Annotate methods with `@Tool` and specify parameters using `@RequestParam`.
-- **Error Handling:** Use `@HandleToolError` to map domain exceptions to MCP-compatible errors.
-- **Specification:** Each tool implements the `McpTool` interface to expose its `SyncToolSpecification`.
-- **Backpressure:** Long-running tools should check for cancellation where possible.
-
----
-
-## ⚡ JFR Infrastructure & Performance
-
-The server is optimized for high-volume JFR analysis using advanced caching and concurrency models.
-
-### Advanced Caching (Caffeine)
-- **`JfrRecordingCache`:** Weight-based cache for parsed `IItemCollection` objects. Estimates heap impact using a multiplier (default 3.5x file size) to prevent OOM.
-- **`AnalysisResultCache`:** Caches expensive domain-level analysis results with TTL (15m default).
-- **`CallTreeCache`:** Specialized cache for `StacktraceTreeModel` instances to support UI/Tool pagination.
-
-### Concurrency & Virtual Threads
-- **Virtual Threads:** All entry points (REST/MCP) use `@RunOnVirtualThread`.
-- **Pinning Avoidance:** CPU-heavy JFR parsing in `JfrRecordingCache` is offloaded to a dedicated **Platform Thread Pool** (`WorkStealingPool`) via `CompletableFuture` to avoid pinning VT carriers during native code execution or intensive JMC parsing.
-
----
-
-## 📊 Observability
-
-- **Metrics:** `AnalysisMetrics` tracks active analyses, cache hit/miss/eviction rates, upload sizes, and job queue depth.
-- **Health:** `/health/ready` validates that the `uploads` directory is writable and the Caffeine caches are operational.
-- **Tracing:** OpenTelemetry integration. `AnalysisDispatcher.dispatch` is annotated with `@WithSpan` to track the full lifecycle of analysis requests.
-
----
-
-## 💎 Engineering Standards & Style
-
-- **Modern Java:** **Java 25** (Records, Pattern Matching, Sealed Classes).
-- **Lombok:** Use `@Slf4j` and `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
-- **Validation:** Use Jakarta Validation (`@NotBlank`, `@Min`, etc.) on model records.
-- **Logging:** Log exclusively to **stderr** via SLF4J (Quarkus configuration). Reserve stdout for the MCP protocol.
-- **Error Handling:** Use `domain.exception` hierarchy. `ToolErrorInterceptor` or `@HandleToolError` handles the mapping.
-
----
+## 💎 Engineering Standards
+- **Java 25**, Lombok (`@Slf4j`, `@RequiredArgsConstructor(onConstructor_ = @Inject)`), Jakarta Validation.
+- Log exclusively to **stderr**; stdout is strictly reserved for the MCP protocol.
+- **Strict Layering**: Never import `infrastructure` classes into `domain` or `application`.
 
 ## 📋 AI Agent Guidelines
+1. **Tool Usage & Performance**: Leverage `steroid_execute_code` for project manipulation. **CRITICAL**: You must load the `intellij-mcp` skill and read its reference guides before performing edits or semantic searches.
+2. **Resource Safety**: Always use try-with-resources for I/O and JFR streams.
+3. **Cache Awareness**: Register new analysis types in `AnalysisDispatcher` and cache results in `AnalysisResultCache`.
+4. **JMC Performance**: Prefer `IItemCollection` filtering over manual iteration. Use `JfrQuantityAggregator`.
+5. **Time Parameters**: Passed backend times (`start-time`/`end-time`) must be absolute (ISO-8601 strings or epoch integers).
+6. **Frontend**: Do NOT commit compiled static assets (`js/compiled/`, `index.html`, `css/`) to the source tree (`src/.../resources/`); Maven handles this to prevent stale shadowing in dev mode.
 
-1.  **Strict Layering:** Never import `infrastructure` classes into `domain` or `application`.
-2.  **Virtual Threads:** Always use `@RunOnVirtualThread` for entry points.
-3.  **Cache Awareness:** When adding new analysis types, ensure they are registered in `AnalysisDispatcher` and results are cached in `AnalysisResultCache`.
-4.  **Resource Safety:** Always use try-with-resources for I/O and JFR streams.
-5.  **Tests:** Add tool integration tests in `src/test/java/.../mcp` using real JFR fixtures located in `src/test/resources`.
-6.  **Performance:** Prefer `IItemCollection` filtering over manual iteration where possible. Use `JfrQuantityAggregator` for efficient data reduction.
-7.  **Time Parameters:** All time parameters passed to the backend (`start-time` and `end-time`) must be absolute (ISO-8601 strings or epoch millisecond/second integers). Relative second offsets (e.g., `0` to `30`) are converted to absolute ISO-8601 values in the frontend using the recording's start epoch.
-8.  **Static Assets & Frontend Builds:** Do not check compiled static assets (`js/compiled/`, `index.html`, or `css/`) into the Java source resources directory (`03-infrastructure/src/main/resources/META-INF/resources/`). The Maven build compiles the ClojureScript frontend and copies the assets automatically to `target/classes/META-INF/resources/`. Having compiled assets in the source tree causes stale shadowing in Quarkus dev mode.

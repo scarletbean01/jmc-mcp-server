@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.ThreadDumpApplicationService;
 import io.github.deplague.jmcmcp.domain.model.ThreadDumpResult;
@@ -23,19 +26,20 @@ public final class ThreadDumpTool {
     private final ThreadDumpApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Extract periodic thread dumps from a JFR recording. Returns the text of thread dumps captured at various points during the recording.")
+    @Tool(
+            name = ToolNames.THREAD_DUMP,
+            title = "Thread Dump Analysis",
+            description = "Extract periodic thread dumps from a JFR recording. Returns the text of thread dumps captured at various points during the recording.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse threadDumps(
-            @ToolArg(name = "jfr_file_path", description = "Path to the .jfr recording file", required = true) String filePath,
-            @ToolArg(name = "max_dumps", description = "Maximum number of thread dumps to return", required = false) Integer maxDumps) {
-        try {
-            if (maxDumps == null) {
-                maxDumps = 5;
-            }
-            ThreadDumpResult result = appService.analyze(filePath, maxDumps);
-            return ToolResponse.success(formatMarkdown(result));
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String filePath,
+            @ToolArg(name = "max_dumps", description = "Maximum number of thread dumps to return", required = false) Integer maxDumps) throws Exception {
+        if (maxDumps == null) {
+                        maxDumps = 5;
+                    }
+                    ThreadDumpResult result = appService.analyze(filePath, maxDumps);
+                    return ToolResponse.success(ToolOutput.limit(formatMarkdown(result)));
     }
 
     private String formatMarkdown(ThreadDumpResult result) {

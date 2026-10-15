@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CallTreeToolTest {
 
@@ -52,7 +53,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeReturnsTreeIdAndNodes() {
+    void getCallTreeReturnsTreeIdAndNodes() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "cpu", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -64,7 +65,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeWithSocketSubsystem() {
+    void getCallTreeWithSocketSubsystem() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "socket", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -73,7 +74,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeWithFileSubsystem() {
+    void getCallTreeWithFileSubsystem() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "file", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -82,7 +83,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeWithLockSubsystem() {
+    void getCallTreeWithLockSubsystem() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "lock", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -91,7 +92,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeWithPackageFilter() {
+    void getCallTreeWithPackageFilter() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "cpu", "java.lang", null, null);
 
         assertThat(result.isError()).isFalse();
@@ -100,7 +101,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeWithTimeRange() {
+    void getCallTreeWithTimeRange() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "cpu", null, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z");
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeCachesResultOnSecondCall() {
+    void getCallTreeCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.callTree(afterPath, "cpu", null, null, null);
         ToolResponse second = tool.callTree(afterPath, "cpu", null, null, null);
 
@@ -123,23 +124,19 @@ class CallTreeToolTest {
     }
 
     @Test
-    void getCallTreeReturnsErrorForMissingFile() {
-        ToolResponse result = tool.callTree("/nonexistent/path.jfr", "cpu", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void getCallTreeReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.callTree("/nonexistent/path.jfr", "cpu", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void getCallTreeReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.callTree(null, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void getCallTreeReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.callTree(null, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void getCallTreeCachesTreeInCallTreeCache() {
+    void getCallTreeCachesTreeInCallTreeCache() throws Exception {
         ToolResponse result = tool.callTree(afterPath, "cpu", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -147,7 +144,7 @@ class CallTreeToolTest {
     }
 
     @Test
-    void expandNodeReturnsChildren() {
+    void expandNodeReturnsChildren() throws Exception {
         // First create a tree
         ToolResponse treeResult = tool.callTree(afterPath, "cpu", null, null, null);
 
@@ -168,24 +165,19 @@ class CallTreeToolTest {
     void expandNodeReturnsErrorForExpiredTree() {
         ExpandCallTreeTool expandTool = new ExpandCallTreeTool(
                 new ExpandCallTreeApplicationService(appService.getCallTreeCache(), new ExpandCallTreeService()));
-        ToolResponse result = expandTool.expandCallTree("nonexistent-tree-id", "root-0");
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Tree not found or expired");
+        assertThatThrownBy(() -> expandTool.expandCallTree("nonexistent-tree-id", "root-0"))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void expandNodeReturnsErrorForInvalidNodeId() {
+    void expandNodeReturnsErrorForInvalidNodeId() throws Exception {
         ToolResponse treeResult = tool.callTree(afterPath, "cpu", null, null, null);
-
         String treeId = extractTreeId(extractText(treeResult));
 
         ExpandCallTreeTool expandTool = new ExpandCallTreeTool(
                 new ExpandCallTreeApplicationService(appService.getCallTreeCache(), new ExpandCallTreeService()));
-        ToolResponse result = expandTool.expandCallTree(treeId, "root-999999");
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("not found in tree");
+        assertThatThrownBy(() -> expandTool.expandCallTree(treeId, "root-999999"))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

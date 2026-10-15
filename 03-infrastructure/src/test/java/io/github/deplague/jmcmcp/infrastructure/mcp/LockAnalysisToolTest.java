@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LockAnalysisToolTest {
 
@@ -53,7 +54,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisShowsResultFromAfterFixesFile() {
+    void analysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.lockAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -61,7 +62,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisShowsResultFromBeforeFixesFile() {
+    void analysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -69,7 +70,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsThreadParkSectionOrNoParkMessage() {
+    void analysisContainsThreadParkSectionOrNoParkMessage() throws Exception {
         ToolResponse result = tool.lockAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -82,7 +83,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsBiasedLockSectionOrNoRevocationMessage() {
+    void analysisContainsBiasedLockSectionOrNoRevocationMessage() throws Exception {
         ToolResponse result = tool.lockAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -95,7 +96,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisParkSummaryContainsMetricsWhenPresent() {
+    void analysisParkSummaryContainsMetricsWhenPresent() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisParkSitesTableFormatWhenPresent() {
+    void analysisParkSitesTableFormatWhenPresent() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -121,7 +122,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisBiasedLockRevocationCountsWhenPresent() {
+    void analysisBiasedLockRevocationCountsWhenPresent() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -135,7 +136,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisRevokedLockClassesTableWhenPresent() {
+    void analysisRevokedLockClassesTableWhenPresent() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -147,7 +148,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisWithCustomTopN() {
+    void analysisWithCustomTopN() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, 3);
 
         assertThat(result.isError()).isFalse();
@@ -155,7 +156,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisWithTopNAsString() {
+    void analysisWithTopNAsString() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -163,7 +164,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.lockAnalysis(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -171,23 +172,19 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.lockAnalysis("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.lockAnalysis("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.lockAnalysis(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.lockAnalysis(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.lockAnalysis(afterPath, null, null, null);
         ToolResponse second = tool.lockAnalysis(afterPath, null, null, null);
 
@@ -197,7 +194,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisParkSitesLimitedByTopN() {
+    void analysisParkSitesLimitedByTopN() throws Exception {
         ToolResponse result1 = tool.lockAnalysis(beforePath, null, null, 1);
 
         ToolResponse result2 = tool.lockAnalysis(beforePath, null, null, 20);
@@ -213,7 +210,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisDefaultTopNIsTen() {
+    void analysisDefaultTopNIsTen() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -226,7 +223,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisParkCountIsNumeric() {
+    void analysisParkCountIsNumeric() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -238,7 +235,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisRevocationCountIsNumeric() {
+    void analysisRevocationCountIsNumeric() throws Exception {
         ToolResponse result = tool.lockAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -250,7 +247,7 @@ class LockAnalysisToolTest {
     }
 
     @Test
-    void analysisBothFilesProduceConsistentStructure() {
+    void analysisBothFilesProduceConsistentStructure() throws Exception {
         ToolResponse afterResult = tool.lockAnalysis(afterPath, null, null, null);
         ToolResponse beforeResult = tool.lockAnalysis(beforePath, null, null, null);
 

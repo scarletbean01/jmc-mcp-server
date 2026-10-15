@@ -21,7 +21,7 @@ public class ExpandDiffCallTreeApplicationService {
     public ExpandDiffCallTreeResult expand(String treeId, String nodeId) {
         CallTreeCache.CachedDiffTree cached = callTreeCache.getDiffTree(treeId);
         if (cached == null) {
-            throw new IllegalArgumentException("Cached diff tree not found: " + treeId);
+            throw new IllegalArgumentException("Cached diff tree not found: " + treeId + ". Call `diff_call_tree` to generate a new diff tree.");
         }
 
         CallTreeCache.DiffTreeNode parentNode = CallTreeCache.findDiffNode(cached.root(), nodeId);

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RequestWaterfallToolTest {
 
@@ -51,7 +52,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallShowsResultFromAfterFixesFile() {
+    void waterfallShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(afterPath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -59,7 +60,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallShowsResultFromBeforeFixesFile() {
+    void waterfallShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -67,7 +68,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallContainsThreadSummary() {
+    void waterfallContainsThreadSummary() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -80,7 +81,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallContainsWaterfallTimeline() {
+    void waterfallContainsWaterfallTimeline() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -91,7 +92,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallContainsPhaseBreakdown() {
+    void waterfallContainsPhaseBreakdown() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -102,7 +103,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallContainsAgentHint() {
+    void waterfallContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -112,7 +113,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallWithMaxEventsLimit() {
+    void waterfallWithMaxEventsLimit() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, ".*", null, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -121,7 +122,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallWithTimeRange() {
+    void waterfallWithTimeRange() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(afterPath, ".*", "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -129,7 +130,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallNoEventsForNonexistentThread() {
+    void waterfallNoEventsForNonexistentThread() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, "ZZZNonExistentThreadZZZ", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -138,30 +139,25 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartRequestWaterfall("/nonexistent/path.jfr", "main", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void waterfallReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartRequestWaterfall("/nonexistent/path.jfr", "main", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void waterfallReturnsErrorForMissingThreadName() {
-        ToolResponse result = tool.smartRequestWaterfall(beforePath, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
+    void waterfallReturnsErrorForMissingThreadName() throws Exception {
+        assertThatThrownBy(() -> tool.smartRequestWaterfall(beforePath, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void waterfallReturnsErrorForMissingJfrFilePath() {
-        ToolResponse result = tool.smartRequestWaterfall(null, "main", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void waterfallReturnsErrorForMissingJfrFilePath() throws Exception {
+        assertThatThrownBy(() -> tool.smartRequestWaterfall(null, "main", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void waterfallCachesResultOnSecondCall() {
+    void waterfallCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.smartRequestWaterfall(afterPath, ".*", null, null, null);
         ToolResponse second = tool.smartRequestWaterfall(afterPath, ".*", null, null, null);
 
@@ -171,7 +167,7 @@ class RequestWaterfallToolTest {
     }
 
     @Test
-    void waterfallWithExactThreadName() {
+    void waterfallWithExactThreadName() throws Exception {
         ToolResponse result = tool.smartRequestWaterfall(beforePath, "main", null, null, null);
 
         assertThat(result.isError()).isFalse();

@@ -1,9 +1,11 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.HotMethodsApplicationService;
 import io.github.deplague.jmcmcp.domain.model.HotMethodEntry;
 import io.github.deplague.jmcmcp.domain.model.HotMethodsResult;
-import io.github.deplague.jmcmcp.infrastructure.mcp.util.MarkdownBuffer;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
@@ -27,30 +29,32 @@ public final class HotMethodsTool {
     }
 
     @RunOnVirtualThread
-    @Tool(description = "Identify hot methods and call paths in a JFR recording based on execution samples.")
+    @Tool(
+            name = ToolNames.HOT_METHODS,
+            title = "Hot Methods Analysis",
+            description = "Identify hot methods and call paths in a JFR recording based on execution samples.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse hotMethods(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
             @ToolArg(name = "thread_name", required = false, description = "Optional thread name to filter execution samples by") String threadName,
-            @ToolArg(name = "package_prefix", required = false, description = "Optional package prefix to filter stack traces (e.g., 'com.mycompany')") String packagePrefix,
-            @ToolArg(name = "top_n", required = false, description = "Number of top hot methods to return (default 10)") Integer topN
-    ) {
-        try {
-            HotMethodsResult result = applicationService.analyze(
-                    jfrFilePath,
-                    startTime,
-                    endTime,
-                    threadName,
-                    packagePrefix,
-                    topN != null ? topN : 10
-            );
-
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "package_prefix", required = false, description = ToolDocs.PACKAGE_PREFIX) String packagePrefix,
+            @ToolArg(name = "top_n", required = false, defaultValue = "10", description = ToolDocs.TOP_N_10) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                HotMethodsResult result = applicationService.analyze(
+                            jfrFilePath,
+                            startTime,
+                            endTime,
+                            threadName,
+                            packagePrefix,
+                            topN != null ? topN : 10
+                    );
+        
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(HotMethodsResult result) {
@@ -58,10 +62,10 @@ public final class HotMethodsTool {
             return "# Hot Methods\n\nNo execution samples found in the recording.";
         }
 
-        MarkdownBuffer sb = MarkdownBuffer.get();
-        sb.line("# Hot Methods & Call Paths").nl();
-        sb.line("| Samples | Stack Trace (top 5 frames) |");
-        sb.line("|---------|----------------------------|");
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Hot Methods & Call Paths").append("\n\n");
+        sb.append("| Samples | Stack Trace (top 5 frames) |").append("\n");
+        sb.append("|---------|----------------------------|").append("\n");
 
         for (HotMethodEntry entry : result.entries()) {
             sb.append("| ").append(entry.sampleCount()).append(" | ");
@@ -79,6 +83,6 @@ public final class HotMethodsTool {
                         "`. Consider `thread_cpu` to see which threads consume the most CPU, `stack_trace_search` with `class_pattern` to find all events involving this class, or `correlate` to see if this method is associated with lock contention or I/O.</agent_hint>\n"
                 );
 
-        return sb.toStringAndReset();
+        return sb.toString();
     }
 }

@@ -21,8 +21,9 @@ public class ObjectStatisticsApplicationService {
     private final ObjectStatisticsService objectStatisticsService;
 
     public ObjectStatisticsResult analyze(String filePath, String startTime, String endTime, int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return objectStatisticsService.analyze(events, topN);
+        return objectStatisticsService.analyze(events, effectiveTopN);
     }
 }

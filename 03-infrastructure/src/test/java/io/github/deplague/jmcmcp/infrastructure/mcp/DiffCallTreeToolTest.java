@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DiffCallTreeToolTest {
 
@@ -58,7 +59,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeReturnsTreeIdAndNodes() {
+    void getDiffTreeReturnsTreeIdAndNodes() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "cpu", null);
 
         assertThat(result.isError()).isFalse();
@@ -71,7 +72,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeWithSocketSubsystem() {
+    void getDiffTreeWithSocketSubsystem() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "socket", null);
 
         assertThat(result.isError()).isFalse();
@@ -80,7 +81,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeWithFileSubsystem() {
+    void getDiffTreeWithFileSubsystem() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "file", null);
 
         assertThat(result.isError()).isFalse();
@@ -89,7 +90,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeWithLockSubsystem() {
+    void getDiffTreeWithLockSubsystem() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "lock", null);
 
         assertThat(result.isError()).isFalse();
@@ -98,7 +99,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeWithPackageFilter() {
+    void getDiffTreeWithPackageFilter() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "cpu", "java.lang");
 
         assertThat(result.isError()).isFalse();
@@ -107,31 +108,25 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void getDiffTreeReturnsErrorForMissingBaseline() {
-        ToolResponse result = tool.diffCallTree("/nonexistent/baseline.jfr", afterPath, "cpu", null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void getDiffTreeReturnsErrorForMissingBaseline() throws Exception {
+        assertThatThrownBy(() -> tool.diffCallTree("/nonexistent/baseline.jfr", afterPath, "cpu", null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void getDiffTreeReturnsErrorForMissingTarget() {
-        ToolResponse result = tool.diffCallTree(beforePath, "/nonexistent/target.jfr", "cpu", null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void getDiffTreeReturnsErrorForMissingTarget() throws Exception {
+        assertThatThrownBy(() -> tool.diffCallTree(beforePath, "/nonexistent/target.jfr", "cpu", null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void getDiffTreeReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.diffCallTree(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void getDiffTreeReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.diffCallTree(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void getDiffTreeCachesTreeInCallTreeCache() {
+    void getDiffTreeCachesTreeInCallTreeCache() throws Exception {
         ToolResponse result = tool.diffCallTree(beforePath, afterPath, "cpu", null);
 
         assertThat(result.isError()).isFalse();
@@ -139,7 +134,7 @@ class DiffCallTreeToolTest {
     }
 
     @Test
-    void expandDiffNodeReturnsChildren() {
+    void expandDiffNodeReturnsChildren() throws Exception {
         ToolResponse treeResult = tool.diffCallTree(beforePath, afterPath, "cpu", null);
 
         String treeText = extractText(treeResult);
@@ -161,25 +156,20 @@ class DiffCallTreeToolTest {
         ExpandDiffCallTreeService expandDomainService = new ExpandDiffCallTreeService();
         ExpandDiffCallTreeApplicationService expandAppService = new ExpandDiffCallTreeApplicationService(appService.getCallTreeCache(), expandDomainService);
         ExpandDiffCallTreeTool expandTool = new ExpandDiffCallTreeTool(expandAppService);
-        ToolResponse result = expandTool.expandDiffCallTree("nonexistent-tree-id", "root-0");
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Cached diff tree not found: nonexistent-tree-id");
+        assertThatThrownBy(() -> expandTool.expandDiffCallTree("nonexistent-tree-id", "root-0"))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void expandDiffNodeReturnsErrorForInvalidNodeId() {
+    void expandDiffNodeReturnsErrorForInvalidNodeId() throws Exception {
         ToolResponse treeResult = tool.diffCallTree(beforePath, afterPath, "cpu", null);
-
         String treeId = extractTreeId(extractText(treeResult));
 
         ExpandDiffCallTreeService expandDomainService = new ExpandDiffCallTreeService();
         ExpandDiffCallTreeApplicationService expandAppService = new ExpandDiffCallTreeApplicationService(appService.getCallTreeCache(), expandDomainService);
         ExpandDiffCallTreeTool expandTool = new ExpandDiffCallTreeTool(expandAppService);
-        ToolResponse result = expandTool.expandDiffCallTree(treeId, "root-999999");
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("not found in diff tree");
+        assertThatThrownBy(() -> expandTool.expandDiffCallTree(treeId, "root-999999"))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

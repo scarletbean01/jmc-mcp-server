@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.CpuFlameApplicationService;
 import io.github.deplague.jmcmcp.domain.model.CallPathEntry;
@@ -28,22 +31,24 @@ public final class CpuFlameTool {
     }
 
     @RunOnVirtualThread
-    @Tool(description = "Provide CPU flame graph data including thread states and hottest call paths.")
+    @Tool(
+            name = ToolNames.CPU_FLAME,
+            title = "CPU Flame Graph",
+            description = "Provide CPU flame graph data including thread states and hottest call paths.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse cpuFlame(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "top_n", required = false, description = "Number of top call paths and methods (default 20)") Integer topN
-    ) {
-        try {
-            CpuFlameResult result = applicationService.analyze(
-                    jfrFilePath, startTime, endTime, topN != null ? topN : 20);
-
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "top_n", required = false, defaultValue = "20", description = ToolDocs.TOP_N_20) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                CpuFlameResult result = applicationService.analyze(
+                            jfrFilePath, startTime, endTime, topN != null ? topN : 20);
+        
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(CpuFlameResult result) {

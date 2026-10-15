@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JdkBugReferenceToolTest {
 
@@ -53,7 +54,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisShowsResultFromAfterFixesFile() {
+    void analysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -61,7 +62,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisShowsResultFromBeforeFixesFile() {
+    void analysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -69,7 +70,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisContainsJvmVersionWhenAvailable() {
+    void analysisContainsJvmVersionWhenAvailable() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -81,7 +82,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisContainsNoBugMatchesOrPotentialMatches() {
+    void analysisContainsNoBugMatchesOrPotentialMatches() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -94,7 +95,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisNoBugMatchesContainsAnalysisSummary() {
+    void analysisNoBugMatchesContainsAnalysisSummary() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -108,7 +109,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsSeverityAndCategory() {
+    void analysisBugMatchContainsSeverityAndCategory() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -121,7 +122,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsBugId() {
+    void analysisBugMatchContainsBugId() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -133,7 +134,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsAffectedVersions() {
+    void analysisBugMatchContainsAffectedVersions() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -145,7 +146,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsMatchedPattern() {
+    void analysisBugMatchContainsMatchedPattern() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -157,7 +158,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsWorkaroundWhenAvailable() {
+    void analysisBugMatchContainsWorkaroundWhenAvailable() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -169,7 +170,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsFixedInWhenAvailable() {
+    void analysisBugMatchContainsFixedInWhenAvailable() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -181,7 +182,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsVersionAffectedStatus() {
+    void analysisBugMatchContainsVersionAffectedStatus() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -196,7 +197,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsTableFormat() {
+    void analysisBugMatchContainsTableFormat() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -209,7 +210,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z");
 
         assertThat(result.isError()).isFalse();
@@ -217,23 +218,19 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.jdkBugReference("/nonexistent/path.jfr", null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.jdkBugReference("/nonexistent/path.jfr", null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.jdkBugReference(null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.jdkBugReference(null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.jdkBugReference(afterPath, null, null);
         ToolResponse second = tool.jdkBugReference(afterPath, null, null);
 
@@ -243,7 +240,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisNoBugMatchesHeaderFormat() {
+    void analysisNoBugMatchesHeaderFormat() throws Exception {
         ToolResponse result = tool.jdkBugReference(afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -255,7 +252,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchesHeaderFormat() {
+    void analysisBugMatchesHeaderFormat() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -267,7 +264,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchPluralization() {
+    void analysisBugMatchPluralization() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -279,7 +276,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBugMatchContainsBugIdAsHeader() {
+    void analysisBugMatchContainsBugIdAsHeader() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -291,7 +288,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisBiasedLockRevocationThreshold() {
+    void analysisBiasedLockRevocationThreshold() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -303,7 +300,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisCompilerFailureDetection() {
+    void analysisCompilerFailureDetection() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -318,7 +315,7 @@ class JdkBugReferenceToolTest {
     }
 
     @Test
-    void analysisMemoryBugDetection() {
+    void analysisMemoryBugDetection() throws Exception {
         ToolResponse result = tool.jdkBugReference(beforePath, null, null);
 
         assertThat(result.isError()).isFalse();

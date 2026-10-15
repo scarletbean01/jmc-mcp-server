@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.AllocationFlameApplicationService;
 import io.github.deplague.jmcmcp.domain.model.AllocationFlameEntry;
@@ -26,23 +29,25 @@ public final class AllocationFlameTool {
     }
 
     @RunOnVirtualThread
-    @Tool(description = "Provide allocation flame graph data by aggregating object allocations by full stack trace.")
+    @Tool(
+            name = ToolNames.ALLOCATION_FLAME,
+            title = "Allocation Flame Graph",
+            description = "Provide allocation flame graph data by aggregating object allocations by full stack trace.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse allocationFlame(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "package_prefix", required = false, description = "Optional package prefix to filter stack traces (e.g., 'com.mycompany')") String packagePrefix,
-            @ToolArg(name = "top_n", required = false, description = "Number of top call paths (default 20)") Integer topN
-    ) {
-        try {
-            AllocationFlameResult result = applicationService.analyze(
-                    jfrFilePath, startTime, endTime, packagePrefix, topN != null ? topN : 20);
-
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "package_prefix", required = false, description = ToolDocs.PACKAGE_PREFIX) String packagePrefix,
+            @ToolArg(name = "top_n", required = false, defaultValue = "20", description = ToolDocs.TOP_N_20) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                AllocationFlameResult result = applicationService.analyze(
+                            jfrFilePath, startTime, endTime, packagePrefix, topN != null ? topN : 20);
+        
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(AllocationFlameResult result) {

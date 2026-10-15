@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.JfrRulesApplicationService;
 import io.github.deplague.jmcmcp.domain.model.JfrRulesResult;
@@ -23,25 +26,27 @@ public final class JfrRulesTool {
     private final JfrRulesApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Automatically detects performance issues using JMC's built-in rules engine.")
+    @Tool(
+            name = ToolNames.JFR_RULES,
+            title = "JFR Automated Rules Assessment",
+            description = "Automatically detects performance issues using JMC's built-in rules engine.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse jfrRules(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
             @ToolArg(name = "min_severity", required = false, description = "Minimum rule severity threshold to include (OK, INFO, WARNING, IGNORE). Default is WARNING.") String minSeverity
-    ) {
-        try {
-            JfrRulesResult result = appService.analyze(
-                    jfrFilePath,
-                    startTime,
-                    endTime,
-                    minSeverity != null ? minSeverity : "WARNING"
-            );
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                JfrRulesResult result = appService.analyze(
+                            jfrFilePath,
+                            startTime,
+                            endTime,
+                            minSeverity != null ? minSeverity : "WARNING"
+                    );
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(JfrRulesResult result) {

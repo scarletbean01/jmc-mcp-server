@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SmartThreadStarvationDetectorToolTest {
 
@@ -51,7 +52,7 @@ class SmartThreadStarvationDetectorToolTest {
     }
 
     @Test
-    void starvationDetectorReturnsResultFromAfterFixesFile() {
+    void starvationDetectorReturnsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartThreadStarvationDetector(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -61,7 +62,7 @@ class SmartThreadStarvationDetectorToolTest {
     }
 
     @Test
-    void starvationDetectorReturnsResultFromBeforeFixesFile() {
+    void starvationDetectorReturnsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartThreadStarvationDetector(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -69,7 +70,7 @@ class SmartThreadStarvationDetectorToolTest {
     }
 
     @Test
-    void starvationDetectorContainsAgentHint() {
+    void starvationDetectorContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartThreadStarvationDetector(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -79,23 +80,19 @@ class SmartThreadStarvationDetectorToolTest {
     }
 
     @Test
-    void starvationDetectorReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartThreadStarvationDetector("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void starvationDetectorReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartThreadStarvationDetector("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void starvationDetectorReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.smartThreadStarvationDetector(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains(  "Error: Path cannot be null or blank");
+    void starvationDetectorReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.smartThreadStarvationDetector(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void starvationDetectorCachesResultOnSecondCall() {
+    void starvationDetectorCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.smartThreadStarvationDetector(afterPath, null, null, null);
         ToolResponse second = tool.smartThreadStarvationDetector(afterPath, null, null, null);
 

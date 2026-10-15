@@ -10,9 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.netbeans.lib.profiler.heap.Heap;
 import org.netbeans.lib.profiler.heap.HeapFactory;
 
+import io.github.deplague.jmcmcp.infrastructure.security.RecordingAccessController;
+import jakarta.inject.Inject;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,15 +37,33 @@ public class HeapDumpCache implements HeapDumpProvider {
     private static final long MAX_CACHE_WEIGHT =
             Runtime.getRuntime().maxMemory() * Math.clamp(MAX_WEIGHT_PERCENT, 1, 100) / 100;
 
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".hprof", ".phd", ".dump");
+
     private final ExecutorService parsingExecutor = Executors.newWorkStealingPool(
             Math.max(4, Runtime.getRuntime().availableProcessors())
     );
 
     private final Cache<String, CacheEntry> cache;
+    private final RecordingAccessController accessController;
 
-    public HeapDumpCache() {
+    @Inject
+    public HeapDumpCache(RecordingAccessController accessController) {
+        this(DEFAULT_TTL_MINUTES, accessController);
+    }
+
+    /** Required by CDI for the client proxy only; a proxy never serves calls itself. */
+    protected HeapDumpCache() {
+        this(DEFAULT_TTL_MINUTES, null, true);
+    }
+
+    public HeapDumpCache(long ttlMinutes, RecordingAccessController accessController) {
+        this(ttlMinutes, Objects.requireNonNull(accessController, "accessController (path validation must not be skippable)"), false);
+    }
+
+    private HeapDumpCache(long ttlMinutes, RecordingAccessController accessController, boolean proxyOnly) {
+        this.accessController = accessController;
         this.cache = Caffeine.newBuilder()
-                .expireAfterAccess(Duration.ofMinutes(DEFAULT_TTL_MINUTES))
+                .expireAfterAccess(Duration.ofMinutes(ttlMinutes))
                 .maximumWeight(MAX_CACHE_WEIGHT)
                 .weigher((Weigher<String, CacheEntry>) (_, value) ->
                         (int) Math.min(Integer.MAX_VALUE, value.estimatedHeapWeight))
@@ -53,12 +77,14 @@ public class HeapDumpCache implements HeapDumpProvider {
                 .recordStats()
                 .build();
         log.info("HeapDumpCache initialized: TTL={}min, MaxWeight={}",
-                DEFAULT_TTL_MINUTES, formatBytes(MAX_CACHE_WEIGHT));
+                ttlMinutes, formatBytes(MAX_CACHE_WEIGHT));
     }
 
     @Override
     public Heap loadSnapshot(String filePath) throws IOException {
-        File file = new File(filePath).getAbsoluteFile();
+        // Use the canonical path that was validated, so the checked and the opened location cannot differ.
+        Path checked = accessController.validate(filePath, ALLOWED_EXTENSIONS);
+        File file = checked != null ? checked.toFile() : new File(filePath).getAbsoluteFile();
         String key = file.getAbsolutePath();
 
         CacheEntry entry = cache.getIfPresent(key);

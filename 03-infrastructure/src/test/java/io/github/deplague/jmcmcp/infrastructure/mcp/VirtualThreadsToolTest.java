@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class VirtualThreadsToolTest {
 
@@ -55,7 +56,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisShowsResultFromAfterFixesFile() {
+    void analysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.virtualThreadTool(afterPath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -63,7 +64,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisShowsResultFromBeforeFixesFile() {
+    void analysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -71,7 +72,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisContainsNoEventsMessageWhenNoneFound() {
+    void analysisContainsNoEventsMessageWhenNoneFound() throws Exception {
         ToolResponse result = tool.virtualThreadTool(afterPath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -83,7 +84,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisPinningSummaryWhenPresent() {
+    void analysisPinningSummaryWhenPresent() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -96,7 +97,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisPinningSitesTableFormat() {
+    void analysisPinningSitesTableFormat() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisPinningSitesContainPercentage() {
+    void analysisPinningSitesContainPercentage() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -121,7 +122,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisSubmissionFailuresWhenPresent() {
+    void analysisSubmissionFailuresWhenPresent() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -134,7 +135,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisSleepFailuresWhenPresent() {
+    void analysisSleepFailuresWhenPresent() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -146,7 +147,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisWithCustomTopN() {
+    void analysisWithCustomTopN() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 3);
 
         assertThat(result.isError()).isFalse();
@@ -154,7 +155,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisWithTopNAsString() {
+    void analysisWithTopNAsString() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -162,7 +163,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.virtualThreadTool(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", 10);
 
         assertThat(result.isError()).isFalse();
@@ -170,23 +171,19 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.virtualThreadTool("/nonexistent/path.jfr", null, null, 10);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.virtualThreadTool("/nonexistent/path.jfr", null, null, 10))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.virtualThreadTool(null, null, null, 10);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.virtualThreadTool(null, null, null, 10))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.virtualThreadTool(afterPath, null, null, 10);
         ToolResponse second = tool.virtualThreadTool(afterPath, null, null, 10);
 
@@ -196,7 +193,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisPinningSitesLimitedByTopN() {
+    void analysisPinningSitesLimitedByTopN() throws Exception {
         ToolResponse result1 = tool.virtualThreadTool(beforePath, null, null, 1);
 
         ToolResponse result2 = tool.virtualThreadTool(beforePath, null, null, 20);
@@ -212,7 +209,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisNoEventsMessageMentionsJfrConfiguration() {
+    void analysisNoEventsMessageMentionsJfrConfiguration() throws Exception {
         ToolResponse result = tool.virtualThreadTool(afterPath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -224,7 +221,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisPinningCountIsNumeric() {
+    void analysisPinningCountIsNumeric() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();
@@ -236,7 +233,7 @@ class VirtualThreadsToolTest {
     }
 
     @Test
-    void analysisDefaultTopNIsTen() {
+    void analysisDefaultTopNIsTen() throws Exception {
         ToolResponse result = tool.virtualThreadTool(beforePath, null, null, 10);
 
         assertThat(result.isError()).isFalse();

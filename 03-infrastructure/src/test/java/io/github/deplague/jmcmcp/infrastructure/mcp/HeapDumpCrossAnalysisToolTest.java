@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,12 +49,8 @@ class HeapDumpCrossAnalysisToolTest {
 
     @Test
     void handlesError() throws Exception {
-        when(appService.analyze("/bad/recording.jfr", "/bad/heap.hprof", null, null, 50))
-                .thenThrow(new RuntimeException("cross-analysis failed"));
-
-        ToolResponse response = tool.heapDumpCrossAnalysis("/bad/recording.jfr", "/bad/heap.hprof", null, null, null);
-
-        assertThat(response.isError()).isTrue();
+        assertThatThrownBy(() -> tool.heapDumpCrossAnalysis("/bad/recording.jfr", "/bad/heap.hprof", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

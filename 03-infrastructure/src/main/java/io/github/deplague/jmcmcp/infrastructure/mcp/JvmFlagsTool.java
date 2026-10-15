@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.JvmFlagEntry;
@@ -29,19 +32,20 @@ public final class JvmFlagsTool {
     private final JvmFlagsService jvmFlagsService;
 
     @RunOnVirtualThread
-    @Tool(description = "Analyze JVM runtime flags and ergonomics (e.g., UseG1GC, CompileThreshold).")
+    @Tool(
+            name = ToolNames.JVM_FLAGS,
+            title = "JVM Flags Analysis",
+            description = "Analyze JVM runtime flags and ergonomics (e.g., UseG1GC, CompileThreshold).",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse jvmFlags(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
             @ToolArg(name = "filter", required = false, description = "Substring filter for flag names (e.g., 'GC', 'Compile', 'Heap')") String filter
-    ) {
-        try {
-            IItemCollection events = jfrProvider.loadRecording(jfrFilePath);
-            JvmFlagsResult result = jvmFlagsService.analyze(events, filter);
-            String markdown = formatMarkdown(result, filter);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        IItemCollection events = jfrProvider.loadRecording(jfrFilePath);
+                    JvmFlagsResult result = jvmFlagsService.analyze(events, filter);
+                    String markdown = formatMarkdown(result, filter);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(JvmFlagsResult result, String filter) {

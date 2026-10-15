@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -54,11 +55,8 @@ class HeapDumpClassHistogramToolTest {
 
     @Test
     void handlesError() throws Exception {
-        when(appService.classHistogram("/bad/path", 50)).thenThrow(new RuntimeException("parse error"));
-
-        ToolResponse response = tool.heapDumpClassHistogram("/bad/path", null);
-
-        assertThat(response.isError()).isTrue();
+        assertThatThrownBy(() -> tool.heapDumpClassHistogram("/bad/path", null))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

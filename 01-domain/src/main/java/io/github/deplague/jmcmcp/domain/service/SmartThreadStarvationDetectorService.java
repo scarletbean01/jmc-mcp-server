@@ -315,7 +315,7 @@ public final class SmartThreadStarvationDetectorService {
         } else {
             hint.append("Monitor thread states over time and correlate with application throughput.");
         }
-        hint.append(" Use `smart_correlate` to cross-reference locks, I/O, and CPU.");
+        hint.append(" Use `correlate` to cross-reference locks, I/O, and CPU.");
         return hint.toString();
     }
 

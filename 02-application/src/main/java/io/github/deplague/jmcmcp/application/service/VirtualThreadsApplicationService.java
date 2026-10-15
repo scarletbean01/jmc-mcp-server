@@ -21,8 +21,9 @@ public class VirtualThreadsApplicationService {
     private final VirtualThreadsService virtualThreadsService;
 
     public VirtualThreadsResult analyze(String filePath, String startTime, String endTime, int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return virtualThreadsService.analyze(events, topN);
+        return virtualThreadsService.analyze(events, effectiveTopN);
     }
 }

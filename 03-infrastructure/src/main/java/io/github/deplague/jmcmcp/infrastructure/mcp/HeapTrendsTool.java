@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.FormatUtil;
 import io.github.deplague.jmcmcp.application.service.HeapTrendsApplicationService;
@@ -22,20 +25,22 @@ public final class HeapTrendsTool {
     private final HeapTrendsApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Analyze heap, metaspace, and thread count trends over time in a JFR recording. Buckets memory usage by time intervals to detect memory leaks and growth patterns.")
+    @Tool(
+            name = ToolNames.HEAP_TRENDS,
+            title = "Heap Trends Analysis",
+            description = "Analyze heap, metaspace, and thread count trends over time in a JFR recording. Buckets memory usage by time intervals to detect memory leaks and growth patterns.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse heapTrends(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
             @ToolArg(name = "bucket_size", required = false, description = "Interval bucket size (e.g., '10s', '1m', '5m'). Default is '1m'.") String bucketSize
-    ) {
-        try {
-            HeapTrendsResult result = appService.analyze(jfrFilePath, startTime, endTime, bucketSize != null ? bucketSize : "1m");
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                HeapTrendsResult result = appService.analyze(jfrFilePath, startTime, endTime, bucketSize != null ? bucketSize : "1m");
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(HeapTrendsResult result) {

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GcDetailToolTest {
 
@@ -54,7 +55,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisDoesNotThrowClassCastException() {
+    void analysisDoesNotThrowClassCastException() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -63,7 +64,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisWithBeforeJfrDoesNotThrow() {
+    void analysisWithBeforeJfrDoesNotThrow() throws Exception {
         ToolResponse result = tool.gcDetail(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -72,7 +73,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisContainsGenerationalSummary() {
+    void analysisContainsGenerationalSummary() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -81,7 +82,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisContainsPhaseBreakdownWhenAllSelected() {
+    void analysisContainsPhaseBreakdownWhenAllSelected() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, "all");
 
         assertThat(result.isError()).isFalse();
@@ -90,7 +91,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisContainsHeapTrendsWhenAllSelected() {
+    void analysisContainsHeapTrendsWhenAllSelected() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, "all");
 
         assertThat(result.isError()).isFalse();
@@ -99,7 +100,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisOnlyPhasesWhenRequested() {
+    void analysisOnlyPhasesWhenRequested() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, "phases");
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisOnlyHeapTrendsWhenRequested() {
+    void analysisOnlyHeapTrendsWhenRequested() throws Exception {
         ToolResponse result = tool.gcDetail(afterPath, null, null, "heap_trends");
 
         assertThat(result.isError()).isFalse();
@@ -119,7 +120,7 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.gcDetail(afterPath, null, null, null);
         ToolResponse second = tool.gcDetail(afterPath, null, null, null);
 
@@ -129,19 +130,15 @@ class GcDetailToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.gcDetail("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.gcDetail("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.gcDetail(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.gcDetail(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.SystemPropertiesApplicationService;
 import io.github.deplague.jmcmcp.domain.model.SystemPropertiesResult;
@@ -26,17 +29,18 @@ public final class SystemPropertiesTool {
     }
 
     @RunOnVirtualThread
-    @Tool(description = "List the JVM and OS system properties captured in a JFR recording.")
+    @Tool(
+            name = ToolNames.SYSTEM_PROPERTIES,
+            title = "System Properties",
+            description = "List the JVM and OS system properties captured in a JFR recording.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse systemProperties(
-            @ToolArg(name = "jfr_file_path", description = "Path to JFR file", required = true) String jfrFilePath,
-            @ToolArg(name = "filter", description = "Optional filter for property names (e.g., 'java.vm')", required = false) String filter) {
-        try {
-            SystemPropertiesResult result = applicationService.analyze(jfrFilePath, filter);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "filter", description = "Optional filter for property names (e.g., 'java.vm')", required = false) String filter) throws Exception {
+        SystemPropertiesResult result = applicationService.analyze(jfrFilePath, filter);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(SystemPropertiesResult result) {
