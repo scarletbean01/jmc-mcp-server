@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.SmartJdbcNPlusOneAnalyzerApplicationService;
 import io.github.deplague.jmcmcp.domain.model.JdbcNPlusOnePattern;
@@ -26,22 +29,24 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
     }
 
     @RunOnVirtualThread
-    @Tool(description = "Smart tool that detects JDBC N+1 query anti-patterns by analyzing sequential short-duration socket I/O events correlated with SQL/ORM stack traces.")
+    @Tool(
+            name = ToolNames.SMART_JDBC_N_PLUS_ONE_ANALYZER,
+            title = "Smart JDBC N+1 Analyzer",
+            description = "Smart tool that detects JDBC N+1 query anti-patterns by analyzing sequential short-duration socket I/O events correlated with SQL/ORM stack traces.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse smartJdbcNPlusOneAnalyzer(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "top_n", required = false, description = "Number of top N+1 patterns to return (default 5)") Integer topN
-    ) {
-        try {
-            JdbcNPlusOneResult result = applicationService.analyze(
-                    jfrFilePath, startTime, endTime, topN != null ? topN : 5);
-
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "top_n", required = false, defaultValue = "10", description = ToolDocs.TOP_N_10) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                JdbcNPlusOneResult result = applicationService.analyze(
+                            jfrFilePath, startTime, endTime, topN != null ? topN : 5);
+        
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(JdbcNPlusOneResult result) {
@@ -84,18 +89,17 @@ public final class SmartJdbcNPlusOneAnalyzerTool {
         }
 
         JdbcNPlusOnePattern worst = result.patterns().getFirst();
-        StringBuilder hint = new StringBuilder();
-        hint.append("Detected an N+1 query pattern in `").append(worst.triggeringMethod()).append("`. ");
-        hint.append(worst.totalReads()).append(" sequential DB socket reads occurred in ");
-        hint.append(String.format("%.0f ms", worst.burstWindowMs())).append(". ");
+        sb.append("<agent_hint>");
+        sb.append("Detected an N+1 query pattern in `").append(worst.triggeringMethod()).append("`. ");
+        sb.append(worst.totalReads()).append(" sequential DB socket reads occurred in ");
+        sb.append(String.format("%.0f ms", worst.burstWindowMs())).append(". ");
         if (worst.hasOrm()) {
-            hint.append("An ORM framework is involved. ");
+            sb.append("An ORM framework is involved. ");
         }
-        hint.append("Consider refactoring to use a SQL JOIN, batch fetching (e.g., `@BatchSize` or `JOIN FETCH`), "
-                + "or an Entity Graph. Use `smart_stack_trace_search` with `class_pattern` to find all occurrences "
-                + "of this method.");
-
-        sb.append("<agent_hint>").append(hint).append("</agent_hint>\n");
+        sb.append("Consider refactoring to use a SQL JOIN, batch fetching (e.g., `@BatchSize` or `JOIN FETCH`), ")
+                .append("or an Entity Graph. Use `stack_trace_search` with `class_pattern` to find all occurrences ")
+                .append("of this method.");
+        sb.append("</agent_hint>\n");
 
         return sb.toString();
     }

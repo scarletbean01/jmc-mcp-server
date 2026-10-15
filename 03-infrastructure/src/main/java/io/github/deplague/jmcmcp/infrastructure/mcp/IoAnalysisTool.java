@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.IoAnalysisApplicationService;
 import io.github.deplague.jmcmcp.domain.model.IoAnalysisResult;
@@ -23,25 +26,27 @@ public final class IoAnalysisTool {
     private final IoAnalysisApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Analyze file and socket I/O events in a JFR recording. Reports read/write durations and throughput.")
+    @Tool(
+            name = ToolNames.IO_ANALYSIS,
+            title = "I/O Analysis",
+            description = "Analyze file and socket I/O events in a JFR recording. Reports read/write durations and throughput.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse ioAnalysis(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
             @ToolArg(name = "io_type", required = false, description = "Which I/O events to analyze: file, socket, or all (default)") String ioType
-    ) {
-        try {
-            IoAnalysisResult result = appService.analyze(
-                    jfrFilePath,
-                    startTime,
-                    endTime,
-                    ioType != null ? ioType : "all"
-            );
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                IoAnalysisResult result = appService.analyze(
+                            jfrFilePath,
+                            startTime,
+                            endTime,
+                            ioType != null ? ioType : "all"
+                    );
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(IoAnalysisResult result) {

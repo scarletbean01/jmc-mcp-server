@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.StackTraceSearchApplicationService;
 import io.github.deplague.jmcmcp.domain.exception.AnalysisFailedException;
@@ -26,30 +29,26 @@ public final class StackTraceSearchTool {
     private final StackTraceSearchApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Search for a class/method pattern across all JFR event types that contain stack traces. Returns full (non-truncated) stack traces with event-specific details.")
+    @Tool(
+            name = ToolNames.STACK_TRACE_SEARCH,
+            title = "Stack Trace Search",
+            description = "Search for a class/method pattern across all JFR event types that contain stack traces. Returns full (non-truncated) stack traces with event-specific details.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse smartStackTraceSearch(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
             @ToolArg(name = "class_pattern", description = "Regex pattern to match against class names in stack traces (e.g., '.*TenantService.*', '.*DAO.*')") String classPattern,
             @ToolArg(name = "event_type", required = false, description = "Filter to specific event type (e.g., 'jdk.JavaMonitorEnter'), or 'all' (default)") String eventType,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
             @ToolArg(name = "limit", required = false, description = "Maximum results to return (default 20)") Integer limit
-    ) {
-        try {
-            StackTraceSearchResult result = appService.analyze(
-                    jfrFilePath, startTime, endTime, classPattern, eventType != null ? eventType : "all", limit != null ? limit : 20
-            );
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (AnalysisFailedException e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.startsWith("Invalid regex pattern")) {
-                return ToolResponse.error("# Stack Trace Search\n\n" + msg);
-            }
-            return ToolResponse.error("Error: " + msg);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                StackTraceSearchResult result = appService.analyze(
+                            jfrFilePath, startTime, endTime, classPattern, eventType != null ? eventType : "all", limit != null ? limit : 20
+                    );
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     public String formatMarkdown(StackTraceSearchResult result) {
@@ -62,6 +61,15 @@ public final class StackTraceSearchTool {
         sb.append("**Total matches found:** ")
                 .append(result.limited() ? result.limit() + "+" : result.matches().size())
                 .append("\n\n");
+
+        sb.append("## Class Distribution\n\n");
+        sb.append("| Event Type | Matches |\n");
+        sb.append("|------------|--------|\n");
+        result.distribution().entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .forEach(e -> sb.append("| `").append(e.getKey())
+                        .append("` | ").append(e.getValue()).append(" |\n"));
+        sb.append("\n");
 
         sb.append("## Matching Stack Traces\n\n");
         for (int i = 0; i < result.matches().size(); i++) {
@@ -79,15 +87,6 @@ public final class StackTraceSearchTool {
             sb.append("- **Stack Trace:**\n```\n")
                     .append(m.fullTrace()).append("\n```\n\n");
         }
-
-        sb.append("## Class Distribution\n\n");
-        sb.append("| Event Type | Matches |\n");
-        sb.append("|------------|--------|\n");
-        result.distribution().entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .forEach(e -> sb.append("| `").append(e.getKey())
-                        .append("` | ").append(e.getValue()).append(" |\n"));
-        sb.append("\n");
 
         if (!result.distribution().isEmpty()) {
             String topType = result.distribution().entrySet().stream()

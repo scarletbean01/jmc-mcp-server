@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.CompareRecordingsApplicationService;
 import io.quarkiverse.mcp.server.Tool;
@@ -22,16 +25,17 @@ public final class CompareRecordingsTool {
     private final CompareRecordingsApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Perform a comprehensive expert-level A/B comparison of two JFR recordings. Compares CPU, GC (including P95/P99), Memory, I/O, Safepoints, and JVM internals.")
+    @Tool(
+            name = ToolNames.COMPARE_RECORDINGS,
+            title = "Compare Recordings",
+            description = "Perform a comprehensive expert-level A/B comparison of two JFR recordings. Compares CPU, GC (including P95/P99), Memory, I/O, Safepoints, and JVM internals.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse compareRecordings(
             @ToolArg(name = "baseline_jfr_path", description = "Absolute or relative path to the baseline .jfr recording file") String baselineJfrPath,
             @ToolArg(name = "target_jfr_path", description = "Absolute or relative path to the target .jfr recording file") String targetJfrPath
-    ) {
-        try {
-            String result = appService.analyze(baselineJfrPath, targetJfrPath);
-            return ToolResponse.success(result);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        String result = appService.analyze(baselineJfrPath, targetJfrPath);
+                    return ToolResponse.success(ToolOutput.limit(result));
     }
 }

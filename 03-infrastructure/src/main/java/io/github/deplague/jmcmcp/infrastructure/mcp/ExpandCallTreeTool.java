@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.ExpandCallTreeApplicationService;
 import io.github.deplague.jmcmcp.domain.model.ExpandCallTreeChildEntry;
@@ -23,18 +26,19 @@ public final class ExpandCallTreeTool {
     private final ExpandCallTreeApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Expand a specific node in a cached call tree to view its immediate children.")
+    @Tool(
+            name = ToolNames.EXPAND_CALL_TREE,
+            title = "Expand Call Tree Node",
+            description = "Expand a specific node in a cached call tree to view its immediate children.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse expandCallTree(
             @ToolArg(name = "tree_id", description = "Unique tree ID returned by call_tree") String treeId,
             @ToolArg(name = "node_id", description = "Node ID to expand, e.g., root-0-2-1") String nodeId
-    ) {
-        try {
-            ExpandCallTreeResult result = appService.expand(treeId, nodeId);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        ExpandCallTreeResult result = appService.expand(treeId, nodeId);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(ExpandCallTreeResult result) {

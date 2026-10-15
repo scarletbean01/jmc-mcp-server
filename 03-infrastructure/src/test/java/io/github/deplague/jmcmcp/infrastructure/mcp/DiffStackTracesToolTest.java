@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DiffStackTracesToolTest {
 
@@ -52,7 +53,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffShowsResultForBeforeVsAfter() {
+    void diffShowsResultForBeforeVsAfter() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -61,7 +62,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsRecordingContext() {
+    void diffContainsRecordingContext() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -73,7 +74,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsNewMethodsSection() {
+    void diffContainsNewMethodsSection() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -82,7 +83,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsDisappearedMethodsSection() {
+    void diffContainsDisappearedMethodsSection() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -91,7 +92,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsChangedProminenceSection() {
+    void diffContainsChangedProminenceSection() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -100,7 +101,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsStableMethodsSection() {
+    void diffContainsStableMethodsSection() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffContainsAgentHint() {
+    void diffContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -118,7 +119,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffWithPackagePrefix() {
+    void diffWithPackagePrefix() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, "java", null);
 
         assertThat(result.isError()).isFalse();
@@ -126,7 +127,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffWithTopNParameter() {
+    void diffWithTopNParameter() throws Exception {
         ToolResponse result = tool.smartDiffStackTraces(beforePath, afterPath, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -134,7 +135,7 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffCachesResultOnSecondCall() {
+    void diffCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
         ToolResponse second = tool.smartDiffStackTraces(beforePath, afterPath, null, null);
 
@@ -144,35 +145,27 @@ class DiffStackTracesToolTest {
     }
 
     @Test
-    void diffReturnsErrorForMissingBaselinePath() {
-        ToolResponse result = tool.smartDiffStackTraces(null, afterPath, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void diffReturnsErrorForMissingBaselinePath() throws Exception {
+        assertThatThrownBy(() -> tool.smartDiffStackTraces(null, afterPath, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void diffReturnsErrorForMissingTargetPath() {
-        ToolResponse result = tool.smartDiffStackTraces(beforePath, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void diffReturnsErrorForMissingTargetPath() throws Exception {
+        assertThatThrownBy(() -> tool.smartDiffStackTraces(beforePath, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void diffReturnsErrorForMissingBaselineFile() {
-        ToolResponse result = tool.smartDiffStackTraces("/nonexistent/path.jfr", afterPath, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void diffReturnsErrorForMissingBaselineFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartDiffStackTraces("/nonexistent/path.jfr", afterPath, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void diffReturnsErrorForMissingTargetFile() {
-        ToolResponse result = tool.smartDiffStackTraces(beforePath, "/nonexistent/path.jfr", null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void diffReturnsErrorForMissingTargetFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartDiffStackTraces(beforePath, "/nonexistent/path.jfr", null, null))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.DiffCallTreeApplicationService;
 import io.github.deplague.jmcmcp.domain.model.DiffCallTreeNodeEntry;
@@ -25,22 +28,23 @@ public final class DiffCallTreeTool {
     private final DiffCallTreeApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Initialize an interactive diff call tree comparing two JFR recordings. Returns root-level diff nodes with a treeId for subsequent expansion. Shows added, removed, and changed call paths.")
+    @Tool(
+            name = ToolNames.DIFF_CALL_TREE,
+            title = "Differential Call Tree",
+            description = "Initialize an interactive diff call tree comparing two JFR recordings. Returns root-level diff nodes with a treeId for subsequent expansion. Shows added, removed, and changed call paths.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse diffCallTree(
             @ToolArg(name = "baseline_jfr_path", description = "Absolute or relative path to the baseline .jfr recording file") String baselineJfrPath,
             @ToolArg(name = "target_jfr_path", description = "Absolute or relative path to the target .jfr recording file") String targetJfrPath,
             @ToolArg(name = "subsystem", description = "Subsystem to isolate: cpu, socket, file, lock") String subsystem,
             @ToolArg(name = "package_filter", required = false, description = "Optional package prefix to filter call tree (e.g., 'com.mycompany')") String packageFilter
-    ) {
-        try {
-            DiffCallTreeResult result = appService.analyze(
-                    baselineJfrPath, targetJfrPath, subsystem, packageFilter);
-
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        DiffCallTreeResult result = appService.analyze(
+                            baselineJfrPath, targetJfrPath, subsystem, packageFilter);
+        
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(DiffCallTreeResult result) {
@@ -72,9 +76,9 @@ public final class DiffCallTreeTool {
             }
         }
 
-        sb.append("\n<agent_hint>Use `expand_diff_node` with `tree_id=`").append(result.treeId())
-                .append("` and a `node_id` to drill down. Consider `diff_stack_traces` "
-                + "for a flattened method-level comparison or `compare_recordings` for metric-level analysis.</agent_hint>\n");
+        sb.append("\n<agent_hint>Use `" + ToolNames.EXPAND_DIFF_CALL_TREE + "` with `tree_id=`").append(result.treeId())
+                .append("` and a `node_id` to drill down. Consider `" + ToolNames.DIFF_STACK_TRACES + "` "
+                + "for a flattened method-level comparison or `" + ToolNames.COMPARE_RECORDINGS + "` for metric-level analysis.</agent_hint>\n");
 
         return sb.toString();
     }

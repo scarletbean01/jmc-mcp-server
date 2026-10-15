@@ -22,8 +22,9 @@ public class ThreadCpuApplicationService {
 
     public ThreadCpuResult analyze(String filePath, String startTime, String endTime,
                                    String packagePrefix, int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return threadCpuService.analyze(events, packagePrefix, topN);
+        return threadCpuService.analyze(events, packagePrefix, effectiveTopN);
     }
 }

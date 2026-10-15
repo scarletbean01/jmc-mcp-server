@@ -96,6 +96,22 @@ public class AnalysisMetrics {
     }
 
     /**
+     * Record execution duration and outcome for an MCP tool.
+     *
+     * @param toolName   the tool name
+     * @param outcome    outcome ("success" or "error")
+     * @param durationMs duration in milliseconds
+     */
+    public void recordMcpToolDuration(String toolName, String outcome, long durationMs) {
+        Timer.builder("jmc.mcp.tool.duration")
+                .tag("tool", toolName != null ? toolName : "unknown")
+                .tag("outcome", outcome)
+                .description("MCP tool execution duration")
+                .register(registry)
+                .record(durationMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
+    /**
      * Record a cache hit.
      */
     public void recordCacheHit() {

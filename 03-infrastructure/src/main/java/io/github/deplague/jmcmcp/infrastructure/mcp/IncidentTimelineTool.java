@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.IncidentTimelineApplicationService;
 import io.github.deplague.jmcmcp.domain.model.IncidentTimelineResult;
@@ -24,22 +27,23 @@ public final class IncidentTimelineTool {
     private final IncidentTimelineApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Recreate an incident timeline by locating an anchor event (or timestamp) and dumping a chronological list of high-impact events surrounding it.")
+    @Tool(
+            name = ToolNames.INCIDENT_TIMELINE,
+            title = "Incident Timeline",
+            description = "Recreate an incident timeline by locating an anchor event (or timestamp) and dumping a chronological list of high-impact events surrounding it.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse smartIncidentTimeline(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
             @ToolArg(name = "anchor_event", required = false, description = "Optional event type to use as anchor (e.g., jdk.JavaErrorThrow)") String anchorEvent,
             @ToolArg(name = "anchor_time", required = false, description = "Optional ISO-8601 anchor time (used if anchor_event is omitted)") String anchorTime,
             @ToolArg(name = "window_ms", required = false, description = "Time window in milliseconds to inspect around the anchor (default 2000)") Integer windowMs
-    ) {
-        try {
-            IncidentTimelineResult result = appService.analyze(
-                    jfrFilePath, anchorEvent, anchorTime, windowMs != null ? windowMs : 2000
-            );
-            String markdown = formatMarkdown(result, anchorEvent);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+    ) throws Exception {
+        IncidentTimelineResult result = appService.analyze(
+                            jfrFilePath, anchorEvent, anchorTime, windowMs != null ? windowMs : 2000
+                    );
+                    String markdown = formatMarkdown(result, anchorEvent);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(IncidentTimelineResult result, String anchorEvent) {

@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.SmartLockResolverApplicationService;
 import io.github.deplague.jmcmcp.domain.model.LockHolderIssue;
@@ -24,20 +27,22 @@ public final class SmartLockResolverTool {
     private final SmartLockResolverApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Smart tool that identifies lock holder threads causing contention, analyzes what the holder is doing while blocking others, and suggests remedies.")
+    @Tool(
+            name = ToolNames.SMART_LOCK_RESOLVER,
+            title = "Smart Lock Resolver",
+            description = "Smart tool that identifies lock holder threads causing contention, analyzes what the holder is doing while blocking others, and suggests remedies.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse smartLockResolver(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "top_n", required = false, description = "Number of top lock issues to return (default 5)") Integer topN
-    ) {
-        try {
-            SmartLockResolverResult result = appService.analyze(jfrFilePath, startTime, endTime, topN != null ? topN : 5);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "top_n", required = false, defaultValue = "10", description = ToolDocs.TOP_N_10) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                SmartLockResolverResult result = appService.analyze(jfrFilePath, startTime, endTime, topN != null ? topN : 5);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(SmartLockResolverResult result) {
@@ -85,25 +90,23 @@ public final class SmartLockResolverTool {
             sb.append("\n");
         }
 
-        // Build agent hint from the worst offender
         LockHolderIssue worst = result.topIssues().get(0);
 
-        StringBuilder hint = new StringBuilder();
-        hint.append("Lock contention resolved: Thread `").append(worst.holderName()).append("` is holding `")
+        sb.append("\n<agent_hint>");
+        sb.append("Lock contention resolved: Thread `").append(worst.holderName()).append("` is holding `")
                 .append(worst.monitorClass()).append("` and blocking ").append(worst.blockedThreadCount())
                 .append(" other threads. ");
         if (worst.holderActivity() != null && worst.holderActivity().hasIo()) {
-            hint.append("The holder is performing I/O while holding the lock — a critical anti-pattern. ");
-            hint.append("Consider reducing lock scope or using `ReentrantReadWriteLock`.");
+            sb.append("The holder is performing I/O while holding the lock — a critical anti-pattern. ");
+            sb.append("Consider reducing lock scope or using `ReentrantReadWriteLock`.");
         } else if (worst.holderActivity() != null && worst.holderActivity().hasSql()) {
-            hint.append("The holder is performing SQL while holding the lock. ");
-            hint.append("Consider moving the SQL outside the synchronized block.");
+            sb.append("The holder is performing SQL while holding the lock. ");
+            sb.append("Consider moving the SQL outside the synchronized block.");
         } else {
-            hint.append("Consider using `ReentrantLock` with timeout or `StampedLock` to reduce contention.");
+            sb.append("Consider using `ReentrantLock` with timeout or `StampedLock` to reduce contention.");
         }
-        hint.append(" Use `smart_correlate` to see if this lock is associated with I/O hotspots.");
-
-        sb.append("<agent_hint>").append(hint).append("</agent_hint>\n");
+        sb.append(" Use `correlate` to see if this lock is associated with I/O hotspots.");
+        sb.append("</agent_hint>\n");
 
         return sb.toString();
     }

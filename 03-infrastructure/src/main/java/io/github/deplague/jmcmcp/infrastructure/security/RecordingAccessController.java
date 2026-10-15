@@ -9,10 +9,15 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,14 +60,24 @@ public final class RecordingAccessController {
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .map(Paths::get)
-                    .map(Path::toAbsolutePath)
-                    .map(Path::normalize)
+                    .map(p -> {
+                        try {
+                            return p.toFile().exists() ? p.toRealPath() : p.toAbsolutePath().normalize();
+                        } catch (Exception e) {
+                            return p.toAbsolutePath().normalize();
+                        }
+                    })
                     .collect(Collectors.toList());
         } else {
             // Default: only allow files under the current working directory
-            this.allowedBasePaths = Collections.singletonList(
-                    Paths.get("").toAbsolutePath().normalize()
-            );
+            Path cwd = Paths.get("");
+            Path resolvedCwd;
+            try {
+                resolvedCwd = cwd.toRealPath();
+            } catch (Exception e) {
+                resolvedCwd = cwd.toAbsolutePath().normalize();
+            }
+            this.allowedBasePaths = Collections.singletonList(resolvedCwd);
         }
 
         String schemesEnv = System.getenv(ENV_ALLOWED_SCHEMES);
@@ -91,9 +106,20 @@ public final class RecordingAccessController {
      * @throws IllegalArgumentException if the path is malformed
      */
     public void validate(String rawPath) {
+        validate(rawPath, null);
+    }
+
+    /**
+     * Validate path with optional file extension restrictions.
+     *
+     * @return the canonical path that was checked, for file paths. Callers that go on to read or
+     *         write the file should use this instead of the raw input so that the checked and the
+     *         used location cannot diverge. {@code null} for non-file URI schemes.
+     */
+    public Path validate(String rawPath, Set<String> allowedExtensions) {
         if (validationDisabled) {
             LOG.warn("Path validation is DISABLED. This is insecure for production use.");
-            return;
+            return rawPath != null ? Paths.get(rawPath).toAbsolutePath().normalize() : null;
         }
 
         if (rawPath == null || rawPath.isBlank()) {
@@ -102,12 +128,22 @@ public final class RecordingAccessController {
 
         // Detect null bytes and control characters
         if (rawPath.contains("\0") || containsControlChars(rawPath)) {
-            throw new AnalysisFailedException("Path contains invalid characters");
+            throw new SecurityException("Path contains invalid characters");
         }
 
         // Check for obvious traversal patterns
         if (containsTraversal(rawPath)) {
-            throw new AnalysisFailedException("Path traversal detected: " + rawPath);
+            throw new SecurityException("Path traversal detected: " + rawPath);
+        }
+
+        // Optional extension check
+        if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
+            String lower = rawPath.toLowerCase();
+            boolean matchesExt = allowedExtensions.stream().anyMatch(ext -> lower.endsWith(ext.toLowerCase()));
+            if (!matchesExt) {
+                throw new SecurityException("File extension not allowed for: " + rawPath
+                        + ". Allowed extensions: " + allowedExtensions);
+            }
         }
 
         // Parse URI to detect scheme
@@ -122,6 +158,8 @@ public final class RecordingAccessController {
                     + ". Allowed schemes: " + allowedSchemes);
         }
 
+        Path validatedPath = null;
+
         // For file:// URIs and plain paths, validate against base directory allowlist
         if ("file".equals(scheme)) {
             String pathPart = uri.getPath();
@@ -132,25 +170,76 @@ public final class RecordingAccessController {
                 pathPart = rawPath;
             }
 
-            File file = new File(pathPart).getAbsoluteFile();
-            Path normalizedPath = file.toPath().toAbsolutePath().normalize();
+            Path targetPath = resolveSecurely(Paths.get(pathPart).toAbsolutePath().normalize());
 
+            Path finalTargetPath = targetPath;
             // Must be under one of the allowed base paths
             boolean allowed = allowedBasePaths.stream()
-                    .anyMatch(base -> normalizedPath.startsWith(base));
+                    .anyMatch(base -> finalTargetPath.startsWith(base));
 
             if (!allowed) {
-                throw new SecurityException(
-                        "Access denied: " + normalizedPath + " is not within any allowed base path: " + allowedBasePaths);
+                throw new PathAccessDeniedException();
             }
 
+            // The extension must also hold for the resolved target, otherwise an allowed-looking
+            // symlink (e.g. "x.jfr" -> "application.properties") could redirect the I/O.
+            if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
+                Path resolvedName = targetPath.getFileName();
+                String lowerName = resolvedName != null ? resolvedName.toString().toLowerCase() : "";
+                if (allowedExtensions.stream().noneMatch(ext -> lowerName.endsWith(ext.toLowerCase()))) {
+                    throw new SecurityException("File extension not allowed (the path resolves to a file named '"
+                            + resolvedName + "'). Allowed extensions: " + allowedExtensions);
+                }
+            }
+
+            validatedPath = targetPath;
+
             // File size check (only for existing files)
+            File file = targetPath.toFile();
             if (file.exists() && file.isFile() && file.length() > MAX_FILE_SIZE_BYTES) {
                 throw new SecurityException("File exceeds maximum allowed size (10GB): " + rawPath);
             }
         }
 
         LOG.debug("Path validated: {}", rawPath);
+        return validatedPath;
+    }
+
+    /**
+     * Resolve {@code path} to its canonical location without requiring it to exist.
+     *
+     * <p>The deepest existing ancestor (checked with {@code NOFOLLOW_LINKS}, so a dangling
+     * symlink is seen as a link rather than as missing) is canonicalized with
+     * {@code toRealPath()} and the not-yet-existing tail is appended.</p>
+     *
+     * <p>Dangling symlinks are rejected outright rather than followed: resolving their target
+     * textually (including {@code ..}) disagrees with how the kernel resolves it after following
+     * intermediate links, so the checked and the written location could differ.</p>
+     */
+    private static Path resolveSecurely(Path path) {
+        Path existing = path;
+        Deque<Path> remaining = new ArrayDeque<>();
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            Path name = existing.getFileName();
+            if (name != null) {
+                remaining.addFirst(name);
+            }
+            existing = existing.getParent();
+        }
+        if (existing == null || (Files.isSymbolicLink(existing) && !Files.exists(existing))) {
+            throw new PathAccessDeniedException();
+        }
+
+        try {
+            Path resolved = existing.toRealPath();
+            for (Path part : remaining) {
+                resolved = resolved.resolve(part);
+            }
+            return resolved.normalize();
+        } catch (IOException e) {
+            // Deliberately omit the path: this message can reach the MCP client.
+            throw new SecurityException("Failed to resolve the canonical path", e);
+        }
     }
 
     /**

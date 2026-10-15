@@ -22,8 +22,9 @@ public class ThreadPoolAnalysisApplicationService {
 
     public ThreadPoolAnalysisResult analyze(String filePath, String startTime, String endTime,
                                             int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return threadPoolAnalysisService.analyze(events, topN);
+        return threadPoolAnalysisService.analyze(events, effectiveTopN);
     }
 }

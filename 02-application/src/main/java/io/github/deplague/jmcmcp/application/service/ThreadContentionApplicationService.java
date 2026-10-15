@@ -21,8 +21,9 @@ public class ThreadContentionApplicationService {
     private final ThreadContentionService threadContentionService;
 
     public ThreadContentionResult analyze(String filePath, String startTime, String endTime, int topN) throws IOException {
+        int effectiveTopN = topN <= 0 ? 10 : topN;
         IItemCollection allEvents = jfrProvider.loadRecording(filePath);
         IItemCollection events = jfrProvider.filterByTimeRange(allEvents, startTime, endTime);
-        return threadContentionService.analyze(events, topN);
+        return threadContentionService.analyze(events, effectiveTopN);
     }
 }

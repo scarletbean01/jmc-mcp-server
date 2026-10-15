@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.port.JfrProvider;
 import io.github.deplague.jmcmcp.domain.model.RecordingSettingsResult;
@@ -26,18 +29,19 @@ public final class RecordingSettingsTool {
     private final RecordingSettingsService recordingSettingsService;
 
     @RunOnVirtualThread
-    @Tool(description = "List the event settings and configurations used for a JFR recording.")
+    @Tool(
+            name = ToolNames.RECORDING_SETTINGS,
+            title = "Recording Settings Analysis",
+            description = "List the event settings and configurations used for a JFR recording.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse recordingSettings(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file")
-            String jfrFilePath) {
-        try {
-            IItemCollection events = jfrProvider.loadRecording(jfrFilePath);
-            RecordingSettingsResult result = recordingSettingsService.analyze(events);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH)
+            String jfrFilePath) throws Exception {
+        IItemCollection events = jfrProvider.loadRecording(jfrFilePath);
+                    RecordingSettingsResult result = recordingSettingsService.analyze(events);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(RecordingSettingsResult result) {

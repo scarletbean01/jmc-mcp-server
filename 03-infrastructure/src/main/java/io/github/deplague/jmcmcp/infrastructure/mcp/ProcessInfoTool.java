@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.ProcessInfoApplicationService;
 import io.github.deplague.jmcmcp.domain.model.ProcessEntry;
@@ -24,17 +27,18 @@ public final class ProcessInfoTool {
     private final ProcessInfoApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Gather OS version, virtualization details, and running processes context.")
+    @Tool(
+            name = ToolNames.PROCESS_INFO,
+            title = "Process Information",
+            description = "Gather OS version, virtualization details, and running processes context.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse processInfo(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath
-    ) {
-        try {
-            ProcessInfoResult result = appService.analyze(jfrFilePath);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath
+    ) throws Exception {
+        ProcessInfoResult result = appService.analyze(jfrFilePath);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(ProcessInfoResult result) {

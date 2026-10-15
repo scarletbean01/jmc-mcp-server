@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.BlockingSummaryApplicationService;
 import io.github.deplague.jmcmcp.domain.model.BlockingSummaryResult;
@@ -23,25 +26,27 @@ public final class BlockingSummaryTool {
     private final BlockingSummaryApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Aggregate all blocking events (monitors, parking, sleeping, I/O) per thread.")
+    @Tool(
+            name = ToolNames.BLOCKING_SUMMARY,
+            title = "Blocking Summary",
+            description = "Aggregate all blocking events (monitors, parking, sleeping, I/O) per thread.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse blockingSummary(
-            @ToolArg(name = "jfr_file_path", description = "Absolute or relative path to the .jfr recording file") String jfrFilePath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "top_n", required = false, description = "Number of top threads/reasons to return (default 10)") Integer topN
-    ) {
-        try {
-            BlockingSummaryResult result = appService.analyze(
-                    jfrFilePath,
-                    startTime,
-                    endTime,
-                    topN != null ? topN : 10
-            );
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "jfr_file_path", description = ToolDocs.JFR_FILE_PATH) String jfrFilePath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "top_n", required = false, defaultValue = "10", description = ToolDocs.TOP_N_10) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                BlockingSummaryResult result = appService.analyze(
+                            jfrFilePath,
+                            startTime,
+                            endTime,
+                            topN != null ? topN : 10
+                    );
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(BlockingSummaryResult result) {
@@ -97,7 +102,7 @@ public final class BlockingSummaryTool {
 
         if (result.monitorContentionDetected()) {
             sb.append(
-                    "\n<agent_hint>Monitor lock contention detected. Use 'thread_contention' or 'lock_analysis' to investigate which threads are holding the locks and causing these blockages.</agent_hint>\n"
+                    "\n<agent_hint>Monitor lock contention detected. Use `thread_contention` or `lock_analysis` to investigate which threads are holding the locks and causing these blockages.</agent_hint>\n"
             );
         }
 

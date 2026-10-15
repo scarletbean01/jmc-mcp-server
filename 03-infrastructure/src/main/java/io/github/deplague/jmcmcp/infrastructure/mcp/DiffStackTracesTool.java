@@ -1,4 +1,7 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.DiffStackTracesApplicationService;
 import io.github.deplague.jmcmcp.domain.model.DiffStackTracesResult;
@@ -23,21 +26,22 @@ public final class DiffStackTracesTool {
     private final DiffStackTracesApplicationService appService;
 
     @RunOnVirtualThread
-    @Tool(description = "Compare hot methods between two JFR recordings at the method level. Shows new methods, disappeared methods, and changed prominence (>20% change).")
+    @Tool(
+            name = ToolNames.DIFF_STACK_TRACES,
+            title = "Differential Stack Traces",
+            description = "Compare hot methods between two JFR recordings at the method level. Shows new methods, disappeared methods, and changed prominence (>20% change).",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse smartDiffStackTraces(
             @ToolArg(name = "baseline_jfr_path", description = "Absolute or relative path to the baseline .jfr recording file") String baselineJfrPath,
             @ToolArg(name = "target_jfr_path", description = "Absolute or relative path to the target .jfr recording file") String targetJfrPath,
-            @ToolArg(name = "package_prefix", required = false, description = "Optional package prefix to filter (e.g., 'com.mycompany')") String packagePrefix,
-            @ToolArg(name = "top_n", required = false, description = "Number of top methods per category (default 20)") Integer topN
-    ) {
-        try {
-            DiffStackTracesResult result = appService.analyze(
-                    baselineJfrPath, targetJfrPath, packagePrefix, topN != null ? topN : 20);
-            String markdown = formatMarkdown(result, topN != null ? topN : 20);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "package_prefix", required = false, description = ToolDocs.PACKAGE_PREFIX) String packagePrefix,
+            @ToolArg(name = "top_n", required = false, defaultValue = "20", description = ToolDocs.TOP_N_20) Integer topN
+    ) throws Exception {
+        DiffStackTracesResult result = appService.analyze(
+                            baselineJfrPath, targetJfrPath, packagePrefix, topN != null ? topN : 20);
+                    String markdown = formatMarkdown(result, topN != null ? topN : 20);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     public String formatMarkdown(DiffStackTracesResult result, int topN) {

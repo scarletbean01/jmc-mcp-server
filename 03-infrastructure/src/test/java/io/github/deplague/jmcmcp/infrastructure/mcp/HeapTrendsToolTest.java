@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HeapTrendsToolTest {
 
@@ -51,7 +52,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisDoesNotThrowClassCastException() {
+    void analysisDoesNotThrowClassCastException() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -60,7 +61,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisWithBeforeJfrDoesNotThrow() {
+    void analysisWithBeforeJfrDoesNotThrow() throws Exception {
         ToolResponse result = tool.heapTrends(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -69,7 +70,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisContainsHeapUsageTrend() {
+    void analysisContainsHeapUsageTrend() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -78,7 +79,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisContainsMetaspaceUsageTrend() {
+    void analysisContainsMetaspaceUsageTrend() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -87,7 +88,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisContainsThreadCountTrend() {
+    void analysisContainsThreadCountTrend() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -96,7 +97,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisContainsSummaryStatistics() {
+    void analysisContainsSummaryStatistics() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -105,7 +106,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisWithCustomBucketSize() {
+    void analysisWithCustomBucketSize() throws Exception {
         ToolResponse result = tool.heapTrends(afterPath, null, null, "5m");
 
         assertThat(result.isError()).isFalse();
@@ -114,7 +115,7 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.heapTrends(afterPath, null, null, null);
         ToolResponse second = tool.heapTrends(afterPath, null, null, null);
 
@@ -124,19 +125,15 @@ class HeapTrendsToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.heapTrends("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.heapTrends("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.heapTrends(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.heapTrends(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     private static String extractText(ToolResponse result) {

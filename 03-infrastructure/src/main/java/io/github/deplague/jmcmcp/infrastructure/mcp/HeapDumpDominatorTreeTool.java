@@ -1,4 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.HeapDumpAnalysisApplicationService;
 import io.github.deplague.jmcmcp.domain.model.DominatorTreeResult;
@@ -6,7 +10,6 @@ import io.github.deplague.jmcmcp.domain.model.HeapObjectEntry;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
-import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -18,20 +21,21 @@ public final class HeapDumpDominatorTreeTool {
 
     private final HeapDumpAnalysisApplicationService appService;
 
-    @Blocking
-    @Tool(description = "Analyze a heap dump (HPROF) and return the dominator tree — the biggest objects by retained size. These are the objects that would free the most memory if collected.")
+    @RunOnVirtualThread
+    @Tool(
+            name = ToolNames.HEAP_DUMP_DOMINATOR_TREE,
+            title = "Heap Dump Dominator Tree",
+            description = "Analyze a heap dump (HPROF) and return the dominator tree — the biggest objects by retained size. These are the objects that would free the most memory if collected.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse heapDumpDominatorTree(
-            @ToolArg(name = "heap_dump_path", description = "Absolute or relative path to the .hprof heap dump file") String heapDumpPath,
-            @ToolArg(name = "top_n", required = false, description = "Number of top dominators to return (default 50)") Integer topN
-    ) {
-        try {
-            DominatorTreeResult result = appService.dominatorTree(
-                    heapDumpPath, topN != null ? topN : 50);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "heap_dump_path", description = ToolDocs.HEAP_DUMP_PATH) String heapDumpPath,
+            @ToolArg(name = "top_n", required = false, defaultValue = "50", description = ToolDocs.TOP_N_50) Integer topN
+    ) throws Exception {
+        DominatorTreeResult result = appService.dominatorTree(
+                            heapDumpPath, topN != null ? topN : 50);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(DominatorTreeResult result) {

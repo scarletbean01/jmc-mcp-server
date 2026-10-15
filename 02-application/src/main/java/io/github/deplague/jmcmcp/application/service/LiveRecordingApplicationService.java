@@ -24,7 +24,11 @@ public class LiveRecordingApplicationService {
     }
 
     public LiveRecordingStartResult start(String jmxUrl, String name, long durationSeconds) throws Exception {
-        return liveRecordingService.startRecording(jmxUrl, name, durationSeconds);
+        return liveRecordingService.startRecording(jmxUrl, name, durationSeconds, null);
+    }
+
+    public LiveRecordingStartResult start(String jmxUrl, String name, long durationSeconds, String settings) throws Exception {
+        return liveRecordingService.startRecording(jmxUrl, name, durationSeconds, settings);
     }
 
     public LiveRecordingStopResult stop(String jmxUrl, long recordingId) throws Exception {

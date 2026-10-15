@@ -33,13 +33,8 @@ public class JfrProviderImpl implements JfrProvider {
      * relative seconds passed by callers, e.g. "0" and "30"). Values above
      * year-2000 in epoch-seconds (946_684_800) are treated as absolute epoch-seconds.
      */
-    private static final long MIN_VALID_EPOCH_SECONDS = 946_684_800L; // 2000-01-01T00:00:00Z
-
-    /**
-     * If an integer value is larger than this it is likely epoch-milliseconds
-     * rather than epoch-seconds.
-     */
-    private static final long EPOCH_MS_THRESHOLD = MIN_VALID_EPOCH_SECONDS * 1_000L;
+    private static final long MIN_VALID_EPOCH_SECONDS = EpochThresholds.MIN_VALID_EPOCH_SECONDS;
+    private static final long EPOCH_MS_THRESHOLD = EpochThresholds.EPOCH_MS_THRESHOLD;
 
     private final JfrRecordingCache cache;
     private final RecordingAccessController accessController;

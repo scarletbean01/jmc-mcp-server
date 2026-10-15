@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HotMethodsToolTest {
 
@@ -52,7 +53,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisShowsResultFromAfterFixesFile() {
+    void analysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.hotMethods(afterPath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -60,7 +61,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisShowsResultFromBeforeFixesFile() {
+    void analysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -68,7 +69,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisContainsTableHeaderWhenSamplesPresent() {
+    void analysisContainsTableHeaderWhenSamplesPresent() throws Exception {
         ToolResponse result = tool.hotMethods(afterPath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -81,7 +82,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisContainsNoSamplesMessageWhenNoneFound() {
+    void analysisContainsNoSamplesMessageWhenNoneFound() throws Exception {
         ToolResponse result = tool.hotMethods(afterPath, "2099-12-31T23:59:59Z", "2099-12-31T23:59:58Z", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -93,7 +94,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithCustomTopN() {
+    void analysisWithCustomTopN() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, 3);
 
         assertThat(result.isError()).isFalse();
@@ -101,7 +102,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithTopNAsString() {
+    void analysisWithTopNAsString() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, 5);
 
         assertThat(result.isError()).isFalse();
@@ -109,7 +110,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisTopNLimitsResults() {
+    void analysisTopNLimitsResults() throws Exception {
         ToolResponse result1 = tool.hotMethods(beforePath, null, null, null, null, 1);
         ToolResponse result2 = tool.hotMethods(beforePath, null, null, null, null, 20);
 
@@ -124,7 +125,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisDefaultTopNIsTen() {
+    void analysisDefaultTopNIsTen() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -137,7 +138,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithThreadNameFilter() {
+    void analysisWithThreadNameFilter() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, "main", null, null);
 
         assertThat(result.isError()).isFalse();
@@ -145,7 +146,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithPackagePrefixFilter() {
+    void analysisWithPackagePrefixFilter() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, "java.lang", null);
 
         assertThat(result.isError()).isFalse();
@@ -153,7 +154,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithThreadNameAndPackagePrefix() {
+    void analysisWithThreadNameAndPackagePrefix() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, "main", "java", null);
 
         assertThat(result.isError()).isFalse();
@@ -161,7 +162,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.hotMethods(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -169,23 +170,19 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.hotMethods("/nonexistent/path.jfr", null, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.hotMethods("/nonexistent/path.jfr", null, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.hotMethods(null, null, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.hotMethods(null, null, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisSampleCountsAreNumeric() {
+    void analysisSampleCountsAreNumeric() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -197,7 +194,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisStackTraceFramesAreFormatted() {
+    void analysisStackTraceFramesAreFormatted() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, null, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -209,7 +206,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisThreadNameFilterReducesResults() {
+    void analysisThreadNameFilterReducesResults() throws Exception {
         ToolResponse unfiltered = tool.hotMethods(beforePath, null, null, null, null, null);
         ToolResponse filtered = tool.hotMethods(beforePath, null, null, "nonexistent-thread-xyz", null, null);
 
@@ -226,7 +223,7 @@ class HotMethodsToolTest {
     }
 
     @Test
-    void analysisAllOptionalParametersTogether() {
+    void analysisAllOptionalParametersTogether() throws Exception {
         ToolResponse result = tool.hotMethods(beforePath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", "main", "java", 5);
 
         assertThat(result.isError()).isFalse();

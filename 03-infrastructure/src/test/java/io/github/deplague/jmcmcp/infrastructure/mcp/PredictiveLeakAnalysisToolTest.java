@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PredictiveLeakAnalysisToolTest {
 
@@ -51,7 +52,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisShowsResultFromAfterFixesFile() {
+    void analysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -59,7 +60,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisShowsResultFromBeforeFixesFile() {
+    void analysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -67,7 +68,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsVerdict() {
+    void analysisContainsVerdict() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -81,7 +82,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisVerdictIsOneOfExpectedTypes() {
+    void analysisVerdictIsOneOfExpectedTypes() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -100,7 +101,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsLeakMetrics() {
+    void analysisContainsLeakMetrics() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -117,7 +118,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsCurrentPostGcHeap() {
+    void analysisContainsCurrentPostGcHeap() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -131,7 +132,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisGrowthRateIsInKBPerMin() {
+    void analysisGrowthRateIsInKBPerMin() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -145,7 +146,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsRegressionDetails() {
+    void analysisContainsRegressionDetails() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -162,7 +163,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsLeakSuspectsSection() {
+    void analysisContainsLeakSuspectsSection() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -176,7 +177,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisLeakSuspectsContainsClassTableWhenAvailable() {
+    void analysisLeakSuspectsContainsClassTableWhenAvailable() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -188,7 +189,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisLeakSuspectsShowsNoOldObjectSamplesMessageWhenMissing() {
+    void analysisLeakSuspectsShowsNoOldObjectSamplesMessageWhenMissing() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -204,7 +205,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisContainsTableHeaders() {
+    void analysisContainsTableHeaders() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -219,7 +220,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisRoundedValueFormat() {
+    void analysisRoundedValueFormat() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -234,7 +235,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisWithCustomRSquaredThreshold() {
+    void analysisWithCustomRSquaredThreshold() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, 0.5);
 
         assertThat(result.isError()).isFalse();
@@ -249,7 +250,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisWithHighRSquaredThreshold() {
+    void analysisWithHighRSquaredThreshold() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, 0.99);
 
         assertThat(result.isError()).isFalse();
@@ -257,7 +258,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisWithRSquaredThresholdAsString() {
+    void analysisWithRSquaredThresholdAsString() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, 0.9);
 
         assertThat(result.isError()).isFalse();
@@ -265,7 +266,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisWithTimeRange() {
+    void analysisWithTimeRange() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -273,7 +274,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisOomProjectionWhenLeakDetected() {
+    void analysisOomProjectionWhenLeakDetected() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -290,7 +291,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisOomProjectionContainsAlreadyExceededWhenApplicable() {
+    void analysisOomProjectionContainsAlreadyExceededWhenApplicable() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -302,7 +303,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisMaxHeapSizeWhenAvailable() {
+    void analysisMaxHeapSizeWhenAvailable() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -314,7 +315,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisHeapUtilizationPercentage() {
+    void analysisHeapUtilizationPercentage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -326,7 +327,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisNoLeakVerdictMessage() {
+    void analysisNoLeakVerdictMessage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -338,7 +339,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisInconclusiveVerdictMessage() {
+    void analysisInconclusiveVerdictMessage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -350,7 +351,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisPossibleLeakVerdictMessage() {
+    void analysisPossibleLeakVerdictMessage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -362,23 +363,19 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartPredictiveLeakAnalysis("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void analysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartPredictiveLeakAnalysis("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.smartPredictiveLeakAnalysis(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void analysisReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.smartPredictiveLeakAnalysis(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void analysisCachesResultOnSecondCall() {
+    void analysisCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
         ToolResponse second = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
@@ -388,7 +385,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisInsufficientDataPointsMessage() {
+    void analysisInsufficientDataPointsMessage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, "2099-12-31T23:59:59Z", "2099-12-31T23:59:58Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -400,7 +397,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisNoHeapEventsMessage() {
+    void analysisNoHeapEventsMessage() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, "2099-12-31T23:59:59Z", "2099-12-31T23:59:58Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -412,7 +409,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisDataPointsCount() {
+    void analysisDataPointsCount() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -427,7 +424,7 @@ class PredictiveLeakAnalysisToolTest {
     }
 
     @Test
-    void analysisSlopeAndInterceptFormat() {
+    void analysisSlopeAndInterceptFormat() throws Exception {
         ToolResponse result = tool.smartPredictiveLeakAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();

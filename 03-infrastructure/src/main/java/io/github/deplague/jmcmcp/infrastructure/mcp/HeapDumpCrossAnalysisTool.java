@@ -1,4 +1,8 @@
 package io.github.deplague.jmcmcp.infrastructure.mcp;
+import io.smallrye.common.annotation.RunOnVirtualThread;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolOutput;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolDocs;
+import io.github.deplague.jmcmcp.infrastructure.mcp.ToolNames;
 
 import io.github.deplague.jmcmcp.application.service.HeapDumpCrossAnalysisApplicationService;
 import io.github.deplague.jmcmcp.domain.model.CrossAnalysisResult;
@@ -6,7 +10,6 @@ import io.github.deplague.jmcmcp.domain.model.UnifiedClassEntry;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
-import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
@@ -18,23 +21,25 @@ public final class HeapDumpCrossAnalysisTool {
 
     private final HeapDumpCrossAnalysisApplicationService crossAnalysisService;
 
-    @Blocking
-    @Tool(description = "Perform a unified cross-analysis between a JFR recording and a linked heap dump. Correlates JFR OldObjectSample leak signals with heap dump retained sizes to produce severity-ranked leak candidates.")
+    @RunOnVirtualThread
+    @Tool(
+            name = ToolNames.HEAP_DUMP_CROSS_ANALYSIS,
+            title = "Heap Dump & JFR Cross Analysis",
+            description = "Perform a unified cross-analysis between a JFR recording and a linked heap dump. Correlates JFR OldObjectSample leak signals with heap dump retained sizes to produce severity-ranked leak candidates.",
+            annotations = @Tool.Annotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false)
+    )
     public ToolResponse heapDumpCrossAnalysis(
-            @ToolArg(name = "recording_path", description = "Absolute or relative path to the .jfr recording file") String recordingPath,
-            @ToolArg(name = "heap_dump_path", description = "Absolute or relative path to the .hprof heap dump file") String heapDumpPath,
-            @ToolArg(name = "start_time", required = false, description = "Optional start time in ISO-8601 format") String startTime,
-            @ToolArg(name = "end_time", required = false, description = "Optional end time in ISO-8601 format") String endTime,
-            @ToolArg(name = "top_n", required = false, description = "Number of top correlated classes to return (default 50)") Integer topN
-    ) {
-        try {
-            CrossAnalysisResult result = crossAnalysisService.analyze(
-                    recordingPath, heapDumpPath, startTime, endTime, topN != null ? topN : 50);
-            String markdown = formatMarkdown(result);
-            return ToolResponse.success(markdown);
-        } catch (Exception e) {
-            return ToolResponse.error("Error: " + e.getMessage());
-        }
+            @ToolArg(name = "recording_path", description = ToolDocs.JFR_FILE_PATH) String recordingPath,
+            @ToolArg(name = "heap_dump_path", description = ToolDocs.HEAP_DUMP_PATH) String heapDumpPath,
+            @ToolArg(name = "start_time", required = false, description = ToolDocs.START_TIME) String startTime,
+            @ToolArg(name = "end_time", required = false, description = ToolDocs.END_TIME) String endTime,
+            @ToolArg(name = "top_n", required = false, defaultValue = "50", description = ToolDocs.TOP_N_50) Integer topN
+    ) throws Exception {
+        TimeRangeArgs.validateRange(startTime, endTime);
+                CrossAnalysisResult result = crossAnalysisService.analyze(
+                            recordingPath, heapDumpPath, startTime, endTime, topN != null ? topN : 50);
+                    String markdown = formatMarkdown(result);
+                    return ToolResponse.success(ToolOutput.limit(markdown));
     }
 
     private String formatMarkdown(CrossAnalysisResult result) {

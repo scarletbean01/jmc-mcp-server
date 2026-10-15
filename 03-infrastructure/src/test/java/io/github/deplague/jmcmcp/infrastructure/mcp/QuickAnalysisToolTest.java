@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QuickAnalysisToolTest {
 
@@ -106,7 +107,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisShowsResultFromAfterFixesFile() {
+    void quickAnalysisShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -115,7 +116,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisShowsResultFromBeforeFixesFile() {
+    void quickAnalysisShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -124,7 +125,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisContainsRecordingOverview() {
+    void quickAnalysisContainsRecordingOverview() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -134,7 +135,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisContainsSystemHealth() {
+    void quickAnalysisContainsSystemHealth() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -143,7 +144,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisContainsSeverityFindings() {
+    void quickAnalysisContainsSeverityFindings() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -152,7 +153,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisContainsRecommendedNextSteps() {
+    void quickAnalysisContainsRecommendedNextSteps() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -161,7 +162,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisAutoFocus() {
+    void quickAnalysisAutoFocus() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, "auto");
 
         assertThat(result.isError()).isFalse();
@@ -170,7 +171,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisCpuFocus() {
+    void quickAnalysisCpuFocus() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, "cpu");
 
         assertThat(result.isError()).isFalse();
@@ -179,7 +180,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisMemoryFocus() {
+    void quickAnalysisMemoryFocus() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, "memory");
 
         assertThat(result.isError()).isFalse();
@@ -188,7 +189,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisLatencyFocus() {
+    void quickAnalysisLatencyFocus() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, "latency");
 
         assertThat(result.isError()).isFalse();
@@ -197,7 +198,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisLocksFocus() {
+    void quickAnalysisLocksFocus() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(beforePath, null, null, "locks");
 
         assertThat(result.isError()).isFalse();
@@ -206,7 +207,7 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisWithTimeRange() {
+    void quickAnalysisWithTimeRange() throws Exception {
         ToolResponse result = tool.smartQuickAnalysis(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -214,23 +215,19 @@ class QuickAnalysisToolTest {
     }
 
     @Test
-    void quickAnalysisReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartQuickAnalysis("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void quickAnalysisReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartQuickAnalysis("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void quickAnalysisReturnsErrorForMissingJfrFilePath() {
-        ToolResponse result = tool.smartQuickAnalysis(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void quickAnalysisReturnsErrorForMissingJfrFilePath() throws Exception {
+        assertThatThrownBy(() -> tool.smartQuickAnalysis(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void quickAnalysisCachesResultOnSecondCall() {
+    void quickAnalysisCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.smartQuickAnalysis(afterPath, null, null, null);
         ToolResponse second = tool.smartQuickAnalysis(afterPath, null, null, null);
 

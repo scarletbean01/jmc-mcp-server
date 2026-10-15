@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CorrelateToolTest {
 
@@ -54,7 +55,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateShowsResultFromAfterFixesFile() {
+    void correlateShowsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartCorrelate(afterPath, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -62,7 +63,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateShowsResultFromBeforeFixesFile() {
+    void correlateShowsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -70,7 +71,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateContainsLockIoSection() {
+    void correlateContainsLockIoSection() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, "all", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -79,7 +80,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateContainsCpuGcSectionWhenAll() {
+    void correlateContainsCpuGcSectionWhenAll() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, "all", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -88,7 +89,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateDimensionLockIoDbOmitsCpuGc() {
+    void correlateDimensionLockIoDbOmitsCpuGc() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, "lock_io_db", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -98,7 +99,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateDimensionCpuGcShowsCpuGcSection() {
+    void correlateDimensionCpuGcShowsCpuGcSection() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, "cpu_gc", null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -107,7 +108,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateWithTopNParameter() {
+    void correlateWithTopNParameter() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, null, null, null, 3);
 
         assertThat(result.isError()).isFalse();
@@ -115,7 +116,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateWithTimeRange() {
+    void correlateWithTimeRange() throws Exception {
         ToolResponse result = tool.smartCorrelate(afterPath, null, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
@@ -123,7 +124,7 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateContainsAgentHint() {
+    void correlateContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartCorrelate(beforePath, null, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -132,23 +133,19 @@ class CorrelateToolTest {
     }
 
     @Test
-    void correlateReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartCorrelate("/nonexistent/path.jfr", null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void correlateReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartCorrelate("/nonexistent/path.jfr", null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void correlateReturnsErrorForMissingJfrFilePath() {
-        ToolResponse result = tool.smartCorrelate(null, null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void correlateReturnsErrorForMissingJfrFilePath() throws Exception {
+        assertThatThrownBy(() -> tool.smartCorrelate(null, null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void correlateCachesResultOnSecondCall() {
+    void correlateCachesResultOnSecondCall() throws Exception {
         ToolResponse first = tool.smartCorrelate(afterPath, null, null, null, null);
         ToolResponse second = tool.smartCorrelate(afterPath, null, null, null, null);
 

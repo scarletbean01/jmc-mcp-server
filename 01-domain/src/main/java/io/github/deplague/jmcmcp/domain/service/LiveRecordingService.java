@@ -51,7 +51,7 @@ public final class LiveRecordingService {
         });
     }
 
-    public LiveRecordingStartResult startRecording(String jmxUrl, String name, long durationSeconds) throws Exception {
+    public LiveRecordingStartResult startRecording(String jmxUrl, String name, long durationSeconds, String settings) throws Exception {
         return withConnection(jmxUrl, (conn, flightRecorder) -> {
             Map<String, String> recordingOptions = new HashMap<>();
             recordingOptions.put("name", name);
@@ -62,6 +62,12 @@ public final class LiveRecordingService {
                     flightRecorder, "newRecording",
                     new Object[0], new String[0]);
 
+            if (settings != null && !settings.isBlank()) {
+                conn.invoke(flightRecorder, "setPredefinedConfiguration",
+                        new Object[]{recordingId, settings.trim().toLowerCase()},
+                        new String[]{"long", "java.lang.String"});
+            }
+
             conn.invoke(flightRecorder, "setRecordingOptions",
                     new Object[]{recordingId, recordingOptions},
                     new String[]{"long", "java.util.Map"});
@@ -71,6 +77,10 @@ public final class LiveRecordingService {
 
             return new LiveRecordingStartResult(recordingId, name, durationSeconds);
         });
+    }
+
+    public LiveRecordingStartResult startRecording(String jmxUrl, String name, long durationSeconds) throws Exception {
+        return startRecording(jmxUrl, name, durationSeconds, null);
     }
 
     public LiveRecordingStopResult stopRecording(String jmxUrl, long recordingId) throws Exception {

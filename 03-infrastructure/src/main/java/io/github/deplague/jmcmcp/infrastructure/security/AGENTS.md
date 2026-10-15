@@ -17,4 +17,5 @@ This package provides technical guards and access control for the server.
 ## Guidelines for Agents
 - **Security First:** **ALWAYS** call `RecordingAccessController.validate(path)` before any file I/O involving user-provided paths.
 - **No Bypass:** Do not implement your own path normalization or validation; rely on this centralized controller.
-- **Error Propagation:** Validation failures will throw `SecurityException` or `AnalysisFailedException`, which are handled by tool interceptors.
+- **Error Propagation:** Validation failures will throw `PathAccessDeniedException` (a `SecurityException` with a fixed, path-free message), other `SecurityException`s, or `AnalysisFailedException`, which are handled by tool interceptors.
+- **Symlinks:** Paths are canonicalized via the deepest existing ancestor (checked with `NOFOLLOW_LINKS`). Dangling symlinks are rejected, not followed, and the extension allowlist is re-checked on the resolved target. Use the `Path` returned by `validate(path, exts)` for the actual I/O.

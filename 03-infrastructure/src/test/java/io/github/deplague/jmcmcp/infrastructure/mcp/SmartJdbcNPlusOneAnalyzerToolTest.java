@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SmartJdbcNPlusOneAnalyzerToolTest {
 
@@ -51,7 +52,7 @@ class SmartJdbcNPlusOneAnalyzerToolTest {
     }
 
     @Test
-    void nPlusOneAnalyzerReturnsResultFromAfterFixesFile() {
+    void nPlusOneAnalyzerReturnsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartJdbcNPlusOneAnalyzer(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -60,7 +61,7 @@ class SmartJdbcNPlusOneAnalyzerToolTest {
     }
 
     @Test
-    void nPlusOneAnalyzerReturnsResultFromBeforeFixesFile() {
+    void nPlusOneAnalyzerReturnsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartJdbcNPlusOneAnalyzer(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -68,7 +69,7 @@ class SmartJdbcNPlusOneAnalyzerToolTest {
     }
 
     @Test
-    void nPlusOneAnalyzerContainsAgentHint() {
+    void nPlusOneAnalyzerContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartJdbcNPlusOneAnalyzer(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -78,23 +79,19 @@ class SmartJdbcNPlusOneAnalyzerToolTest {
     }
 
     @Test
-    void nPlusOneAnalyzerReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartJdbcNPlusOneAnalyzer("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void nPlusOneAnalyzerReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartJdbcNPlusOneAnalyzer("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void nPlusOneAnalyzerReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.smartJdbcNPlusOneAnalyzer(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error: Path cannot be null or blank");
+    void nPlusOneAnalyzerReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.smartJdbcNPlusOneAnalyzer(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void nPlusOneAnalyzerCachesResultOnSecondCall() {
+    void nPlusOneAnalyzerCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.smartJdbcNPlusOneAnalyzer(afterPath, null, null, null);
         ToolResponse second = tool.smartJdbcNPlusOneAnalyzer(afterPath, null, null, null);
 

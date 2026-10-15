@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SmartLockResolverToolTest {
 
@@ -51,7 +52,7 @@ class SmartLockResolverToolTest {
     }
 
     @Test
-    void lockResolverReturnsResultFromAfterFixesFile() {
+    void lockResolverReturnsResultFromAfterFixesFile() throws Exception {
         ToolResponse result = tool.smartLockResolver(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -59,7 +60,7 @@ class SmartLockResolverToolTest {
     }
 
     @Test
-    void lockResolverReturnsResultFromBeforeFixesFile() {
+    void lockResolverReturnsResultFromBeforeFixesFile() throws Exception {
         ToolResponse result = tool.smartLockResolver(beforePath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -67,7 +68,7 @@ class SmartLockResolverToolTest {
     }
 
     @Test
-    void lockResolverContainsAgentHint() {
+    void lockResolverContainsAgentHint() throws Exception {
         ToolResponse result = tool.smartLockResolver(afterPath, null, null, null);
 
         assertThat(result.isError()).isFalse();
@@ -77,23 +78,19 @@ class SmartLockResolverToolTest {
     }
 
     @Test
-    void lockResolverReturnsErrorForMissingFile() {
-        ToolResponse result = tool.smartLockResolver("/nonexistent/path.jfr", null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains("Error:");
+    void lockResolverReturnsErrorForMissingFile() throws Exception {
+        assertThatThrownBy(() -> tool.smartLockResolver("/nonexistent/path.jfr", null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void lockResolverReturnsErrorForMissingArgument() {
-        ToolResponse result = tool.smartLockResolver(null, null, null, null);
-
-        assertThat(result.isError()).isTrue();
-        assertThat(extractText(result)).contains(  "Error: Path cannot be null or blank");
+    void lockResolverReturnsErrorForMissingArgument() throws Exception {
+        assertThatThrownBy(() -> tool.smartLockResolver(null, null, null, null))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
-    void lockResolverCachesResultOnSecondCall() {
+    void lockResolverCachesResultOnSecondCall() throws Exception {
                 ToolResponse first = tool.smartLockResolver(afterPath, null, null, null);
         ToolResponse second = tool.smartLockResolver(afterPath, null, null, null);
 
@@ -103,7 +100,7 @@ class SmartLockResolverToolTest {
     }
 
     @Test
-    void lockResolverWithTimeRange() {
+    void lockResolverWithTimeRange() throws Exception {
         ToolResponse result = tool.smartLockResolver(afterPath, "2025-01-01T00:00:00Z", "2099-12-31T23:59:59Z", null);
 
         assertThat(result.isError()).isFalse();
